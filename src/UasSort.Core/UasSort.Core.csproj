@@ -8,4 +8,10 @@
     <PackageReference Include="GeoTimeZone" />
     <PackageReference Include="System.IO.Hashing" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Ref 10.6: only test code reaches CleanupPlan/ConfirmedCleanupPlan's internal constructors: Core.Tests
+         (TestCleanupPlans) and the shared fakes (CleanupPlanFixtures, Part 08). No assembly-attribute file anywhere else. -->
+    <InternalsVisibleTo Include="UasSort.Core.Tests" />
+    <InternalsVisibleTo Include="UasSort.Testing" />
+  </ItemGroup>
 </Project>
