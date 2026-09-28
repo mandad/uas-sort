@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Ref §2.5. Unpackaged, self-contained (.NET + Windows App SDK), lean component packages, Native AOT in Release. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
+    <RootNamespace>UasSort.App</RootNamespace>
+    <AssemblyName>uas-sort</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <Platforms>x64</Platforms>
+    <!-- x64 only (user decision 2026-09-28). -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- dotnet build of the solution: the SDK's own RID (win-x64 on the x64 PCs). Publishes pass -r win-x64 explicitly. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</RuntimeIdentifier>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <!-- Still required unpackaged, else the .pri/.xbf files are missing and startup crashes with 0xC000027B. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- Custom Program.Main (Ref §4.4). -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Every Release publish is Native AOT (it implies trimming). ReadyToRun is never a build configuration. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- MetadataExtractor's trim behaviour is UNVERIFIED, so it is rooted (Ref §2.1, §2.5). -->
+    <TrimmerRootAssembly Include="MetadataExtractor;XmpCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+    <Content Include="MapAssets\**" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="SelfTest\*.jpg;SelfTest\*.dng;SelfTest\*.jsonl" LogicalName="UasSort.App.SelfTest.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UasSort.Review\UasSort.Review.csproj" />
+    <ProjectReference Include="..\UasSort.Platform\UasSort.Platform.csproj" />
+  </ItemGroup>
+</Project>

@@ -128,4 +128,37 @@ public sealed class BuildConfigTests
         var missing = onDisk.Where(p => p != probe && !listed.Contains(p)).Order(StringComparer.Ordinal).ToList();
         Assert.True(missing.Count == 0, "missing from uas-sort.slnx: " + string.Join(", ", missing));
     }
+
+    private static readonly string[] ForbiddenAppProperties =
+        ["PublishReadyToRun", "PublishTrimmed", "PublishSingleFile", "InvariantGlobalization", "UseNls"];
+
+    [Fact]
+    public void AppProject_IsUnpackagedSelfContainedNativeAot()
+    {
+        var csproj = XDocument.Load(RepoPaths.Of("src/UasSort.App/UasSort.App.csproj"));
+        string Prop(string name) => csproj.Descendants(name).Select(e => e.Value.Trim()).FirstOrDefault() ?? "";
+
+        Assert.Equal("WinExe", Prop("OutputType"));
+        Assert.Equal("uas-sort", Prop("AssemblyName"));
+        Assert.Equal("net11.0-windows10.0.26100.0", Prop("TargetFramework"));
+        Assert.Equal("10.0.26100.0", Prop("TargetPlatformMinVersion"));
+        Assert.Equal("true", Prop("UseWinUI"));
+        Assert.Equal("false", Prop("WinUISDKReferences"));
+        Assert.Equal("x64", Prop("Platforms"));                  // x64 only (user decision 2026-09-28)
+        Assert.Equal("win-x64", Prop("RuntimeIdentifiers"));
+        Assert.Equal("None", Prop("WindowsPackageType"));
+        Assert.Equal("true", Prop("WindowsAppSDKSelfContained"));
+        Assert.Equal("true", Prop("SelfContained"));
+        Assert.Equal("true", Prop("EnableMsixTooling"));
+        Assert.Contains("DISABLE_XAML_GENERATED_MAIN", Prop("DefineConstants"), StringComparison.Ordinal);
+
+        var release = csproj.Descendants("PropertyGroup")
+            .Single(g => ((string?)g.Attribute("Condition"))?.Contains("'Release'", StringComparison.Ordinal) == true);
+        Assert.Equal("true", release.Element("PublishAot")?.Value.Trim());
+        Assert.Equal("MetadataExtractor;XmpCore", (string?)csproj.Descendants("TrimmerRootAssembly").Single().Attribute("Include"));
+        foreach (var forbidden in ForbiddenAppProperties)
+        {
+            Assert.Empty(csproj.Descendants(forbidden));
+        }
+    }
 }

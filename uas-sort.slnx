@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/UasSort.App/UasSort.App.csproj" />
     <Project Path="src/UasSort.Cli/UasSort.Cli.csproj" />
     <Project Path="src/UasSort.Core/UasSort.Core.csproj" />
     <Project Path="src/UasSort.Platform/UasSort.Platform.csproj" />

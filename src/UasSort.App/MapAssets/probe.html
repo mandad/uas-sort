@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>uas-sort probe</title>
+  <script>
+    // First lines: forward errors to the host (Ref §2.7 #6). Messages carry v:1 before type (Ref §9.6).
+    const post = m => window.chrome.webview.postMessage(Object.assign({ v: 1 }, m));
+    window.addEventListener('error', e => post({ type: 'error', base: null, message: String(e.message) }));
+    window.addEventListener('unhandledrejection', e => post({ type: 'error', base: null, message: String(e.reason) }));
+    window.chrome.webview.addEventListener('message', e => {
+      const m = e.data;
+      if (m && m.type === 'ping') post({ type: 'pong', n: m.n });
+    });
+    post({ type: 'ready', maplibre: null, webgl2: !!document.createElement('canvas').getContext('webgl2') });
+  </script>
+</head>
+<body style="margin:0;font:14px system-ui">
+  <p style="margin:12px">uas-sort virtual host OK</p>
+</body>
+</html>

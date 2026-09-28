@@ -16,4 +16,8 @@
     <ProjectReference Include="..\..\src\UasSort.Platform\UasSort.Platform.csproj" />
     <ProjectReference Include="..\UasSort.Testing\UasSort.Testing.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- No test project references the WinUI exe; its plain-C# command-line parser is compiled in here to be tested. -->
+    <Compile Include="..\..\src\UasSort.App\LaunchOptions.cs" Link="Launch\LaunchOptions.cs" />
+  </ItemGroup>
 </Project>
