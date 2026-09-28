@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
+    <RootNamespace>UasSort.Cli</RootNamespace>
+    <AssemblyName>uas-sort-cli</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UasSort.Core\UasSort.Core.csproj" />
+    <ProjectReference Include="..\UasSort.Platform\UasSort.Platform.csproj" />
+  </ItemGroup>
+</Project>

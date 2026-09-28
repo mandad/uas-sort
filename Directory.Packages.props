@@ -1,0 +1,22 @@
+<Project>
+  <!-- Exact pins queried from nuget.org on 2026-09-27 (Ref §2.1, §2.5). No floating versions, no VersionOverride. -->
+  <ItemGroup>
+    <!-- Windows App SDK 2.5.1 component packages. Never the full Microsoft.WindowsAppSDK (+58 MB onnxruntime/DirectML). -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <!-- WinUI 2.3.9 / Foundation 2.3.12 ask for InteractiveExperiences >= 2.1.8, which was never published (NU1603). -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <!-- The only toolkit line that works with the lean component packages (preview). -->
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.3.260402-preview2" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.3.260402-preview2" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="MetadataExtractor" Version="2.9.3" />
+    <PackageVersion Include="GeoTimeZone" Version="6.1.0" />
+    <PackageVersion Include="System.IO.Hashing" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
+  </ItemGroup>
+</Project>

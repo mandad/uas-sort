@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
+    <RootNamespace>UasSort.Platform</RootNamespace>
+    <!-- LibraryImport needs it, else SYSLIB1062 (Ref §2.5). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UasSort.Core\UasSort.Core.csproj" />
+  </ItemGroup>
+</Project>
