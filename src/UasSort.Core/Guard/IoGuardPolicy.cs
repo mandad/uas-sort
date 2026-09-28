@@ -31,8 +31,8 @@ public static class IoGuardPolicy
         if (attributes is uint a && (a & PlaceholderBits) != 0 && op != IoOp.SetPinned)
             return IsTopLevelLedgerFile(path, ledgerDir) ? new GuardCloudOnly(path) : new GuardHydration(path, a);
 
-        // Rule 2: the card root. CardDelete has its own rules (Task 02.7).
-        if (op == IoOp.CardDelete) return Unsafe(op, path, "card deletes need a confirmed cleanup plan");
+        // Rules 1b and 2 for CardDelete (Card cleanup only, Ref §10.6); then rule 2 for every other op.
+        if (op == IoOp.CardDelete) return CheckCardDelete(path, attributes!.Value, ledgerDir, ctx);
         if (ctx.CardRoot is { } card && PathRules.IsSameOrUnder(path, card))
             return op == IoOp.ReadData ? Allow() : Unsafe(op, path, "nothing on the card is ever created, written, renamed or changed");
 
@@ -47,6 +47,40 @@ public static class IoGuardPolicy
 
         // Rule 6.
         return Unsafe(op, path, "outside every configured root");
+    }
+
+    private static GuardDecision CheckCardDelete(string path, uint attributes, string ledgerDir, GuardContext ctx)
+    {
+        // Rule 1b: never a library, ledger, app-data or system-volume path, whatever else the context says.
+        if (ProtectedRootOf(path, ledgerDir, ctx) is { } what)
+            return Unsafe(IoOp.CardDelete, path, $"a card delete never touches {what}");
+
+        // Rule 2.
+        if (ctx.CardRoot is not { } card || !PathRules.IsSameOrUnder(path, card))
+            return Unsafe(IoOp.CardDelete, path, "outside the card root");
+        if (ctx.Cleanup is not { } plan)
+            return Unsafe(IoOp.CardDelete, path, "no confirmed cleanup plan");
+        if (!ctx.CardIsVerifiedCardVolume)
+            return Unsafe(IoOp.CardDelete, path, "the card volume wasn't verified from Win32");
+        if (!PathRules.Equal(plan.Plan.CardRoot, card))
+            return Unsafe(IoOp.CardDelete, path, "the confirmed plan is for another card root");
+
+        var isDirectory = (attributes & FileAttributeDirectory) != 0;
+        if (!isDirectory && PathRules.SetContains(plan.FilePaths, path)) return Allow();
+        if (isDirectory && PathRules.SetContains(plan.SetFolders, path)) return Allow();
+        return Unsafe(IoOp.CardDelete, path, isDirectory ? "not a set folder the confirmed plan names" : "not a file the confirmed plan names");
+    }
+
+    private static string? ProtectedRootOf(string path, string ledgerDir, GuardContext ctx)
+    {
+        if (PathRules.IsSameOrUnder(path, ledgerDir)) return "the ledger folder";
+        if (PathRules.IsSameOrUnder(path, ctx.VideoRoot)) return "the video root";
+        if (PathRules.IsSameOrUnder(path, ctx.PhotoRoot)) return "the photo root";
+        foreach (var p in ctx.PreviousPhotoRoots)
+            if (PathRules.IsSameOrUnder(path, p)) return "a previous photo root";
+        if (PathRules.IsSameOrUnder(path, ctx.AppDataDir)) return "the app's data folder";
+        if (PathRules.IsSameOrUnder(path, ctx.SystemVolumeRoot)) return "the system volume";
+        return null;
     }
 
     private static GuardDecision CheckLedgerFolder(IoOp op, string path, uint? attributes, string ledgerDir, GuardContext ctx)
