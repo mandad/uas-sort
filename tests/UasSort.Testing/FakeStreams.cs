@@ -62,3 +62,48 @@ internal sealed class FakeAppendStream(FakeFileSystem fs, FakeNode node, bool fa
     public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
     public override void SetLength(long value) => throw new NotSupportedException();
 }
+
+/// <summary>Card read stream with the FakeFaults card hooks.</summary>
+internal sealed class FaultyCardStream(Stream inner, FakeFaults faults, string cardRelPath) : Stream
+{
+    private bool _transientFired;
+
+    public override bool CanRead => true;
+    public override bool CanSeek => inner.CanSeek;
+    public override bool CanWrite => false;
+    public override long Length => inner.Length;
+    public override long Position { get => inner.Position; set => inner.Position = value; }
+    public override void Flush() { }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        if (faults.CardRemoved) throw FakeCardReader.NotReady();
+        if (faults.PersistentCardReadError.Contains(cardRelPath))
+            throw new IOException("Data error (cyclic redundancy check).", unchecked((int)0x80070017));
+        if (!_transientFired && faults.TransientCardReadError.Contains(cardRelPath))
+        {
+            _transientFired = true;
+            throw new IOException("The request could not be performed because of an I/O device error.", unchecked((int)0x8007045D));
+        }
+        if (faults.CardVanishesAfterBytes.TryGetValue(cardRelPath, out var limit))
+        {
+            if (inner.Position >= limit)
+            {
+                faults.CardRemoved = true;
+                throw FakeCardReader.NotReady();
+            }
+            count = (int)Math.Min(count, limit - inner.Position);
+        }
+        return inner.Read(buffer, offset, count);
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) inner.Dispose();
+        base.Dispose(disposing);
+    }
+}
