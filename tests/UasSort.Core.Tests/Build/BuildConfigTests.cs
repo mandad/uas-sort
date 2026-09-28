@@ -29,6 +29,15 @@ public sealed partial class BuildConfigTests
     private static readonly string[] ForbiddenProperties = ["InvariantGlobalization", "UseNls"];
 
     [Fact]
+    public void GitAttributes_ChecksOutTextAsLf()
+    {
+        var lines = File.ReadAllLines(RepoPaths.Of(".gitattributes"));
+        Assert.Contains("* text=auto eol=lf", lines);
+        Assert.Contains("*.sh text eol=lf", lines);
+        Assert.Contains("*.ps1 text eol=crlf", lines);
+    }
+
+    [Fact]
     public void GlobalJson_PinsRc1SdkAndMicrosoftTestingPlatform()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(RepoPaths.Of("global.json")));
