@@ -1,0 +1,16 @@
+<Project>
+  <!-- Central package management; versions verified on nuget.org 2026-09-27. -->
+  <ItemGroup>
+    <!-- Windows App SDK 2.5.1 component packages (the Microsoft.WindowsAppSDK 2.5.1 metapackage also drags in
+         AI/ML/Search/Widgets: onnxruntime + DirectML = +58 MB self-contained, unused here). -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <!-- WinUI 2.3.9 asks for IXP >= 2.1.8, which was never published (NU1603); pin the real one. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <!-- Newer than the 1.0.3719.77 WinUI 2.3.9 depends on. -->
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
+  </ItemGroup>
+</Project>

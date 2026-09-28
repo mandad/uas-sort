@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uas-sort map</title>
+<link rel="stylesheet" href="lib/maplibre-gl.css">
+<style>
+  html, body, #map { margin: 0; height: 100%; width: 100%; }
+  body { background: #1f2328; font: 12px "Segoe UI Variable", "Segoe UI", sans-serif; }
+  #badge { position: absolute; top: 8px; left: 8px; z-index: 2; padding: 3px 8px; border-radius: 4px;
+           background: #000a; color: #fff; display: none; }
+  .jump-label { background: #fffe; color: #222; border-radius: 3px; padding: 1px 4px; font-weight: 600;
+                box-shadow: 0 1px 2px #0006; white-space: nowrap; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="badge"></div>
+<div id="map"></div>
+<script type="module" src="map.js"></script>
+</body>
+</html>

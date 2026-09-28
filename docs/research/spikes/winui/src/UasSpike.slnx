@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="UasSpike.App/UasSpike.App.csproj" />
+  <Project Path="UasSpike.Core.Tests/UasSpike.Core.Tests.csproj" />
+  <Project Path="UasSpike.Core/UasSpike.Core.csproj" />
+</Solution>

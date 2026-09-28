@@ -1,0 +1,15 @@
+<Window x:Class="WpfSize.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="uas-sort spike" Width="900" Height="500">
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8">
+      <Button Content="Rescan" Command="{Binding RescanCommand}" Padding="12,4"/>
+      <TextBlock Text="{Binding Status}" Margin="12,0" VerticalAlignment="Center"/>
+    </StackPanel>
+    <DataGrid ItemsSource="{Binding Groups}" AutoGenerateColumns="False" Margin="8">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Folder" Binding="{Binding Folder}" Width="*"/>
+        <DataGridTextColumn Header="Description" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="2*"/>
+        <DataGridTextColumn Header="Files" Binding="{Binding Count}" IsReadOnly="True"/>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</Window>

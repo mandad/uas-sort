@@ -1,0 +1,25 @@
+# .NET build output
+bin/
+obj/
+artifacts/
+publish/
+*.user
+*.suo
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+TestResults/
+*.binlog
+
+# Python spike caches
+__pycache__/
+*.pyc
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp

@@ -1,0 +1,676 @@
+[
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510104103_0002_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T14:41:03+00:00",
+  "duration_s": 0.484,
+  "lat": 41.51553788185799,
+  "lon": -71.29665273130806,
+  "last_lat": 41.51553791816275,
+  "last_lon": -71.29665270711449,
+  "bytes_read": 2169,
+  "elapsed_ms": 22.0
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510104140_0004_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T14:41:40+00:00",
+  "duration_s": 52.92,
+  "lat": 41.51553789228255,
+  "lon": -71.29665269623975,
+  "last_lat": 41.51307415478373,
+  "last_lon": -71.2961691885432,
+  "bytes_read": 2132,
+  "elapsed_ms": 14.8
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510104343_0005_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T14:43:43+00:00",
+  "duration_s": 43.944,
+  "lat": 41.51307146018982,
+  "lon": -71.29616848991485,
+  "last_lat": 41.51429920113984,
+  "last_lon": -71.29630425871191,
+  "bytes_read": 2154,
+  "elapsed_ms": 17.3
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510104517_0007_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T14:45:17+00:00",
+  "duration_s": 21.872,
+  "lat": 41.51429931738639,
+  "lon": -71.29630457112371,
+  "last_lat": 41.51429937004089,
+  "last_lon": -71.2963046657278,
+  "bytes_read": 2141,
+  "elapsed_ms": 16.4
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510115839_0008_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T15:58:39+00:00",
+  "duration_s": 24.858,
+  "lat": 41.500986974134946,
+  "lon": -71.26943311328964,
+  "last_lat": 41.501585705736204,
+  "last_lon": -71.26850441333238,
+  "bytes_read": 2198,
+  "elapsed_ms": 13.7
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510120039_0009_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:00:39+00:00",
+  "duration_s": 42.576,
+  "lat": 41.50098498035543,
+  "lon": -71.26988096928541,
+  "last_lat": 41.50099289759016,
+  "last_lon": -71.2698505292603,
+  "bytes_read": 2168,
+  "elapsed_ms": 15.1
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510120207_0010_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:02:07+00:00",
+  "duration_s": 37.504,
+  "lat": 41.50092837652897,
+  "lon": -71.26998221706077,
+  "last_lat": 41.50093556976629,
+  "last_lon": -71.2699734112815,
+  "bytes_read": 2147,
+  "elapsed_ms": 15.8
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510120330_0011_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:03:30+00:00",
+  "duration_s": 48.181,
+  "lat": 41.500906351956246,
+  "lon": -71.2700097123643,
+  "last_lat": 41.50003091246713,
+  "last_lon": -71.26887477283704,
+  "bytes_read": 2180,
+  "elapsed_ms": 15.1
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510121601_0015_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:16:01+00:00",
+  "duration_s": 43.477,
+  "lat": 41.50070422864621,
+  "lon": -71.26954797608273,
+  "last_lat": 41.50074031150319,
+  "last_lon": -71.27004294170773,
+  "bytes_read": 2119,
+  "elapsed_ms": 13.8
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510121702_0016_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:17:02+00:00",
+  "duration_s": 9.91,
+  "lat": 41.500711849721036,
+  "lon": -71.26961752595689,
+  "last_lat": 41.50073174926041,
+  "last_lon": -71.26983611454955,
+  "bytes_read": 2142,
+  "elapsed_ms": 13.4
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510121744_0017_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:17:44+00:00",
+  "duration_s": 16.016,
+  "lat": 41.50073245450556,
+  "lon": -71.27000661739666,
+  "last_lat": 41.500700009501124,
+  "last_lon": -71.26954125111216,
+  "bytes_read": 2124,
+  "elapsed_ms": 14.5
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510123439_0018_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:34:39+00:00",
+  "duration_s": 23.49,
+  "lat": 41.50071711941113,
+  "lon": -71.27005857900521,
+  "last_lat": 41.500710835602945,
+  "last_lon": -71.26969800783499,
+  "bytes_read": 2112,
+  "elapsed_ms": 15.7
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510123515_0019_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:35:15+00:00",
+  "duration_s": 18.352,
+  "lat": 41.500711342684546,
+  "lon": -71.26970355505108,
+  "last_lat": 41.50072590165816,
+  "last_lon": -71.27012129720104,
+  "bytes_read": 2112,
+  "elapsed_ms": 14.6
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510123604_0020_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:36:04+00:00",
+  "duration_s": 24.157,
+  "lat": 41.50093631671838,
+  "lon": -71.27001903927093,
+  "last_lat": 41.50043948787123,
+  "last_lon": -71.26996000714038,
+  "bytes_read": 2137,
+  "elapsed_ms": 16.2
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125434_0021_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:54:34+00:00",
+  "duration_s": 25.993,
+  "lat": 41.48677239515244,
+  "lon": -71.26783497431619,
+  "last_lat": 41.48678156492409,
+  "last_lon": -71.26753960271495,
+  "bytes_read": 2180,
+  "elapsed_ms": 15.1
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125558_0025_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:55:58+00:00",
+  "duration_s": 12.246,
+  "lat": 41.4867505850776,
+  "lon": -71.2676500085621,
+  "last_lat": 41.48674940382174,
+  "last_lon": -71.26756204486144,
+  "bytes_read": 2190,
+  "elapsed_ms": 12.6
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125615_0026_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:56:15+00:00",
+  "duration_s": 32.699,
+  "lat": 41.48674998125909,
+  "lon": -71.26756132534285,
+  "last_lat": 41.4867970851274,
+  "last_lon": -71.26816612744801,
+  "bytes_read": 2185,
+  "elapsed_ms": 14.5
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125652_0027_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:56:52+00:00",
+  "duration_s": 24.925,
+  "lat": 41.486797433854996,
+  "lon": -71.26816759954559,
+  "last_lat": 41.48676801340346,
+  "last_lon": -71.26759218357468,
+  "bytes_read": 2188,
+  "elapsed_ms": 14.6
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125738_0028_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:57:38+00:00",
+  "duration_s": 30.43,
+  "lat": 41.48676871927347,
+  "lon": -71.26759155457299,
+  "last_lat": 41.486820662905075,
+  "last_lon": -71.2684037228191,
+  "bytes_read": 2192,
+  "elapsed_ms": 13.6
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510125815_0029_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T16:58:15+00:00",
+  "duration_s": 26.393,
+  "lat": 41.486820545060915,
+  "lon": -71.26840109825991,
+  "last_lat": 41.486793337594285,
+  "last_lon": -71.26749757794457,
+  "bytes_read": 2178,
+  "elapsed_ms": 18.3
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510193745_0030_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T23:37:45+00:00",
+  "duration_s": 32.065,
+  "lat": 41.47617951984445,
+  "lon": -71.32368868621447,
+  "last_lat": 41.47617642568291,
+  "last_lon": -71.32368443607534,
+  "bytes_read": 2169,
+  "elapsed_ms": 15.6
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510193900_0031_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T23:39:01+00:00",
+  "duration_s": 54.254,
+  "lat": 41.4761762571498,
+  "lon": -71.32367736659823,
+  "last_lat": 41.476174416449716,
+  "last_lon": -71.3236869716054,
+  "bytes_read": 2136,
+  "elapsed_ms": 15.8
+ },
+ {
+  "folder": "2026-05-10 Newport, RI",
+  "name": "DJI_20260510194015_0032_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-05-10T23:40:15+00:00",
+  "duration_s": 5.0,
+  "lat": 41.47617598874013,
+  "lon": -71.3236883303518,
+  "last_lat": 41.47617729645809,
+  "last_lon": -71.32369158418344,
+  "bytes_read": 2199,
+  "elapsed_ms": 14.4
+ },
+ {
+  "folder": "2026-06-12 Safety Roadhouse",
+  "name": "DJI_20260613010821_0090_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-06-13T05:08:21+00:00",
+  "duration_s": 51.151,
+  "lat": 64.4669686002774,
+  "lon": -164.75942448098806,
+  "last_lat": 64.46696245288533,
+  "last_lon": -164.75935861160912,
+  "bytes_read": 2214,
+  "elapsed_ms": 20.9
+ },
+ {
+  "folder": "2026-06-12 Safety Roadhouse",
+  "name": "DJI_20260613011020_0093_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-06-13T05:10:20+00:00",
+  "duration_s": 38.839,
+  "lat": 64.46688642051686,
+  "lon": -164.7580412383094,
+  "last_lat": 64.46720983813047,
+  "last_lon": -164.7609543802269,
+  "bytes_read": 2194,
+  "elapsed_ms": 16.8
+ },
+ {
+  "folder": "2026-06-12 Safety Roadhouse",
+  "name": "DJI_20260613011320_0098_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-06-13T05:13:20+00:00",
+  "duration_s": 41.041,
+  "lat": 64.46615015152531,
+  "lon": -164.76246818275993,
+  "last_lat": 64.46822434330399,
+  "last_lon": -164.75700284236703,
+  "bytes_read": 2189,
+  "elapsed_ms": 15.6
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704010948_0101_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:09:48+00:00",
+  "duration_s": 27.961,
+  "lat": 64.69321187098824,
+  "lon": -165.76645978491945,
+  "last_lat": 64.69321149181229,
+  "last_lon": -165.7664605374759,
+  "bytes_read": 2156,
+  "elapsed_ms": 18.5
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704013615_0102_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:36:15+00:00",
+  "duration_s": 13.814,
+  "lat": 64.59249746813659,
+  "lon": -165.6731362814011,
+  "last_lat": 64.59351009064193,
+  "last_lon": -165.67626636947105,
+  "bytes_read": 2185,
+  "elapsed_ms": 14.4
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704013706_0103_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:37:06+00:00",
+  "duration_s": 8.342,
+  "lat": 64.5935833355455,
+  "lon": -165.67647562088396,
+  "last_lat": 64.59374887057658,
+  "last_lon": -165.67674452682851,
+  "bytes_read": 2194,
+  "elapsed_ms": 14.4
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704013736_0104_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:37:36+00:00",
+  "duration_s": 54.354,
+  "lat": 64.59380266280479,
+  "lon": -165.67689913500652,
+  "last_lat": 64.59379248914695,
+  "last_lon": -165.67683875500379,
+  "bytes_read": 2203,
+  "elapsed_ms": 17.7
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704014030_0108_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:40:30+00:00",
+  "duration_s": 15.916,
+  "lat": 64.59386395104637,
+  "lon": -165.67722731359208,
+  "last_lat": 64.59374718759197,
+  "last_lon": -165.67770292932025,
+  "bytes_read": 2148,
+  "elapsed_ms": 14.1
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704014053_0109_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:40:53+00:00",
+  "duration_s": 15.115,
+  "lat": 64.59371435406885,
+  "lon": -165.6775973435217,
+  "last_lat": 64.59295217264453,
+  "last_lon": -165.6751574035032,
+  "bytes_read": 2187,
+  "elapsed_ms": 15.4
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704014132_0110_D.MP4",
+  "attr": "0x20",
+  "mvhd_creation_utc": "2026-07-04T05:41:33+00:00",
+  "duration_s": 94.995,
+  "lat": 64.5917111629797,
+  "lon": -165.6725374773871,
+  "last_lat": 64.5899283804635,
+  "last_lon": -165.66388612411407,
+  "bytes_read": 2185,
+  "elapsed_ms": 5.1
+ },
+ {
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704014416_0114_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-04T05:44:16+00:00",
+  "duration_s": 26.193,
+  "lat": 64.58953780703105,
+  "lon": -165.6641135880825,
+  "last_lat": 64.59141107387796,
+  "last_lon": -165.66185910793064,
+  "bytes_read": 2188,
+  "elapsed_ms": 14.6
+ },
+ {
+  "folder": "2026-07-25 Council Road",
+  "name": "DJI_20260725232655_0117_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-26T03:26:56+00:00",
+  "duration_s": 30.797,
+  "lat": 64.69350784646066,
+  "lon": -164.265721767613,
+  "last_lat": 64.69229350653092,
+  "last_lon": -164.25767521656138,
+  "bytes_read": 2142,
+  "elapsed_ms": 19.3
+ },
+ {
+  "folder": "2026-07-25 Council Road",
+  "name": "DJI_20260726022937_0118_D.MP4",
+  "attr": "0x20",
+  "mvhd_creation_utc": "2026-07-26T06:29:38+00:00",
+  "duration_s": 89.523,
+  "lat": 64.69468868191382,
+  "lon": -164.27627600173113,
+  "last_lat": 64.69136254241481,
+  "last_lon": -164.2834005176437,
+  "bytes_read": 2141,
+  "elapsed_ms": 11.3
+ },
+ {
+  "folder": "2026-07-25 Council Road",
+  "name": "DJI_20260726023344_0121_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-26T06:33:44+00:00",
+  "duration_s": 23.557,
+  "lat": 64.69199855787141,
+  "lon": -164.28889657630782,
+  "last_lat": 64.69121448074713,
+  "last_lon": -164.29000903379267,
+  "bytes_read": 2192,
+  "elapsed_ms": 16.7
+ },
+ {
+  "folder": "2026-07-25 Council Road",
+  "name": "DJI_20260726023418_0122_D.MP4",
+  "attr": "0x420",
+  "mvhd_creation_utc": "2026-07-26T06:34:18+00:00",
+  "duration_s": 24.491,
+  "lat": 64.69109421099981,
+  "lon": -164.28922353484597,
+  "last_lat": 64.69065148238226,
+  "last_lon": -164.28354901095335,
+  "bytes_read": 2161,
+  "elapsed_ms": 14.9
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015251_0040_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015256_0041_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015441_0042_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015539_0043_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015628_0044_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523015833_0046_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523020022_0048_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523020200_0049_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523020445_0050_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523020507_0051_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523201928_0052_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523202013_0053_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523202225_0056_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523202357_0057_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523202424_0058_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260523202759_0062_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524190521_0064_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524190630_0065_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524190648_0066_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524190830_0068_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524202726_0072_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524202820_0073_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524202933_0076_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524203001_0077_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524203039_0078_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524203157_0079_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260524203228_0080_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260525092718_0085_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260525092808_0086_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ },
+ {
+  "folder": "2026-05-22 Kodiak",
+  "name": "DJI_20260525093110_0088_D.MP4",
+  "attr": "0x401620",
+  "skipped": true
+ }
+]

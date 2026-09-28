@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.22621.0</TargetPlatformMinVersion>
+    <RootNamespace>Spike.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType Condition="'$(WindowsPackageType)'==''">None</WindowsPackageType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" VersionOverride="8.3.260402-preview2" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" VersionOverride="8.3.260402-preview2" />
+    <PackageReference Include="WinUI.TableView" />
+    <ProjectReference Include="..\Spike.Core\Spike.Core.csproj" />
+  </ItemGroup>
+</Project>

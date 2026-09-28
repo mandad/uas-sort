@@ -1,0 +1,373 @@
+[
+ {
+  "lens": "requirements",
+  "severity": "major",
+  "section": "\u00a72.4 Dependency direction / BannedSymbols.txt (decision 9, Safety graft)",
+  "problem": "The banned-API list only bans writes (File.* writes, Delete/Copy/Move/Replace, CreateDirectory, new FileStream, FileMode.Create\u2026, SetAttributes, DateTime.Now/Today). The riskiest operation in this app is reading library content, because that hydrates OneDrive cloud-only placeholders (decision 9), and nothing stops it at compile time in Core, Review, App or Cli. File.OpenRead, File.ReadAll*, File.Open, File.OpenHandle, RandomAccess, FileInfo.Open*/OpenRead/CopyTo/MoveTo/Delete/Create, DirectoryInfo.Create/Delete/MoveTo, new StreamReader(string)/new StreamWriter(string), MemoryMappedFile.CreateFromFile, MetadataExtractor's ImageMetadataReader.ReadMetadata(string path), StorageFile.GetFileFromPathAsync and BitmapImage with a file: Uri all compile freely outside Platform. For example, a thumbnail or preview in App could read library files directly and bypass GuardedFileOps and PlaceholderGuard entirely. DateTime.UtcNow and DateTimeOffset.Now are also not banned, even though the draft says 'TimeProvider everywhere'.",
+  "fix": "Extend BannedSymbols.txt with the read APIs and the FileInfo/DirectoryInfo/StreamReader/StreamWriter/path-based MetadataExtractor/StorageFile entry points listed above, plus DateTime.UtcNow and DateTimeOffset.Now/UtcNow. Apply it to Core, Review, App and Cli, and allow these only in Platform under the existing '#pragma \u2026 // IO layer: <why>' convention. Add a test that fails if BannedSymbols.txt loses any of these entries. In \u00a74.3, state that ICardReader and IFileOps are the only ways any code may open a file."
+ },
+ {
+  "lens": "requirements",
+  "severity": "major",
+  "section": "\u00a71.2 Assumptions, \u00a711 Persistence, \u00a715 Q1 (decision 6 + user's 'my personal computers')",
+  "problem": "Decision 6 makes the ledger the app's long-term memory for photos, and the user said they run the app on 'my personal computers' (plural). The draft treats multiple PCs as an unconfirmed assumption and defaults the ledger to %LOCALAPPDATA% on one PC, which is not synced or backed up. A second PC, or a reinstall, starts with an empty ledger: the heuristic comes back and the Verdict-page 'decision' records are lost. The suggested workaround, pointing ledgerDir at a shared OneDrive folder, would put one ledger.jsonl on two machines, and OneDrive then creates '-PCNAME' conflict copies. If that folder is dehydrated, PlaceholderGuard throws the 'internal safety stop / bug' error for what is really a settings problem.",
+  "fix": "Treat multiple PCs as a known fact, not an assumption. Default ledgerDir to a synced folder chosen at first run, outside both library roots, and write one file per machine (ledger-<MachineName>.jsonl): read all of them, append only to your own, so sync conflicts can't happen. Before reading, check the folder's attributes; if it is not pinned, show a clear 'set this folder to Always keep on this device' InfoBar instead of UnsafeIoException. Keep a local mirror copy as a backup. Update \u00a71.2, \u00a711 and Q1."
+ },
+ {
+  "lens": "requirements",
+  "severity": "major",
+  "section": "\u00a714 Milestones, \u00a79.14 Settings, \u00a711 settings.json defaults",
+  "problem": "The user explicitly asked for settings for both roots, and the photo root may move to D:. The Settings dialog (root pickers, R/G defaults, JPG twin, map, ledger folder, About/attributions) is specified in \u00a79.14 but appears in no milestone: M2 has only the settings store, M6 lists no Settings UI, and M8/M10 don't either. There is also no first-run step to choose the roots. The defaults hardcode 'C:\\Users\\damia\\OneDrive\\Pictures\\UAS Videos', which is wrong on another PC with a different profile or OneDrive path. The only handling of a missing root is the 'library root is missing' banner.",
+  "fix": "Add the Settings dialog, a first-run 'Choose video and photo roots' step (with validation, free space, and a check that the roots don't overlap the card) and the About attributions to M6 or M8, and add about 1\u20131.5 days. Derive the default video root from %OneDrive% (or KnownFolder Pictures) + '\\UAS Videos' and the default photo root from that + '\\Picture Offload'. Never ship a user-specific literal path as the default."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a713 Unit tests (Planner port) and \u00a78.4",
+  "problem": "VERIFIED by running spikes/grouping/test_grouping.py with the default R changed to 50 mi: 3 of the 37 tests fail, not only the Council/Anvil split the draft lists. test_no_gps_clip_goes_to_nearer_neighbour and test_no_gps_clip_session_beats_time depend on Council and Anvil being split by distance. At 50 mi they merge, so the no-GPS reassignment rule (\u00a78.2 step 4) is no longer exercised. Also, \u00a78.4 says the same-day Zachar\u2194Kodiak test pins a 52.6 mi distance with a 2.6 mi margin, but the test fixture coordinates are 53.4 mi apart (85.9 km). 52.6 mi is the closest real pair of points.",
+  "fix": "In \u00a713, list all three R-dependent tests. Pin the two no-GPS tests to Tuning(RadiusMiles: 25), or rebuild them on a synthetic pair more than 60 mi apart, so they still exercise the no-GPS split rule at the 50 mi default. Correct \u00a78.4 to show the fixture distance (53.4 mi, margin 3.4 mi) next to the real closest-points distance."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a71.4 Non-goals, \u00a72.2 Packaging, \u00a715 Q6 (decision 2)",
+  "problem": "Decision 2 asks for 'modern packaging/deployment' and the most modern frameworks, with no compatibility constraints. The draft makes MSIX a non-goal and defaults to not attempting Native AOT (the Q6 default is 'install neither'). Yet it already expects the user to install the .NET 11 SDK machine-wide. Two stated reasons are weaker than presented: Windows App SDK supports self-contained deployment for packaged apps too (UNVERIFIED in this spike), and on the user's own PCs a developer-mode loose registration or a one-time self-signed certificate is cheap. Neither deviation is recorded in \u00a71.1 as a departure from the binding decision. There is also a smaller inconsistency: System.IO.Hashing is pinned at 10.0.12 even though 11.0.0-rc.1 exists.",
+  "fix": "Record the unpackaged xcopy deployment and the deferred AOT as explicit deviations from decision 2 in \u00a71.1, or present them as a real choice in \u00a715. Option A: the current unpackaged, trimmed ReadyToRun folder. Option B: a self-contained MSIX built with the winapp CLI (dev certificate or loose registration), which gives package identity for reliable AppInstance single-instancing and a clean uninstall. Option C: install the C++ build tools and try a PublishAot build in M10 behind a flag, keeping ReadyToRun as the fallback. Also align the Microsoft.Extensions and System.* packages to 11.0.0-rc.x."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a79.1 Card stage 'Browse to folder\u2026', \u00a75 Detection, \u00a74.3 IO guard (decision 9)",
+  "problem": "The Browse button accepts any folder, and detection explicitly allows drives that hold the roots. A browsed 'card' that is inside, equal to, or contains the video root (for example re-sorting a library folder) would make the card reader probe MP4 and DNG content in the library. Locally available (hydrated) files would be read, which violates decision 9, and placeholders would trigger UnsafeIoException ('internal safety stop, treat as bug') partway through the scan. Preflight only blocks the opposite case, a root under the card.",
+  "fix": "Validate the CardSource when it is selected. Reject any browsed folder that is equal to, inside, or contains the video root, the photo root or the ledger folder, and say why ('this is part of your library; uas-sort only reads cards'). Add a unit test for this."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a78.9 Edit semantics, \u00a79.4 Group card (non-goal: never rename library folders)",
+  "problem": "The description AutoSuggestBox commits a Rename on every group card, but the draft never says what Rename means for APPEND or ALREADY IN LIBRARY targets. The user could expect the existing library folder to be renamed, which is forbidden, or the edit could silently change the target. \u00a78.6 turns a matching path into an Append, but the reverse case (typing a new name on an Append group) is undefined.",
+  "fix": "Specify it: for Append or AlreadyImported targets the description box is read-only and shows the existing folder's name, with a hint 'Appending to an existing folder; choose New folder to name a new one'. Alternatively, a Rename on an Append group becomes Retarget(New) with a visible notice. Add a Rejected reason and a view-model test for this."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a77.3 Photos rule 2, \u00a77.1 Listing (photo root may move to D:)",
+  "problem": "Photos are matched by name and size only against the current photo root. When the user moves the photo root to D: (an anticipated change), photos still waiting in the old 'UAS Videos\\Picture Offload' for a Lightroom import become part of the video-root listing and are no longer recognised. Files the app copied are covered by the ledger, but earlier files fall back to the heuristic and may be copied again. Videos don't have this problem because they already match against 'either root'.",
+  "fix": "Match photos, pairs and set members by (NormName, Size) against both root listings, the same way videos are matched, or keep a previousPhotoRoots list in settings that is updated when the photo root changes. Add a test: photo root moved while the old folder still holds a matching DNG gives Imported."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a75 Detection/Classification, \u00a76.2, \u00a74.2 Cli, \u00a79.3/\u00a79.5/\u00a79.6 (scope creep)",
+  "problem": "The draft adds features the user never asked for, each adding build and test cost: (a) Autel card detection plus the AutelFloating/MtimeFloating time sources. The app is for a DJI Air 3S card; Autel appears only as 2022 library content, so this is UNVERIFIED as a need. (b) A 'make-fake-card' command that writes files, inside a CLI the user accepted as dry-run only. (c) A third base map (USGS), Natural Earth outlines, GeoNames labels on the map with viewport/places messages, and key forwarding. (d) 'Recent offloads', 960 px hover previews, a flight-number column, an 'RC 2 storage' row (the judge said to cut it), the StaleFirstFix last-sample read ('whether DJI ever records a stale fix is UNVERIFIED'), and GpsTime for other drone models.",
+  "fix": "Cut these or move them to a 'Later' list. Handle Autel only inside LibraryIndex (name+size keys and mtime ranges for the existing Makaha folder) unless the user confirms they still offload Autel cards. Move make-fake-card into tests/UasSort.Testing as a fixture builder so the CLI stays read-only. Keep Streets plus one satellite source; make USGS a settings URL only. Drop the other items, or mark them stretch goals after M10."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a78.5 Choosing a target, \u00a713 Scenario D",
+  "problem": "Appending on date adjacency is labelled 'High' confidence even when the group's new clips fall on a day that is not in the target folder and are 10 mi or more away. That is exactly the Council\u2192Anvil pattern (33 mi, next day) the user split into two folders. Scenario D proposes 21 new Anvil clips go into 'Council Road' as 'APPEND \u00b7 High'. The emphasised day split does surface it, as decision 3 requires, but the 'High' label argues against the user's own evidence.",
+  "fix": "Reuse the 10 mi day-split threshold: when an append adds only new-day items at 10 mi or more from F, set Confidence to Medium with the reason 'different day, 34 mi from Council Road'. The proposal stays as it is, per decision 3, and the emphasised [Split] stays the one-click fix. Update Scenario D's expected confidence."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a714 Milestones / effort",
+  "problem": "The 22-day total looks understated. M6 (5 days) covers the UX design's M5 WPF review screen (5 days) plus most of its M8 (settings, first-run and draft-resume banners, dark mode/DPI pass: 2 days). WinUI also has no DataGrid, so a column grid with aligned headers must be hand-built on ListView, and everything must be x:Bind-only. Settings UI, as noted above, is not scheduled at all.",
+  "fix": "Re-estimate M6 at about 7 days (or split it into M6a shell/timeline and M6b clip grid/Photos/Other/Settings). Present the total as roughly 24\u201327 developer-days. Keep M9 (GeoNames) as the one piece that can be dropped."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a72.1 Stack / \u00a72.5 Build config / M0",
+  "problem": "The exact package set was never restored or built together. The WinUI spike used WinUI 2.3.9 + Foundation 2.3.12 + IXP 2.1.9 + WebView2 1.0.4191.47 with no toolkit and TreatWarningsAsErrors=false. The lean modern-stack spike used WinUI + toolkit 8.3-preview2 (SettingsControls, Segmented) with no Foundation or WebView2. Toolkit Sizers (GridSplitter), which the draft relies on for both splitters, was never tested. The draft also turns on TreatWarningsAsErrors, so any NU1603 or ILLink warning (MetadataExtractor's trim behaviour is UNVERIFIED) fails the publish.",
+  "fix": "Make an M0 exit criterion: restore, build, publish (trimmed + ReadyToRun) and run --selftest with the exact Directory.Packages.props, including Sizers, with TreatWarningsAsErrors on. Fall back to full-package toolkit 8.2 or fixed panes if that fails."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a713 Acceptance on the first real card (decision 5)",
+  "problem": "Nothing checks that the card is left unmodified. The rehearsal checks the verdict, the report, OneDrive and exFAT verify, but not the card. Windows may update exFAT last-access timestamps when files are read (UNVERIFIED), and the OS writes System Volume Information on mount. Neither is the app's doing, but the user should know the app itself wrote nothing.",
+  "fix": "Add an acceptance step: snapshot the card listing (relative path, size, mtime, creation time, attributes) before the scan and after the offload, and diff them, excluding System Volume Information. Assert that WindowsCardReader requests FileAccess.Read only, never FILE_WRITE_ATTRIBUTES. Record any change caused by the OS in the report."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a73 Domain model, \u00a72.1 versions, \u00a713 selftest (placeholders)",
+  "problem": "Several placeholders remain. Types are used but never defined: TargetChoice (inside the serialised Retarget edit; if it is a C# 15 union it contradicts 'unions stay in memory only', since drafts serialise edits), ScanResult, ClockSummary, ScanWarning, NewReason, Evidence, CopyPhase, VerifyResult, GroupDraft, ClusterResult, LedgerSnapshot, Draft, OffloadBatch/Result, and Hash(Root) in DraftKey. BannedApiAnalyzers and TimeProvider.Testing are listed as 'latest at M0 (UNVERIFIED)'. The --selftest 'embedded small DNG' has no stated source, and it must not come from the user's data.",
+  "fix": "Define TargetChoice as a closed record with [JsonPolymorphic] and list the other types with their fields (at least in an appendix). Pin the analyzer and testing package versions now. Have the selftest DNG generated by SyntheticDngBuilder (or a public-domain sample with its licence noted). Specify DraftKey's hash, for example XxHash64 of the full path in lowercase."
+ },
+ {
+  "lens": "requirements",
+  "severity": "minor",
+  "section": "\u00a71.2 Assumptions (win-x64 only)",
+  "problem": "The draft hardcodes RuntimeIdentifier=win-x64 and Platforms=x64. The user runs this on several personal PCs, and a modern Windows 11 PC may be ARM64. The assumption's 'if wrong' column only mentions lowering TargetPlatformMinVersion, not a different CPU architecture.",
+  "fix": "Either confirm that every PC is x64, or have deploy.ps1 publish win-x64 and win-arm64 self-contained builds and choose one using $env:PROCESSOR_ARCHITECTURE. Add the architecture to the assumption row."
+ },
+ {
+  "lens": "safety",
+  "severity": "blocker",
+  "section": "\u00a77.1 Watermark, \u00a77.3 Photos and sets, \u00a710.4 Ledger writes",
+  "problem": "Checked with the spike code (`scratchpad/spikes/safety-review/wm_fn.py`, which calls `grouping.py`'s `run`). The draft's claim that \"the heuristic only ever applies to photos the ledger has never seen\" is false, because the ledger never records a photo that was evaluated but not copied.\n\nThe watermark includes every video in the library listing plus every ledger video record, so the app's own copies move it forward. The simulated sequence:\n- Run 1: a photo on a photo-only day (10/2) is New, reason \"after last imported video\". The user copies only the 10/4 video; the photo was unticked, or the run was cancelled, so it is NotStarted.\n- Run 2 on the same card: the watermark moves to 10/4, and the same photo becomes ProbablyImported (\"photo-only day before the watermark\").\n- It is then counted as AssumedByRule, and the verdict reads \"Safe, with assumptions\". A photo that was never copied and never confirmed leads the user to format the card.",
+  "fix": "(a) Compute the photo watermark only from library videos that have no ledger `file` record, meaning videos imported outside the app. The app's own copies must never advance it.\n(b) At the end of every Commit, including after Cancel or failures, append a `seen` record for each photo or set unit that was New or Conflict and was not copied.\n(c) In \u00a77.3, insert a rule before rule 3: \"a `seen` record exists and there is no `file` or `decision` record \u2192 New ('not copied on <date>')\".\n(d) Add this two-run scenario, and the cancel-then-rerun variant, to the golden and audit tests."
+ },
+ {
+  "lens": "safety",
+  "severity": "blocker",
+  "section": "\u00a75 Classification, \u00a79.1 Card stage (Browse to folder\u2026)",
+  "problem": "Several classification rules fall through to SkippedByRule, and SkippedByRule never blocks a \"Safe\" verdict:\n- **Outside DCIM.** The last row sends \"files outside DCIM\" to Skip.\n- **Unmatched folders.** An MP4 or DNG in a DCIM subfolder that the `<media>` pattern doesn't match (for example a future `DCIM\\DJI_A001`) matches no row. The Unknown row only covers other extensions.\n- **Browse.** The draft says classification is relative to the volume root, but CardSource.Root is the browsed folder. If the user picks `E:\\DCIM` or `E:\\DCIM\\DJI_001` (a natural choice), or a copy of a card at `C:\\Temp\\card\\`, no path starts with `DCIM\\<media>\\`. Every file becomes Skip (\"outside DCIM\"), and the verdict says \"Safe to format this card\" with nothing copied.\n- **Cover JPGs.** The JPG-named-like-an-MP4 \u2192 Skip (\"video cover\") rule is UNVERIFIED, yet it feeds the Safe verdict too.",
+  "fix": "(a) A file with a media extension (mp4, mov, dng, jpg, jpeg, heic, heif, tif, insv, avi) that matches no explicit copy rule becomes Unknown, which counts as Unaccounted. Only named skip rules produce SkippedByRule: LRF, SRT, dot files, MISC, LOST.DIR and system folders.\n(b) Browse: walk up from the chosen folder to the nearest ancestor that contains `DCIM` and classify relative to that. If there is none and the folder holds media, refuse and ask the user to pick the card root.\n(c) Classify MP4-basename JPGs as Unknown until the first-card acceptance proves they are covers.\n(d) Add an audit test: a card whose media all sit in unrecognized locations must be NotSafe."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a74.2 Platform: WindowsDirectoryLister (FileSystemEnumerable)",
+  "problem": "Checked on this machine with .NET 9 (temp probe, since deleted):\n- `new EnumerationOptions()` defaults to `AttributesToSkip=Hidden, System` and `IgnoreInaccessible=True`.\n- `new FileSystemEnumerable<string>(dir, \u2026)` with null options returned only `DJI_0001.MP4`. It silently dropped a Hidden `DJI_0002.MP4` and the Hidden `.trinf`.\n\nEffects if the draft's lister keeps these defaults:\n- Hidden, system or inaccessible card files never reach the CardInventory, so the audit cannot count them and the verdict can say Safe.\n- The `.trinf` Truncated signal is lost.\n- Preflight can't see its own Hidden `*.uas-sort.tmp` files, so `CreateNew` later fails.",
+  "fix": "- Construct `EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = false, RecurseSubdirectories = <as needed>, ReturnSpecialDirectories = false }` explicitly in the lister.\n- Surface every enumeration error on the card as a ScanWarning that forces NotSafe.\n- Add a Platform test: Hidden and System files, including a Hidden `.MP4`, are returned.\n- Ban `Directory.Enumerate*`, `DirectoryInfo.Enumerate*/Get*` and raw `FileSystemEnumerable` outside Platform, so nothing bypasses these options."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a710.5 Audit and verdict, \u00a74.4 Flow, \u00a79.1 Commit",
+  "problem": "CardAudit judges the inventory from scan time. Nothing re-checks the volume serial or the card contents at Commit or before the verdict.\n- **Card swap.** Two cards can both mount as E:. Swap them between Review and Commit, or reinsert a different card after the \"card removed\" InfoBar. Re-stat only compares relative paths, which mostly produces Failed. The verdict \"Safe to format this card\" then describes card #1 while card #2 is in the reader.\n- **Changed card.** Files added or changed after the scan are never audited.\n- **Refresh during copy.** Device-arrival refresh and F5 are not stated to be disabled during Commit.",
+  "fix": "- At Commit start, pin CardSource by volume serial and label. Re-check them before each file (cheap) and before the verdict.\n- At audit time, re-list the card (listing only, under 1 s) and diff it against the inventory. Any added, removed or changed entry becomes Unaccounted, \"changed since scan\".\n- Put the drive letter, label and serial in the verdict headline.\n- Disable device-arrival refresh and Rescan while Commit runs."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a710.3 steps 6\u201310, \u00a71.3 G1 (write-through rename), exFAT D: photo root",
+  "problem": "The MoveFileEx documentation only guarantees a flush for a move performed as a copy plus delete. For a same-directory rename, no durability of the new directory entry is documented. FlushFileBuffers ran on the temp file before the timestamp, attribute and rename changes, so those changes are unflushed.\n\nD: is exFAT (no journal) on an external SSD. Meanwhile the ledger line on C: is flushed right away and records the file as present.\n\nPossible loss: power loss or an unsafe unplug of D: after the verdict loses the entry. The card has already been formatted, and later scans count the file as InLedger. How exFAT behaves here is UNVERIFIED.",
+  "fix": "(a) After the rename, confirm the final name and size with TryGetSize (metadata only) before appending the ledger line.\n(b) For destination volumes that are not NTFS, or are external, flush after the run. Either open each renamed file (our own, write access, no read) and call FlushFileBuffers, or FlushFileBuffers a directory handle opened with FILE_FLAG_BACKUP_SEMANTICS. Both are UNVERIFIED on exFAT; test on a scratch folder on D: during acceptance.\n(c) The verdict for such volumes adds \"Safely remove D: before formatting the card\", with an Eject button (CM_Request_Device_Eject, no admin).\n(d) Stop presenting write-through as a durability guarantee in G1."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a711 Persistence (ledger), \u00a715 Q1 default, \u00a713 selftest",
+  "problem": "The ledger is the only long-term memory for photos, but three things can silently erase it:\n- **Shared ledger on OneDrive.** Q1's default points `ledgerDir` at a shared OneDrive folder. Two PCs appending to one `ledger.jsonl` produce OneDrive conflict copies (`ledger-PCNAME.jsonl`) that the app never reads, so records vanish.\n- **Unparseable lines.** \"Other bad lines are skipped and counted in a warning.\" A schema change, or a trimming break in the source-generated `[JsonPolymorphic]` closed records (the draft marks this UNVERIFIED), would skip every record while scanning continues. Photos would silently fall back to the heuristic, giving false \"assumed imported\" results.\n- **No backup.** `%LOCALAPPDATA%` is not backed up, and pointing `ledgerDir` at an empty folder silently resets the memory.",
+  "fix": "- Write per-machine files, `ledger-<MachineName>.jsonl`, and read the union of every `ledger*.jsonl` in `ledgerDir`, including OneDrive conflict copies.\n- Treat any unparseable non-final line as a Blocking issue until acknowledged, and cap the verdict at SafeWithAssumptions.\n- `--selftest` in the trimmed publish must round-trip a checked-in v1 ledger fixture covering every record type.\n- Keep dated backups of the ledger.\n- Warn when `ledgerDir` changes to a folder with no ledger, and offer to copy the ledger over."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a76.1 Drone clock, \u00a76.5 CheckDate, \u00a77.1 Library member starts and watermark",
+  "problem": "The clock model is a fixed offset: the nearest sample within 60 days, else the card's most common offset, else \u2212240 min. Every calibration sample is from summer (EDT). If the RC follows Eastern DST (UNVERIFIED), times are 1 h off in three cases: a winter photo-only card using the \u2212240 setting, photos more than 60 days from any MP4, and a DST change between the nearest MP4 and the photo.\n\nWhat breaks:\n- **Newness.** Photos within an hour after the watermark can flip from New to ProbablyImported, a false negative.\n- **CheckDate.** Its 45-min drone-clock window doesn't cover a 60-min error.\n- **Library folders.** Member starts use the card's ClockModel, so folder date ranges shift an hour. That is below the 2 h mtime guard.\n- **Video dates.** mvhd comes from the same drone clock, so a 23\u201330 min drift can mis-date videos near midnight without a CheckDate flag.",
+  "fix": "- Learn the clock as a zone. If every sample matches `TimeZoneInfo.FindSystemTimeZoneById(\"America/New_York\").GetUtcOffset(stamp)`, or another candidate IANA zone, resolve every offset through that zone so DST is handled.\n- Store the zone ID, not minutes, as the fallback. Keep nearest-sample only when no zone fits.\n- Use the same model for library members and the watermark.\n- \u00a77.3: a drone-clock-timed photo within \u00b175 min of the watermark counts as New (\"near the watermark; time estimated\").\n- Widen CheckDate to 75 min for DroneClock* and Mvhd sources."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a78.5 Choosing a target, \u00a78.3 Cross-day append hint, \u00a710.2 Preflight sheet",
+  "problem": "Checked by replaying Scenario D at the default 50 mi (`spikes/safety-review/scenD50.py`). The library lacks Anvil, and Council leftovers are on the card. The result is one group of 4 Imported (7/25) and 21 New (7/26) clips, proposed as `Append 2026/2026-07/2026-07-25 Council Road`, confidence **high**.\n\nThe cross-day hint doesn't fire. It only covers appends by date adjacency, and this group's days include 7/25 through the imported leftovers. The emphasised day split is only Info, and the preflight sheet doesn't list it.\n\nThis happens by default whenever the user flies again the next day within 50 mi without formatting the card. The next day's footage then lands in yesterday's dated folder.",
+  "fix": "- In FolderDecider, judge an append on the New subset only. If none of the New items' local dates are among F's dates (from the listing and the ledger), downgrade to Medium.\n- In that case, show the cross-day hint \"[New folder instead]\", which applies SplitBefore(first new item) plus Retarget(New).\n- List every emphasised DaySplit and every Medium append as warnings on the preflight sheet.\n- Add Scenario D at R = 50 mi to the golden replay, asserting Medium plus the hint."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a78.9 Edit semantics (Rename/Retarget pins), \u00a79.11 Drafts",
+  "problem": "Rename and Retarget pins attach to \"the group containing item X\", and the last pin per group wins. After an R/G slider move, a merge, or a draft resume on a rescan that found new clips, the group can have different members than when the user chose. The pin still applies without notice:\n- new or re-clustered clips are appended to a folder the user picked for other clips;\n- when two pinned groups merge, one pin is silently dropped.",
+  "fix": "- Store the member ItemId set with each pin.\n- On Derive, if the current membership differs from the pinned set, keep the pin but raise a Warning: \"target chosen for N clips; group now has M\", with [Keep] and [Reset to Auto].\n- Require that warning to be acknowledged on the preflight sheet.\n- If two pins conflict after a merge, raise a Blocking issue instead of picking one."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a710.5 Verdict page actions, \u00a77.3 rule 1",
+  "problem": "[Mark as not needed] bulk-writes `dismissed` decisions for unticked New items (including videos), truncated clips and unknown files.\n\nRule 1 then treats them as Imported (LedgerDecision) on every future scan, so they are folded and hidden. They count as ConfirmedByYou, so the verdict can read \"Safe\". One mis-click permanently hides footage the user simply forgot to tick, and there is no way to undo it.",
+  "fix": "- Select items individually, with nothing preselected.\n- Confirm in a dialog that shows counts by kind and the total GB.\n- Never offer bulk dismissal for videos.\n- Show dismissed items in future scans under a visible \"Dismissed\" section, with \"Un-dismiss\" (appends a `revoke` record).\n- Allow undo on the verdict page itself."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a72.4 Banned calls, \u00a74.3 IO guard",
+  "problem": "The banned list covers writes and `DateTime.Now`, but the core rule (decision 9, no hydration) is about reads. Not banned outside Platform:\n- `File.OpenRead`, `File.ReadAll*`, `File.Open(\u2026, FileMode.Open)`, `FileInfo.OpenRead/OpenText`;\n- `File.OpenHandle`, `RandomAccess.Read`, `MemoryMappedFile.CreateFromFile`, `new StreamReader(string)`;\n- MetadataExtractor's path overloads such as `ImageMetadataReader.ReadMetadata(string)`;\n- `StorageFile.GetFileFromPathAsync` and `GetThumbnailAsync`, and WinUI `BitmapImage` with file URIs.\n\nSo \"safety is enforced mechanically\" (success criterion 1) doesn't hold for library reads.",
+  "fix": "- Add these read APIs, and the enumeration APIs, to BannedSymbols.txt for Core, Review, App and Cli.\n- Mp4Probe and StillProbe accept only Streams from ICardReader.\n- Add a test that asserts BannedSymbols.txt still contains each read API, so the list can't be trimmed silently."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a79.1 Browse, \u00a74.3 PlaceholderGuard, \u00a713 Windows integration",
+  "problem": "Nothing stops \"Browse to folder\u2026\" from picking a folder that is inside, or contains, the video or photo root, or another OneDrive folder. ICardReader would then probe library files:\n- cloud-only files throw, but only if the attribute check works;\n- locally present files (0x420) are read, which breaks decision 9.\n\nThe attribute check was only proven through PowerShell's `GetAttributes`. Whether a self-contained .NET 11 process sees 0x400000 and 0x1000 through `FileSystemEntry.Attributes` is UNVERIFIED: Windows' per-process placeholder compatibility mode can disguise placeholders. The draft makes the Kodiak attribute check opt-in.",
+  "fix": "- CardSource validation rejects any root that equals, is inside, or contains a configured root or any cloud sync root. Detect sync roots with `CfGetSyncRootInfoByPath` or OneDrive's `UserFolder` registry values.\n- Compare canonical paths: `GetFullPath`, then `GetFinalPathNameByHandle` on the directory handle, case-insensitive, handling subst, 8.3 names and junctions.\n- Make the attributes-only Kodiak cloud-only assertion a required part of `--selftest` in the trimmed publish, so deploy fails if 0x400000 isn't visible."
+ },
+ {
+  "lens": "safety",
+  "severity": "major",
+  "section": "\u00a710.5 Audit categories (per unit)",
+  "problem": "\"Every media unit gets exactly one category\", but there is no rule for units made of several files. Undefined cases:\n- a 33-frame set with one Failed member;\n- a DNG that verified while its JPG twin failed;\n- a Resume set that mixes NameSizeMatch and VerifiedThisRun members;\n- an Imported DNG whose JPG twin was never copied (the \u00a77.3 pair rule, or `copyJpgTwin=false`), so the JPG is destroyed by formatting with no line in the audit;\n- a truncated card clip that matches the library's truncated copy by name and size (Anvil 0014 and 0024 are no-moov copies). The draft caps copied truncated clips at SafeWithAssumptions but lets this case reach Safe.\n\nAn implementation that takes the first or most common category would report Safe while a file is lost.",
+  "fix": "- Audit per card file (AuditLine is already per path).\n- A unit's category is the worst of its files, in this order: Unaccounted > AssumedByRule > SkippedByRule > NameSizeMatch > ConfirmedByYou > InLedger > VerifiedThisRun.\n- A JPG twin that isn't copied gets an explicit, listed SkippedByRule line: \"JPG twin not copied\".\n- A truncated clip that is Imported by name and size caps the verdict at SafeWithAssumptions.\n- Add each case to the table-driven audit test."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a710.3 step 2 AlreadyThere, \u00a710.5 NameSizeMatch/InLedger",
+  "problem": "NameSizeMatch counts toward \"Safe\" although nothing was verified. AlreadyThere also writes a ledger `file` record (`verify:\"nameSize\"`), which later audits read as InLedger, the strongest evidence. A same-named, full-size file with bad content, such as an interrupted earlier copy by another tool, would pass. Whether CopyFileEx preallocates the full size is UNVERIFIED.",
+  "fix": "- Map ledger records with `verify:\"nameSize\"` to NameSizeMatch, never InLedger.\n- Show name-and-size matches separately in the headline, e.g. \"Safe: 17 verified, 4 matched by name+size only\"."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a78.8 Set folders, \u00a77.3 rule 2",
+  "problem": "A set's identity is name plus size of every member, and both PANO_000N names and set folder names repeat after the card is formatted. A new set with the same frame count and member sizes resolves to Imported, is never copied, and reaches Safe. That needs fixed-size frames; it is unlikely for compressed DNG (UNVERIFIED for Air 3S). Separately, an empty existing folder satisfies \"existing \u2282 card\", so it is treated as Resume.",
+  "fix": "- Add member mtime (\u00b12 s) to set identity. The listing provides it, and FinalizeAttributes preserves the card mtime.\n- For the ledger check, also compare the first frame's `captureUtc`.\n- Treat an empty existing folder as free (Plain)."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a710.2 Preflight, \u00a710.3 step 3 EnsureDirectory",
+  "problem": "Preflight doesn't re-check that Append target folders still exist, whether they came from the scan listing or from ledger paths of culled files. If the user renamed or moved the folder, EnsureDirectory silently recreates the old path and the event ends up split across two folders.",
+  "fix": "- Make a missing Append target Blocking at preflight: \"folder renamed or moved since the scan; rescan\".\n- Let EnsureDirectory create only NewFolder paths and their year/month parents."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a76.3 step 4 generic lat/lon search",
+  "problem": "The spike's `heuristic_gps` accepts the first sub-message whose fields 2 and 3 are doubles that are in range after converting from radians. An attitude or velocity sub-message stored in radians also passes. For an unknown drone model this gives a confident wrong location, which leads to a wrong time zone, a wrong local and folder date, and false distance splits.",
+  "fix": "- Accept a generic hit only if it is consistent: the same path gives fixes within a few miles in sample 0 and the last sample, resolves to a non-`Etc` zone, and is within about 500 mi of the card's other items.\n- Flag accepted hits as \"GPS guessed\".\n- Otherwise return NoFix(Unparseable)."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a76.4 step 2 Etc/* fallback, \u00a73 PlanBase",
+  "problem": "The `Etc/*` fallback (\"zone of the group's items on land\") depends on clustering. But PlanBase, which holds ItemTime, is declared independent of R and G, and clustering itself uses LocalDate. So an ocean clip's local date, and possibly its folder date, can change with the R slider, or cannot be computed consistently.",
+  "fix": "Use the nearest land-zone GPS item on the whole card (\u2264 12 h) instead of the group's members. Then zone resolution no longer depends on R or G."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a71.1 decision 5 (card copy-only), \u00a74.3 IO guard",
+  "problem": "Reading files on exFAT may update last-access timestamps in their directory entries, which would be writes to the card during scan and copy. Windows' disable-last-access setting is documented for NTFS; exFAT behaviour is UNVERIFIED.",
+  "fix": "- In the first-card acceptance, compare LastAccessTimeUtc from a listing before and after a scan.\n- If it changes, document it and keep opens minimal.\n- Don't suppress it with `SetFileTime(-1)`: that needs a write-attributes handle on the card."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a78.6 Blocking checks, \u00a74.2 WindowsFileOps P/Invoke",
+  "problem": "The 400-character check is OneDrive's limit. The hand-written LibraryImport calls (`MoveFileExW`, `CreateFileW` for the unbuffered verify) don't get .NET's automatic long-path handling, and the temp path adds 13 characters beyond the checked final path. A path over 260 characters would therefore fail only at Commit time.",
+  "fix": "- Prefix `\\\\?\\` on every P/Invoke path, or ship a longPathAware manifest and check LongPathsEnabled.\n- Run the length check on the temp path.\n- Add a 300-character integration test."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a78.5 first row (fold AlreadyImported), \u00a79.3 Folded rows",
+  "problem": "A group with no New or ticked-Conflict members folds into the grey \"already in library\" row. That hides unticked Conflict and Unfinished members, for example a repaired Anvil 0014 on the card next to imported Anvil clips. They surface only at the preflight sheet or verdict.",
+  "fix": "Never fold a group that has Conflict, Truncated or ProbeFailed members. Show it with its chip."
+ },
+ {
+  "lens": "safety",
+  "severity": "minor",
+  "section": "\u00a712 Settings unreadable, \u00a711 settings.json",
+  "problem": "If `settings.json` can't be read, the app falls back to defaults, and the default photo root is Picture Offload. After the planned move to D:, a corrupt settings file would silently send photos, and photo newness checks, to the old root.",
+  "fix": "- After a settings recovery, raise a Blocking issue until the user confirms both roots.\n- Record the roots in each ledger `run` record so they can be restored."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "major",
+  "section": "\u00a714 Milestones (effort and order)",
+  "problem": "The 22-day estimate is not realistic for this scope, and the milestone order delays the first usable offload to the very end. M6 gives 5 days to build all of this: the shell and stages, a timeline with three row types, a clip list with thumbnails and day-split rows, AutoSuggestBox renaming, retargeting, the Photos wall, the Other tab, undo/redo, drafts, keyboard handling, settings, every view model plus its tests, and --selftest. The team has no XAML designer and no Hot Reload (VS Code + CLI only; VS 2026 support for .NET 11 is UNVERIFIED), and each UI iteration is a build and relaunch of 15\u201320 s through WSL. M7 is 2 days for an unverified MapLibre-in-WebView2 bridge; M3 is 3 days for 37 ported tests, a golden replay, edit invariants, PlanSession and the CLI; M1 is 2.5 days for the MP4 probe port, SyntheticMp4Builder, StillProbe and the harvester. Also, the CLI is dry-run only and the Commit UI (M8) comes after the Map (M7), so no real card can be offloaded until about day 22. RC2 (~Oct 13, UNVERIFIED) and GA (Nov 10) will both arrive mid-build, not at M10. UNCERTAIN: whether the C# extension's bundled Roslyn understands C# 15 union/closed syntax (possible false red squiggles).",
+  "fix": "Re-baseline to roughly 33\u201338 days: M0 1, M1 3.5, M2 2, M3 4.5, M4 0.5, M5 3.5, M6 9, M7 3, M8 3, M9 1.5, M10 1.5, plus about 10% contingency. Move M8 (Preflight, Copy, Verdict, single instance) ahead of M7 (Map) so a map-less app can do a real, verified offload around day 25; the map only adds to it. Schedule the SDK bumps when they ship (RC2 around Oct 13, GA Nov 10) as 0.5-day items that each re-run the trimmed publish and --selftest. Do not tie them to M10. Add a 1-hour M0 check that VS Code's C# extension handles `union` and `closed` without spurious errors."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "major",
+  "section": "\u00a72.7 rule 3, \u00a79.4, \u00a713 UI smoke test (trimmed-binding guard)",
+  "problem": "The only guard against the silent trimming failure found in the spike is 'no {Binding}' plus a smoke test that checks top-level collections populated. The same reflection binding path is also used by property-path features: AutoSuggestBox.TextMemberPath, ItemsControl.DisplayMemberPath, and Selector.SelectedValuePath (their behaviour under trimming is UNVERIFIED, but they are the same class of problem). Without them, AutoSuggestBox falls back to item.ToString(). By default (UpdateTextOnSelect=true), arrowing through the rename suggestions writes the C# record's ToString into the textbox, e.g. 'Suggestion { Text = Anvil Mountain, Source = Feature, \u2026 }'. On LostFocus that becomes a Rename, and Clean() keeps it as the folder name. The smoke test would not catch this, because it never opens a suggestion list, and it does not check nested ItemsSources (thumbnail strips, chips, suggestion lists). Binding ItemsSource to ImmutableArray<T> in a trimmed CsWinRT build was also never tested; the spike proved only ObservableCollection<T> and List<T> of VM classes.",
+  "fix": "Extend the XAML lint to fail on `{Binding`, `DisplayMemberPath`, `TextMemberPath` and `SelectedValuePath` anywhere in src/UasSort.App. Give AutoSuggestBox a `SuggestionVm` class whose ToString() returns the display text, plus an x:Bind ItemTemplate. Set `UpdateTextOnSelect=\"False\"` and commit the text from `SuggestionChosen`/`QuerySubmitted` in the view model. Rule: every ItemsSource is an ObservableCollection<T> or List<T> of VM classes; never ImmutableArray, and never a raw record or union. Extend `--selftest` to realise one of each templated list: a group card with a thumbnail strip, a clip row, a day-split row, a suggestion popup opened in code, and a Photos tile. It should assert on the rendered text, the way the spike's CountChecks did."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "major",
+  "section": "\u00a79.3 Timeline, \u00a79.5 Clip list (DataGrid replacement)",
+  "problem": "The design requires ListView rows that cannot be selected ('Only group cards can be selected'; 'Split rows can't be selected', with SelectionMode=Extended). ListView/ListViewItem has no per-item way to block selection. The only built-in option is IsEnabled=false, which also disables the [Merge] button on chips and the [Split here] button on split rows. With Extended mode, Shift-click and Shift+arrow ranges will include the split rows, and \u2191/\u2193 will land on chips and folded rows. ListView's built-in Space (toggle selection) also conflicts with \u00a79.12 'Space = include/exclude'. This affects both central lists of the Review screen.",
+  "fix": "Build both lists on ItemsView, not ListView. ItemsView takes a DataTemplateSelector through its IElementFactory ItemTemplate and supports SelectionMode=Extended. On chip, fold and split-row templates, set `ItemContainer CanUserSelect=\"UserCannotSelect\"` and `CanUserInvoke=\"UserCannotInvoke\"`, so their buttons stay live. Confirm on M6 day 1 that CanUserSelect exists in WinUI 2.3.9 (UNVERIFIED); ItemsView and ItemContainer are already proven in the spike. Fallback if not: keep ListView, filter SelectionChanged by removing non-card rows, and set IsTabStop=false on those containers in ContainerContentChanging. Either way, move 'Space = include' onto the row's CheckBox (or scope it to the list; see the keyboard finding)."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "major",
+  "section": "\u00a72.4 Banned-API analyzer",
+  "problem": "BannedApiAnalyzers matches exact documentation IDs; it cannot express 'File.* writes'. The listed set leaves real write and delete paths open outside Platform: FileInfo.Delete/MoveTo/CopyTo/Create/Open, DirectoryInfo.Create/Delete/MoveTo, FileSystemInfo.Delete, File.Open/OpenWrite/OpenHandle/Create/CreateText/WriteAll*/AppendAll*, RandomAccess.Write, File.SetLastWriteTime*/SetCreationTime*, Windows.Storage.StorageFile/StorageFolder/FileIO (callable from the net11.0-windows App and Cli), and Process.Start with shell verbs. WebView2 can also write files through its own downloads (CoreWebView2.DownloadStarting). This weakens success criterion 1 ('safety is enforced mechanically'), which covers a binding user decision.",
+  "fix": "For Core, Review, App and Cli, ban whole types in BannedSymbols.txt: `T:System.IO.File`, `T:System.IO.Directory`, `T:System.IO.FileInfo`, `T:System.IO.DirectoryInfo`, `T:System.IO.FileSystemInfo`, `T:System.IO.RandomAccess`, `T:System.IO.FileStream`, `T:Windows.Storage.StorageFile`, `T:Windows.Storage.StorageFolder`, `T:Windows.Storage.FileIO`, `T:Microsoft.VisualBasic.FileIO.FileSystem`, plus `M:System.Diagnostics.Process.Start(System.Diagnostics.ProcessStartInfo)`, allowed only in the IShellLauncher implementation with a pragma. Core and Review never need these types, because all IO goes through ports. Give Platform the member-level list with per-call pragmas, as designed. Move Cli's `make-fake-card` writer into Platform (or UasSort.Testing) behind a port. In MapPane, add `core.DownloadStarting += (_, e) => e.Cancel = true;`. Add an analyzer test: a project containing one call of each banned kind must fail to build."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "major",
+  "section": "\u00a713 UI smoke test / \u00a710 deploy gate / \u00a74.4 single instance",
+  "problem": "As specified, the --selftest deploy gate can pass without testing anything, or hang. (1) A WinUI app that ends with Application.Current.Exit() returns exit code 0 whatever the result, so 'exits 0 or deploy aborts' never aborts. (2) Single instance via AppInstance.FindOrRegisterForKey(\"uas-sort\"): if the user has the app open while deploy.ps1 runs, the selftest launch is redirected to the running instance and never runs its checks. (3) The selftest would share %LOCALAPPDATA%\\uas-sort\\WebView2 with the live instance. Separately, the design omits what the AppInstance pattern needs in an unpackaged WinUI app: DISABLE_XAML_GENERATED_MAIN with a custom Main that calls FindOrRegisterForKey before Application.Start; RedirectActivationToAsync must not block the STA thread (Microsoft's sample runs it on a worker thread); and bringing the existing window forward fails under the foreground lock unless the redirecting process calls AllowSetForegroundWindow.",
+  "fix": "Selftest: skip single-instance registration when `--selftest` is present, use a separate data root (%TEMP%\\uas-sort-selftest-<guid>, including its WebView2 folder), and end with `Environment.Exit(ok ? 0 : 1)` after writing a result JSON. deploy.ps1 should check both the exit code and the result file, with a 60 s timeout. Single instance: define DISABLE_XAML_GENERATED_MAIN; write Program.Main as ComWrappersSupport.InitializeComWrappers \u2192 FindOrRegisterForKey \u2192 if not current, AllowSetForegroundWindow(existing.ProcessId), then RedirectActivationToAsync on a background thread with a wait, then exit \u2192 otherwise Application.Start. In the main instance's Activated handler, call SetForegroundWindow on the window's HWND. Keep the named-mutex fallback and test it in M0, not M8, because a second instance could start a concurrent offload."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a79.6 Map messages / MapBridge JSON",
+  "problem": "The draft requires `type` to be the first JSON property, but the map spike's map.js posts `{ v: PROTOCOL, type, ...body }`, so `v` comes first. System.Text.Json polymorphic deserialization with [JsonPolymorphic] fails unless the discriminator comes first. Every map\u2192host message would throw. An unknown discriminator (e.g. a new `key` message, or a stale cached page) also throws JsonException inside the WebMessageReceived handler, and that exception may go unobserved.",
+  "fix": "Set `AllowOutOfOrderMetadataProperties = true` in the `[JsonSourceGenerationOptions]` of MapJson (supported since .NET 9) instead of relying on property order in JS. Wrap Dispatch in try/catch(JsonException) and log unknown types. Add a golden-message test that deserialises the exact objects map.js produces (v first). Write GeoPoint\u2192[lon,lat] with an explicit JsonConverter registered on the context."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a79.6 Map host / M7 first task",
+  "problem": "MapLibre 6.11.2 is ESM-only: map.js does `import ... './lib/maplibre-gl.mjs'` and starts a module Worker from `maplibre-gl-worker.mjs`. Module scripts and module workers are rejected unless the response has a JavaScript MIME type. The spike served .mjs from a local HTTP server, not from WebView2's SetVirtualHostNameToFolderMapping. Whether the virtual host serves `.mjs` as text/javascript is UNVERIFIED; it depends on Chromium's extension table. If it does not, the page stays blank and never sends `ready`. The draft names M7's first task, but not this specific failure or a fix that avoids falling back to Leaflet.",
+  "fix": "Vendor the MapLibre files renamed to `.js`, rewriting the import and worker URLs (module loading checks MIME, not the extension), or map them with `AddWebResourceRequestedFilter(\"https://map.uas-sort.example/*\")` and serve them with an explicit `Content-Type: text/javascript`. Keep the page's first-lines forwarding of error and unhandledrejection so a MIME rejection shows up in the host log. Add 'MapLibre ready under virtual host' to --selftest (it already waits for `ready`)."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a710.3 per-file protocol / \u00a74.2 Platform / \u00a713 Windows integration",
+  "problem": "Several Win32 details are wrong or untestable. (a) MOVEFILE_WRITE_THROUGH only affects moves done as copy-and-delete across volumes; for the same-volume temp\u2192final rename it guarantees nothing, so 'write-through no-replace rename' and the integration test 'Write-through flag' cannot prove anything. (b) No test can show that verification 'reads from disk, not cache'; a test can only show that the unbuffered open succeeded with correct alignment. (c) LibraryImport needs `AllowUnsafeBlocks=true` in Platform, or the build fails with SYSLIB1062. (d) The CreateFileW P/Invoke is unnecessary: `File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read, (FileOptions)0x20000000)` plus `RandomAccess.Read` into `NativeMemory.AlignedAlloc(1 MiB, 4096)` buffers does the same. (e) A handle-count probe to show the lister 'opens no files' is noisy (GC, thread pool, ETW).",
+  "fix": "Keep MoveFileExW with no flags other than 'no REPLACE_EXISTING'. Drop the write-through claim and its test, and rely on FlushFileBuffers on the temp file before the rename. Reword success criterion 1 to 'verification uses an unbuffered handle, with a buffered fallback that is recorded'. Add `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` to Platform. Use File.OpenHandle with the NO_BUFFERING flag instead of a custom CreateFileW. Replace the handle-count probe with a deterministic test: lock every file in a temp tree with FileShare.None, then enumerate. Any data open would throw a sharing violation, while FindFirstFileEx listing succeeds."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a74.3 IO guard / decision 5 (card never written)",
+  "problem": "UNCERTAIN: Windows' FAT/exFAT drivers may update a file's last-access date in its directory entry when the file is opened for reading. The NTFS 'disablelastaccess' policy does not clearly apply to exFAT. If they do, every probe and copy writes metadata to the card, contrary to decision 5, and no guard in the design would notice.",
+  "fix": "At the M4 checkpoint, compare every card file's LastAccessTimeUtc before and after a full `uas-sort-cli plan`, on a spare card or a copy of the card image. If it changes: detect a write-protected volume (GetVolumeInformationW, FILE_READ_ONLY_VOLUME 0x80000). Show a 'Card is write-protected' badge, or an InfoBar suggesting the SD lock switch. Document the metadata update in the verdict text rather than claiming zero writes."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a72.1/\u00a72.5 build config (TreatWarningsAsErrors with trimming and prerelease SDKs)",
+  "problem": "The spike built with TreatWarningsAsErrors=false; the draft turns it on everywhere. Under that setting, ILLink warnings fail `dotnet publish`. `<TrimmerRootAssembly Include=\"MetadataExtractor;XmpCore\"/>` roots whole assemblies that were never trim-analysed, which may raise IL2104/IL2xxx warnings. MetadataExtractor was never called in a trimmed spike, so this is UNVERIFIED. Each SDK bump (RC2, GA) can also bring new analyzers under latest-recommended, so the 'GA bump is 0.25 day' estimate is optimistic.",
+  "fix": "In M0, publish the real App trimmed and ReadyToRun with a StillProbe call on an embedded DNG, and record any warnings. If they come only from the rooted assemblies, add a targeted `<NoWarn>$(NoWarn);IL2104</NoWarn>` in the App csproj, with a comment. Pin `AnalysisLevel` to a fixed value (e.g. `11.0-recommended`) rather than `latest-recommended`, so SDK bumps don't change the rule set. Budget 0.5 day per SDK bump."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a72.1 stack table / M0 verification list",
+  "problem": "Several items in the lean package set were never built together, or never tested. The spikes proved WinUI 2.3.9 + Foundation + IXP + WebView2 (map spike, no toolkit) and WinUI 2.3.9 + toolkit 8.3-preview2 SettingsControls/Segmented (stack spike, no Foundation or WebView2 pins), but never the combination the draft specifies. `CommunityToolkit.WinUI.Controls.Sizers` 8.3.260402-preview2 was never restored. Which lean component package holds `Microsoft.Windows.Storage.Pickers.FolderPicker` (with SuggestedStartFolder) is unknown. C# 15 `closed`/`union` exhaustiveness was tested only inside the declaring assembly (Describe sits in Spike.Core), but Review, App and Cli switch on Core's closed and union types. If closedness isn't recognised across assemblies, CS8509 becomes an error under TreatWarningsAsErrors.",
+  "fix": "Make M0's acceptance a single build of the exact Directory.Packages.props: WinUI 2.3.9, Foundation 2.3.12, IXP 2.1.9, WebView2 1.0.4191.47, BuildTools 10.0.28000.2705, toolkit Sizers and SettingsControls 8.3.260402-preview2, MVVM 8.4.2, MetadataExtractor, GeoTimeZone and System.IO.Hashing. Run it trimmed with ReadyToRun and a 30-line page that uses GridSplitter, SettingsCard, FolderPicker (WindowId from AppWindow.Id), AppInstance.FindOrRegisterForKey and a WebView2. Add a test in Review.Tests that switches without a default arm on Core's CopyOutcome (closed) and GpsProbe (union), and one that round-trips a closed PlanEdit through source-generated JSON."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a79.7 Tuning sliders / \u00a71.5 criterion 4",
+  "problem": "WinUI's Slider has no public drag-completed event. Its internal Thumb handles pointer release, so the design's 'becomes one undo entry when the pointer is released' has no public event to hook, and keyboard or wheel changes have no release at all. At 10 derivations a second, each doing Derive (up to 50 ms), CollectionSync and map setData on the UI thread, the drag can stutter.",
+  "fix": "Hook `Slider.AddHandler(UIElement.PointerReleasedEvent, handler, handledEventsToo: true)` plus `PointerCaptureLost`, and commit tuning after 400 ms of no ValueChanged for keyboard or wheel input. Run `Planner.Derive` on a background task with latest-wins cancellation (Plan is immutable, so this is safe), and apply only the diff and the map message on the UI thread through IUiDispatcher. Cover the commit-on-idle behaviour in a Review.Tests case with FakeTimeProvider."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a79.12 Keyboard",
+  "problem": "Page-level KeyboardAccelerators for unmodified keys conflict with built-in control input. Space (include/exclude) and \u2191/\u2193 collide with the list's own selection and navigation handling. Space, F2 and Ctrl+Z may reach the rename AutoSuggestBox's text editing, depending on accelerator precedence, which is UNVERIFIED. The result could be toggling inclusion while typing 'Council Road', or plan-undo instead of text-undo.",
+  "fix": "Keep only modified shortcuts (Ctrl+\u2026, F5, Ctrl+Enter) as page accelerators. Put Space, F2 and Ctrl+Shift+S on the timeline and clip-list controls, handled in their KeyDown only when the focused element is a row container, never a TextBox. Before running plan Undo/Redo, check `FocusManager.GetFocusedElement(XamlRoot) is TextBox`. Add a smoke test that types a space into the rename box and checks that Included is unchanged."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a74.2 Review VMs / \u00a79.5 thumbnails",
+  "problem": "Review is 'net11.0, no WinUI types', but clip rows and group cards need an ImageSource. IThumbnailSource and ClipRowVm don't say how decoded images reach x:Bind without WinUI types in the view models. Images loading asynchronously in recycled virtualised containers will also show the wrong thumbnail unless the load completion is checked against the row's current key.",
+  "fix": "Keep the view models free of image objects. They expose only `ItemId ThumbKey`. In App, add an attached property `Thumb.Key=\"{x:Bind ThumbKey}\"` on Image. It asks ThumbnailCache (BitmapImage via SetSourceAsync with DecodePixelWidth=96) and assigns Source only if the element's current Key still matches when the load finishes. IThumbnailSource then returns bytes (ReadOnlyMemory<byte>) and stays testable."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a79.5, \u00a79.14, \u00a79.4 control choices",
+  "problem": "Some control choices work against WinUI. TeachingTip is a light-dismiss teaching popup; driving it from row hover will flicker and fight focus. Settings in a ContentDialog is capped at the ContentDialogMaxWidth (~548 px), too narrow for URLs and paths. A ContentDialog also cannot open while another one is open, so the unhandled-exception or 'Folder is dated\u2026' dialog throws if Settings is open. DropDownButton's MenuFlyout has no ItemsSource, so append candidates can't be bound with x:Bind. The 'Browse existing\u2026' picker cannot be restricted to the video root.",
+  "fix": "Hover preview: use `ToolTipService.ToolTip` with an Image, using the 960 px range. Settings: make it a Page in the Frame, reached from the TitleBar button, using SettingsCard. Route all ContentDialogs through IDialogService with a queue or semaphore. Build the MenuFlyout items in code-behind on `Opening` from the VM's candidate list. After picking, reject any folder outside the video root with an InfoBar."
+ },
+ {
+  "lens": "feasibility",
+  "severity": "minor",
+  "section": "\u00a72.6 Commands",
+  "problem": "`pwsh tools\\deploy.ps1` depends on PowerShell 7, which is not installed on this machine: there is no `C:\\Program Files\\PowerShell`, and only Windows PowerShell 5.1 exists at System32\\WindowsPowerShell. Script execution also needs a bypassed execution policy.",
+  "fix": "Either list `winget install Microsoft.PowerShell` next to the SDK as a one-time install that is the user's call (the most modern option), or write the scripts for 5.1 and invoke `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\\deploy.ps1`, as the spike scripts did. Pick one and use it in build.ps1, deploy.ps1 and r.sh."
+ }
+]

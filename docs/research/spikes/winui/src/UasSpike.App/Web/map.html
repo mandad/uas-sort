@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>uas-sort map spike</title>
+  <link rel="stylesheet" href="lib/leaflet/leaflet.css">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="lib/leaflet/leaflet.js"></script>
+  <script>
+    'use strict';
+    const post = (msg) => window.chrome?.webview?.postMessage(msg);
+    // Surface JS errors to the host log (first thing, so later failures are visible).
+    window.addEventListener('error', e => post({ type: 'jserror', message: e.message, line: e.lineno, col: e.colno }));
+    window.addEventListener('unhandledrejection', e => post({ type: 'jserror', message: String(e.reason) }));
+    const map = L.map('map', { preferCanvas: true });
+    let tilesLoaded = 0, tileErrors = 0;
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    osm.on('tileload', () => tilesLoaded++);
+    osm.on('tileerror', () => tileErrors++);
+    osm.on('load', () => post({ type: 'tiles', loaded: tilesLoaded, errors: tileErrors }));
+
+    const spots = [
+      { name: 'Zachar Bay', lat: 57.5504, lon: -153.7390 },
+      { name: 'Kodiak',     lat: 57.7996, lon: -152.3902 }
+    ];
+    const dots = spots.map(s => L.circleMarker([s.lat, s.lon], {
+      radius: 7, color: '#fff', weight: 2, fillColor: '#d9480f', fillOpacity: 1
+    }).bindTooltip(s.name).addTo(map));
+    // Grouping radius R = 50 miles, drawn geodesically by Leaflet (metres).
+    const R_MILES = 50, METRES_PER_MILE = 1609.344;
+    const ring = L.circle([spots[0].lat, spots[0].lon], {
+      radius: R_MILES * METRES_PER_MILE, color: '#1971c2', weight: 2, fillOpacity: 0.08
+    }).addTo(map);
+    // NB: ring.getBounds() throws before the map has a view (layers are added only once the map is 'ready'),
+    // so compute the bounds geodesically from the centre instead.
+    const bounds = L.latLng(spots[0].lat, spots[0].lon).toBounds(2 * R_MILES * METRES_PER_MILE);
+    map.fitBounds(bounds.extend(dots[1].getLatLng()), { padding: [20, 20] });
+
+    map.on('click', e => post({ type: 'click', lat: e.latlng.lat, lon: e.latlng.lng, zoom: map.getZoom() }));
+    dots.forEach((d, i) => d.on('click', () => post({ type: 'dot', name: spots[i].name })));
+
+    // Host -> page messages (JSON). Example: {"type":"ping"}
+    window.chrome?.webview?.addEventListener('message', ev => {
+      if (ev.data?.type === 'ping') post({ type: 'pong', leaflet: L.version, ua: navigator.userAgent });
+      if (ev.data?.type === 'radius') { ring.setRadius(ev.data.miles * METRES_PER_MILE); post({ type: 'radius-ack', miles: ev.data.miles }); }
+    });
+    post({ type: 'ready', leaflet: L.version, size: [map.getSize().x, map.getSize().y] });
+  </script>
+</body>
+</html>

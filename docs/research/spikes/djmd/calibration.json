@@ -1,0 +1,2291 @@
+[
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-03 Nome Roads/DJI_20260704014132_0110_D.MP4",
+  "size": 943401611,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-04T05:41:33+00:00",
+  "duration_s": 94.995,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-04T05:41:33+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-04T05:41:33+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-04T05:41:33+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-04T05:41:33+00:00",
+  "djmd_samples": 2847,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.5917111629797,
+  "lon": -165.6725374773871,
+  "coord_units": 0,
+  "abs_alt_m": 110.552,
+  "timestamp_3_1_2": 396182566,
+  "gps_sample_index": 0,
+  "sample_bytes": 481,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.5899283804635,
+  "last_lon": -165.66388612411407,
+  "last_sample_index": 2846,
+  "bytes_read": 2185,
+  "read_calls": 66,
+  "elapsed_ms": 8.9,
+  "folder": "2026-07-03 Nome Roads",
+  "name": "DJI_20260704014132_0110_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-25 Council Road/DJI_20260726022937_0118_D.MP4",
+  "size": 889542960,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-26T06:29:38+00:00",
+  "duration_s": 89.523,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-26T06:29:38+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-26T06:29:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-26T06:29:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-26T06:29:38+00:00",
+  "djmd_samples": 2683,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.69468868191382,
+  "lon": -164.27627600173113,
+  "coord_units": 0,
+  "abs_alt_m": 96.45,
+  "timestamp_3_1_2": 189893500,
+  "gps_sample_index": 0,
+  "sample_bytes": 467,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.69136254241481,
+  "last_lon": -164.2834005176437,
+  "last_sample_index": 2682,
+  "bytes_read": 2141,
+  "read_calls": 66,
+  "elapsed_ms": 25.6,
+  "folder": "2026-07-25 Council Road",
+  "name": "DJI_20260726022937_0118_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260726235645_0001_D.MP4",
+  "size": 1197751151,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T03:56:45+00:00",
+  "duration_s": 154.855,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T03:56:45+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T03:56:45+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T03:56:45+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T03:56:45+00:00",
+  "djmd_samples": 4641,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56267618836222,
+  "lon": -165.36963779765148,
+  "coord_units": 0,
+  "abs_alt_m": 358.234,
+  "timestamp_3_1_2": 164256683,
+  "gps_sample_index": 0,
+  "sample_bytes": 493,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56253141677516,
+  "last_lon": -165.36887984706453,
+  "last_sample_index": 4640,
+  "bytes_read": 2202,
+  "read_calls": 66,
+  "elapsed_ms": 12.1,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260726235645_0001_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727000012_0002_D.MP4",
+  "size": 136394815,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:00:12+00:00",
+  "duration_s": 13.614,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:00:12+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:00:12+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:00:12+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:00:12+00:00",
+  "djmd_samples": 408,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56383941943447,
+  "lon": -165.36877080371528,
+  "coord_units": 0,
+  "abs_alt_m": 358.834,
+  "timestamp_3_1_2": 371339516,
+  "gps_sample_index": 0,
+  "sample_bytes": 506,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56450602421548,
+  "last_lon": -165.37007193434334,
+  "last_sample_index": 407,
+  "bytes_read": 2210,
+  "read_calls": 66,
+  "elapsed_ms": 13.6,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727000012_0002_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727000129_0004_D.MP4",
+  "size": 184152757,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:01:29+00:00",
+  "duration_s": 23.824,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:01:29+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:01:29+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:01:29+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:01:29+00:00",
+  "djmd_samples": 714,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56449989904615,
+  "lon": -165.37005615019456,
+  "coord_units": 0,
+  "abs_alt_m": 358.034,
+  "timestamp_3_1_2": 447813750,
+  "gps_sample_index": 0,
+  "sample_bytes": 497,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56494106365945,
+  "last_lon": -165.36813741568628,
+  "last_sample_index": 713,
+  "bytes_read": 2201,
+  "read_calls": 66,
+  "elapsed_ms": 9.8,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727000129_0004_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727000302_0005_D.MP4",
+  "size": 30095706,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:03:02+00:00",
+  "duration_s": 2.97,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:03:02+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:03:02+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:03:02+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:03:02+00:00",
+  "djmd_samples": 89,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56433686171138,
+  "lon": -165.3693352251299,
+  "coord_units": 0,
+  "abs_alt_m": 362.634,
+  "timestamp_3_1_2": 541032583,
+  "gps_sample_index": 0,
+  "sample_bytes": 490,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56434825127478,
+  "last_lon": -165.36938098464466,
+  "last_sample_index": 88,
+  "bytes_read": 2193,
+  "read_calls": 66,
+  "elapsed_ms": 4.6,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727000302_0005_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727000511_0006_D.MP4",
+  "size": 950690711,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:05:11+00:00",
+  "duration_s": 125.192,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:05:11+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:05:11+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:05:11+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:05:11+00:00",
+  "djmd_samples": 3752,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56424893592038,
+  "lon": -165.37023891765938,
+  "coord_units": 0,
+  "abs_alt_m": 333.434,
+  "timestamp_3_1_2": 669884100,
+  "gps_sample_index": 0,
+  "sample_bytes": 502,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56382860159543,
+  "last_lon": -165.371328956131,
+  "last_sample_index": 3751,
+  "bytes_read": 2201,
+  "read_calls": 66,
+  "elapsed_ms": 10.0,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727000511_0006_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727000831_0007_D.MP4",
+  "size": 576786602,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:08:32+00:00",
+  "duration_s": 58.058,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:08:32+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:08:32+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:08:32+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:08:32+00:00",
+  "djmd_samples": 1740,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.5637448548072,
+  "lon": -165.36940710316014,
+  "coord_units": 0,
+  "abs_alt_m": 344.934,
+  "timestamp_3_1_2": 870601533,
+  "gps_sample_index": 0,
+  "sample_bytes": 478,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56331017352274,
+  "last_lon": -165.37358484347197,
+  "last_sample_index": 1739,
+  "bytes_read": 2167,
+  "read_calls": 66,
+  "elapsed_ms": 14.3,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727000831_0007_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727001108_0011_D.MP4",
+  "size": 157360826,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:11:08+00:00",
+  "duration_s": 20.287,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:11:08+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:11:08+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:11:08+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:11:08+00:00",
+  "djmd_samples": 608,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.5626424296524,
+  "lon": -165.37322065544373,
+  "coord_units": 0,
+  "abs_alt_m": 338.234,
+  "timestamp_3_1_2": 1027321350,
+  "gps_sample_index": 0,
+  "sample_bytes": 490,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.5623579727454,
+  "last_lon": -165.37393186273096,
+  "last_sample_index": 607,
+  "bytes_read": 2187,
+  "read_calls": 66,
+  "elapsed_ms": 9.1,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727001108_0011_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727001216_0012_D.MP4",
+  "size": 109840289,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:12:16+00:00",
+  "duration_s": 22.923,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:12:16+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:12:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:12:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:12:16+00:00",
+  "djmd_samples": 687,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56263998867038,
+  "lon": -165.3732288736176,
+  "coord_units": 0,
+  "abs_alt_m": 337.534,
+  "timestamp_3_1_2": 1095483866,
+  "gps_sample_index": 0,
+  "sample_bytes": 480,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56227280146881,
+  "last_lon": -165.37409010608715,
+  "last_sample_index": 686,
+  "bytes_read": 2182,
+  "read_calls": 66,
+  "elapsed_ms": 7.3,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727001216_0012_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727001316_0013_D.MP4",
+  "size": 560716198,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:13:16+00:00",
+  "duration_s": 90.691,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:13:16+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:13:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:13:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:13:16+00:00",
+  "djmd_samples": 2718,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56263587475046,
+  "lon": -165.3732324194153,
+  "coord_units": 0,
+  "abs_alt_m": 336.034,
+  "timestamp_3_1_2": 1155405500,
+  "gps_sample_index": 0,
+  "sample_bytes": 485,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56378080999588,
+  "last_lon": -165.37087590944756,
+  "last_sample_index": 2717,
+  "bytes_read": 2182,
+  "read_calls": 66,
+  "elapsed_ms": 11.0,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727001316_0013_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002013_0014_D.MP4",
+  "size": 7340032,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat"
+  ],
+  "error": "no moov (truncated/unfinalized recording?)",
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56353412507406,
+  "lon": -165.3712451966168,
+  "coord_units": 0,
+  "abs_alt_m": 342.692,
+  "timestamp_3_1_2": 159555250,
+  "gps_source": "mdat-head fallback",
+  "bytes_read": 4224,
+  "read_calls": 9,
+  "elapsed_ms": 5.8,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002013_0014_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002118_0015_D.MP4",
+  "size": 11481299,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:21:18+00:00",
+  "duration_s": 1.602,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:21:18+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:21:18+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:21:18+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:21:18+00:00",
+  "djmd_samples": 48,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56289557850654,
+  "lon": -165.37430011661021,
+  "coord_units": 0,
+  "abs_alt_m": 342.592,
+  "timestamp_3_1_2": 225082016,
+  "gps_sample_index": 0,
+  "sample_bytes": 474,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56289928043698,
+  "last_lon": -165.37428070871064,
+  "last_sample_index": 47,
+  "bytes_read": 2167,
+  "read_calls": 66,
+  "elapsed_ms": 7.0,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002118_0015_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002219_0016_D.MP4",
+  "size": 303097941,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:22:19+00:00",
+  "duration_s": 40.374,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:22:19+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:22:19+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:22:19+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:22:19+00:00",
+  "djmd_samples": 1210,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56350879372053,
+  "lon": -165.37116459577038,
+  "coord_units": 0,
+  "abs_alt_m": 342.592,
+  "timestamp_3_1_2": 285470733,
+  "gps_sample_index": 0,
+  "sample_bytes": 478,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56280610687983,
+  "last_lon": -165.37469126698988,
+  "last_sample_index": 1209,
+  "bytes_read": 2165,
+  "read_calls": 66,
+  "elapsed_ms": 11.0,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002219_0016_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002338_0017_D.MP4",
+  "size": 269421463,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:23:38+00:00",
+  "duration_s": 37.838,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:23:38+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:23:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:23:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:23:38+00:00",
+  "djmd_samples": 1134,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56275021421293,
+  "lon": -165.37462292190997,
+  "coord_units": 0,
+  "abs_alt_m": 342.292,
+  "timestamp_3_1_2": 364776800,
+  "gps_sample_index": 0,
+  "sample_bytes": 478,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56274387309668,
+  "last_lon": -165.37245984374695,
+  "last_sample_index": 1133,
+  "bytes_read": 2170,
+  "read_calls": 66,
+  "elapsed_ms": 7.0,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002338_0017_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002434_0018_D.MP4",
+  "size": 255089410,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:24:35+00:00",
+  "duration_s": 51.785,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:24:35+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:24:35+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:24:35+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:24:35+00:00",
+  "djmd_samples": 1552,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56274366198234,
+  "lon": -165.3724603290607,
+  "coord_units": 0,
+  "abs_alt_m": 322.192,
+  "timestamp_3_1_2": 421128483,
+  "gps_sample_index": 0,
+  "sample_bytes": 477,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56324460196127,
+  "last_lon": -165.37341710860076,
+  "last_sample_index": 1551,
+  "bytes_read": 2160,
+  "read_calls": 66,
+  "elapsed_ms": 6.8,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002434_0018_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727002700_0023_D.MP4",
+  "size": 161372023,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:27:00+00:00",
+  "duration_s": 21.622,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:27:00+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:27:00+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:27:00+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:27:00+00:00",
+  "djmd_samples": 648,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56230408628892,
+  "lon": -165.37368270097065,
+  "coord_units": 0,
+  "abs_alt_m": 352.592,
+  "timestamp_3_1_2": 566251400,
+  "gps_sample_index": 0,
+  "sample_bytes": 488,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56395041164737,
+  "last_lon": -165.37105283579388,
+  "last_sample_index": 647,
+  "bytes_read": 2177,
+  "read_calls": 66,
+  "elapsed_ms": 6.4,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727002700_0023_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005240_0024_D.MP4",
+  "size": 11534336,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat"
+  ],
+  "error": "no moov (truncated/unfinalized recording?)",
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.55569381856114,
+  "lon": -165.3601359235341,
+  "coord_units": 0,
+  "abs_alt_m": 277.03,
+  "timestamp_3_1_2": 123484133,
+  "gps_source": "mdat-head fallback",
+  "bytes_read": 4224,
+  "read_calls": 9,
+  "elapsed_ms": 4.7,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005240_0024_D.MP4",
+  "attr": "0x420"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005439_0028_D.MP4",
+  "size": 278109225,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:54:39+00:00",
+  "duration_s": 37.804,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:54:39+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:54:39+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:54:39+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:54:39+00:00",
+  "djmd_samples": 1133,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.55534644091594,
+  "lon": -165.36134999590823,
+  "coord_units": 0,
+  "abs_alt_m": 331.43,
+  "timestamp_3_1_2": 242056316,
+  "gps_sample_index": 0,
+  "sample_bytes": 482,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.55378996420528,
+  "last_lon": -165.37081783750716,
+  "last_sample_index": 1132,
+  "bytes_read": 2188,
+  "read_calls": 66,
+  "elapsed_ms": 7.9,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005439_0028_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005526_0029_D.MP4",
+  "size": 157421567,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:55:26+00:00",
+  "duration_s": 21.321,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:26+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:26+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:26+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:55:26+00:00",
+  "djmd_samples": 639,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.55379068995745,
+  "lon": -165.37089966411884,
+  "coord_units": 0,
+  "abs_alt_m": 331.33,
+  "timestamp_3_1_2": 289637183,
+  "gps_sample_index": 0,
+  "sample_bytes": 477,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.55426418186666,
+  "last_lon": -165.37581649722844,
+  "last_sample_index": 638,
+  "bytes_read": 2175,
+  "read_calls": 66,
+  "elapsed_ms": 8.5,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005526_0029_D.MP4",
+  "attr": "0x420"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005552_0030_D.MP4",
+  "size": 429535393,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:55:52+00:00",
+  "duration_s": 59.426,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:52+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:52+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:55:52+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:55:52+00:00",
+  "djmd_samples": 1781,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.55441809132822,
+  "lon": -165.3757908230064,
+  "coord_units": 0,
+  "abs_alt_m": 331.83,
+  "timestamp_3_1_2": 315229416,
+  "gps_sample_index": 0,
+  "sample_bytes": 489,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56037462584545,
+  "last_lon": -165.37334560115812,
+  "last_sample_index": 1780,
+  "bytes_read": 2184,
+  "read_calls": 66,
+  "elapsed_ms": 14.3,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005552_0030_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005756_0032_D.MP4",
+  "size": 127636850,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:57:56+00:00",
+  "duration_s": 16.817,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:57:56+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:57:56+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:57:56+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:57:56+00:00",
+  "djmd_samples": 504,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56037567845705,
+  "lon": -165.37334896432202,
+  "coord_units": 0,
+  "abs_alt_m": 332.23,
+  "timestamp_3_1_2": 439544900,
+  "gps_sample_index": 0,
+  "sample_bytes": 477,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.56037545411732,
+  "last_lon": -165.37333849086016,
+  "last_sample_index": 503,
+  "bytes_read": 2152,
+  "read_calls": 66,
+  "elapsed_ms": 15.3,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005756_0032_D.MP4",
+  "attr": "0x420"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-07/2026-07-26 Anvil Mountain/DJI_20260727005827_0033_D.MP4",
+  "size": 300709322,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-07-27T04:58:27+00:00",
+  "duration_s": 38.972,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-07-27T04:58:27+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:58:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-07-27T04:58:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-07-27T04:58:27+00:00",
+  "djmd_samples": 1168,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 64.56034910239691,
+  "lon": -165.37335121195102,
+  "coord_units": 0,
+  "abs_alt_m": 362.73,
+  "timestamp_3_1_2": 470275600,
+  "gps_sample_index": 0,
+  "sample_bytes": 479,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 64.55547281502002,
+  "last_lon": -165.37445107716417,
+  "last_sample_index": 1167,
+  "bytes_read": 2192,
+  "read_calls": 66,
+  "elapsed_ms": 11.6,
+  "folder": "2026-07-26 Anvil Mountain",
+  "name": "DJI_20260727005827_0033_D.MP4",
+  "attr": "0x420"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140127_0123_D.MP4",
+  "size": 105764094,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:01:27+00:00",
+  "duration_s": 13.547,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:27+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:01:27+00:00",
+  "djmd_samples": 406,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.536827551685946,
+  "lon": -153.7483853408984,
+  "coord_units": 0,
+  "abs_alt_m": 300.894,
+  "timestamp_3_1_2": 118012383,
+  "gps_sample_index": 0,
+  "sample_bytes": 462,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.5369406337104,
+  "last_lon": -153.74740448273042,
+  "last_sample_index": 405,
+  "bytes_read": 2163,
+  "read_calls": 66,
+  "elapsed_ms": 11.9,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140127_0123_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140144_0124_D.MP4",
+  "size": 401570542,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:01:44+00:00",
+  "duration_s": 63.797,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:44+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:44+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:01:44+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:01:44+00:00",
+  "djmd_samples": 1912,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.536963955189584,
+  "lon": -153.74725105118796,
+  "coord_units": 0,
+  "abs_alt_m": 301.194,
+  "timestamp_3_1_2": 135128083,
+  "gps_sample_index": 0,
+  "sample_bytes": 492,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.5442446940697,
+  "last_lon": -153.74093481291584,
+  "last_sample_index": 1911,
+  "bytes_read": 2194,
+  "read_calls": 66,
+  "elapsed_ms": 20.1,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140144_0124_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140308_0125_D.MP4",
+  "size": 105152768,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:03:08+00:00",
+  "duration_s": 28.529,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:08+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:08+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:08+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:03:08+00:00",
+  "djmd_samples": 855,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.544347136017294,
+  "lon": -153.74099726375155,
+  "coord_units": 0,
+  "abs_alt_m": 303.294,
+  "timestamp_3_1_2": 219405383,
+  "gps_sample_index": 0,
+  "sample_bytes": 472,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.54662988105328,
+  "last_lon": -153.7395405207549,
+  "last_sample_index": 854,
+  "bytes_read": 2187,
+  "read_calls": 66,
+  "elapsed_ms": 9.3,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140308_0125_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140356_0126_D.MP4",
+  "size": 385318609,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:03:56+00:00",
+  "duration_s": 57.257,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:56+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:56+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:03:56+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:03:56+00:00",
+  "djmd_samples": 1716,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.54676359024256,
+  "lon": -153.73954296886788,
+  "coord_units": 0,
+  "abs_alt_m": 310.894,
+  "timestamp_3_1_2": 267416200,
+  "gps_sample_index": 0,
+  "sample_bytes": 473,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.54815819487527,
+  "last_lon": -153.73999481224445,
+  "last_sample_index": 1715,
+  "bytes_read": 2157,
+  "read_calls": 66,
+  "elapsed_ms": 11.7,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140356_0126_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140627_0128_D.MP4",
+  "size": 89620298,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:06:27+00:00",
+  "duration_s": 11.211,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:06:27+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:06:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:06:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:06:27+00:00",
+  "djmd_samples": 336,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.55044205792649,
+  "lon": -153.73897297209314,
+  "coord_units": 0,
+  "abs_alt_m": 298.394,
+  "timestamp_3_1_2": 417936400,
+  "gps_sample_index": 0,
+  "sample_bytes": 486,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.550532372130824,
+  "last_lon": -153.73882281320692,
+  "last_sample_index": 335,
+  "bytes_read": 2181,
+  "read_calls": 66,
+  "elapsed_ms": 10.6,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140627_0128_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927140935_0132_D.MP4",
+  "size": 836752006,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:09:35+00:00",
+  "duration_s": 173.206,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:09:35+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:09:35+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:09:35+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:09:35+00:00",
+  "djmd_samples": 5191,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.54994688118691,
+  "lon": -153.73981194720662,
+  "coord_units": 0,
+  "abs_alt_m": 304.894,
+  "timestamp_3_1_2": 605608700,
+  "gps_sample_index": 0,
+  "sample_bytes": 487,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.542639014405594,
+  "last_lon": -153.74365264370476,
+  "last_sample_index": 5190,
+  "bytes_read": 2205,
+  "read_calls": 66,
+  "elapsed_ms": 18.2,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927140935_0132_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927141327_0133_D.MP4",
+  "size": 156224230,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:13:27+00:00",
+  "duration_s": 19.853,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:13:27+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:13:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:13:27+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:13:27+00:00",
+  "djmd_samples": 595,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.54262447025107,
+  "lon": -153.74373474924323,
+  "coord_units": 0,
+  "abs_alt_m": 269.194,
+  "timestamp_3_1_2": 838036516,
+  "gps_sample_index": 0,
+  "sample_bytes": 477,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.54275711794536,
+  "last_lon": -153.74332416804086,
+  "last_sample_index": 594,
+  "bytes_read": 2187,
+  "read_calls": 66,
+  "elapsed_ms": 7.3,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927141327_0133_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927141533_0136_D.MP4",
+  "size": 506700132,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:15:33+00:00",
+  "duration_s": 65.065,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:15:33+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:15:33+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:15:33+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:15:33+00:00",
+  "djmd_samples": 1950,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.54275072829863,
+  "lon": -153.74327242828628,
+  "coord_units": 0,
+  "abs_alt_m": 248.694,
+  "timestamp_3_1_2": 963781366,
+  "gps_sample_index": 0,
+  "sample_bytes": 499,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.54437856824621,
+  "last_lon": -153.74421647857338,
+  "last_sample_index": 1949,
+  "bytes_read": 2209,
+  "read_calls": 66,
+  "elapsed_ms": 8.4,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927141533_0136_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927141655_0137_D.MP4",
+  "size": 453531253,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:16:55+00:00",
+  "duration_s": 88.188,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:16:55+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:16:55+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:16:55+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:16:55+00:00",
+  "djmd_samples": 2643,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.544363927619685,
+  "lon": -153.74430360694632,
+  "coord_units": 0,
+  "abs_alt_m": 294.994,
+  "timestamp_3_1_2": 1045676450,
+  "gps_sample_index": 0,
+  "sample_bytes": 485,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.53437451984057,
+  "last_lon": -153.7387374183841,
+  "last_sample_index": 2642,
+  "bytes_read": 2179,
+  "read_calls": 66,
+  "elapsed_ms": 8.0,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927141655_0137_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927141932_0140_D.MP4",
+  "size": 256308437,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:19:32+00:00",
+  "duration_s": 45.479,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:19:32+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:19:32+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:19:32+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:19:32+00:00",
+  "djmd_samples": 1363,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.535034333424754,
+  "lon": -153.73634655539558,
+  "coord_units": 0,
+  "abs_alt_m": 329.194,
+  "timestamp_3_1_2": 1202820183,
+  "gps_sample_index": 0,
+  "sample_bytes": 474,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.53814302259217,
+  "last_lon": -153.72861061352967,
+  "last_sample_index": 1362,
+  "bytes_read": 2178,
+  "read_calls": 66,
+  "elapsed_ms": 9.5,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927141932_0140_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927142031_0141_D.MP4",
+  "size": 140152241,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:20:31+00:00",
+  "duration_s": 34.501,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:20:31+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:20:31+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:20:31+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:20:31+00:00",
+  "djmd_samples": 1034,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.538144704188085,
+  "lon": -153.72860940179217,
+  "coord_units": 0,
+  "abs_alt_m": 319.094,
+  "timestamp_3_1_2": 1261840983,
+  "gps_sample_index": 0,
+  "sample_bytes": 465,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.5362672974008,
+  "last_lon": -153.73259354985052,
+  "last_sample_index": 1033,
+  "bytes_read": 2161,
+  "read_calls": 66,
+  "elapsed_ms": 9.7,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927142031_0141_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927142138_0143_D.MP4",
+  "size": 370612690,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:21:38+00:00",
+  "duration_s": 82.482,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:21:38+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:21:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:21:38+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:21:38+00:00",
+  "djmd_samples": 2472,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.53622967401616,
+  "lon": -153.73269437871664,
+  "coord_units": 0,
+  "abs_alt_m": 318.294,
+  "timestamp_3_1_2": 1328834166,
+  "gps_sample_index": 0,
+  "sample_bytes": 485,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.534802818063376,
+  "last_lon": -153.74799218923653,
+  "last_sample_index": 2471,
+  "bytes_read": 2178,
+  "read_calls": 66,
+  "elapsed_ms": 8.8,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927142138_0143_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2026/2026-09/2026-09-27 Zachar Bay/DJI_20260927142416_0148_D.MP4",
+  "size": 196110579,
+  "top": [
+   "ftyp",
+   "free",
+   "free",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2026-09-27T18:24:16+00:00",
+  "duration_s": 48.715,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2026-09-27T18:24:16+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "VideoHandler",
+    "formats": [
+     "hvc1"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:24:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL meta",
+    "formats": [
+     "djmd"
+    ]
+   },
+   {
+    "mdhd_creation_utc": "2026-09-27T18:24:16+00:00",
+    "timescale": 30000,
+    "handler": "meta",
+    "handler_name": "HAL dbgi",
+    "formats": [
+     "dbgi"
+    ]
+   }
+  ],
+  "djmd_mdhd_creation_utc": "2026-09-27T18:24:16+00:00",
+  "djmd_samples": 1460,
+  "protocol": "dvtm_Air3s.proto",
+  "gps_path": "3-3-4-1",
+  "lat": 57.53483582679925,
+  "lon": -153.74808245604478,
+  "coord_units": 0,
+  "abs_alt_m": 327.494,
+  "timestamp_3_1_2": 1487226200,
+  "gps_sample_index": 0,
+  "sample_bytes": 476,
+  "samples_probed": [
+   0
+  ],
+  "last_lat": 57.54043027152309,
+  "last_lon": -153.74649824021012,
+  "last_sample_index": 1459,
+  "bytes_read": 2172,
+  "read_calls": 66,
+  "elapsed_ms": 8.9,
+  "folder": "2026-09-27 Zachar Bay",
+  "name": "DJI_20260927142416_0148_D.MP4",
+  "attr": "0x20"
+ },
+ {
+  "file": "/mnt/c/Users/damia/OneDrive/Pictures/UAS Videos/2022/2022-03-27 Makaha Valley/MAX_0065.MP4",
+  "size": 132249626,
+  "top": [
+   "ftyp",
+   "mdat",
+   "moov"
+  ],
+  "mvhd_creation_utc": "2022-03-27T07:07:51+00:00",
+  "duration_s": 17.618,
+  "tracks": [
+   {
+    "mdhd_creation_utc": "2022-03-27T07:07:51+00:00",
+    "timescale": 30000,
+    "handler": "vide",
+    "handler_name": "Ambarella.AVC",
+    "formats": [
+     "avc1"
+    ]
+   }
+  ],
+  "error": "no djmd track",
+  "bytes_read": 589,
+  "read_calls": 20,
+  "elapsed_ms": 4.0,
+  "folder": "2022-03-27 Makaha Valley",
+  "name": "MAX_0065.MP4",
+  "attr": "0x20"
+ }
+]
