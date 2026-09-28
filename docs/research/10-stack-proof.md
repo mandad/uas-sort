@@ -36,7 +36,7 @@ Date: 2026-09-28. Machine: the development PC, win-x64.
 | `--selftest` run 2 (warm) `firstFrameMs` | 256 (exit 0, `ok` true, 8/8 checks pass) — gate ≤ 1000 ms; ReadyToRun baseline 370 ms; slowerThanBaseline: False |
 | WebView2 runtime | 153.0.4234.48 (`webView2` check: "ready and pong from https://map.uas-sort.example/probe.html") |
 | MetadataExtractor under trimming | `metadataExtractor` check ok in the AOT build (DTO 2026:09:27 14:01:27; GPS 57.5368,-153.7484) |
-| VS Code C# union/closed | pending (asked the user) |
+| VS Code C# union/closed | no errors — C# Dev Kit Problems panel: "No problems were detected in the workspace" (user, 2026-09-28) |
 
 Gate command: `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/run-selftest.ps1 -Exe artifacts/stack-proof/win-x64/uas-sort.exe -Runs 2 -MaxWarmFirstFrameMs 1000 -BaselineMs 370`
 → `OK: 2 run(s), warm first frame 256 ms`, exit 0.
