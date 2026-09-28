@@ -17,8 +17,9 @@ Built for the DJI Air 3S workflow, but the rules are general enough for other DJ
   Every split is explained ("34 mi jump · 21 h", "62 days") and reversible with one click.
 - **Proposes destinations.** Each group becomes `<videoRoot>\YYYY\YYYY-MM\YYYY-MM-DD <Description>\`, or an append to an existing folder when dates and location line up. Descriptions are suggested from previous folders and an offline GeoNames place index ("Hidden Lake · feature · 0.4 mi").
 - **Routes photos.** DNG (and JPG twins) go flat into the photo root for Lightroom import. Panorama and hyperlapse source sets keep their set subfolder (`001_0087`), with a date suffix if the name is already taken.
-- **Copies safely.** Each file is copied to a hidden temp file while hashing, flushed, re-read unbuffered and compared, and only then renamed into place — never overwriting anything. The card is only ever read.
+- **Copies safely.** Each file is copied to a hidden temp file while hashing, flushed, re-read unbuffered and compared, and only then renamed into place — never overwriting anything. Offloading never writes to the card.
 - **Gives an honest verdict.** *Safe to format* / *Safe, with assumptions* / *Don't format yet*, backed by a per-file audit of every file on the card.
+- **Optionally cleans up the card.** A separate, explicitly confirmed action deletes the oldest offloaded files — those captured before a date you pick, or just enough of the oldest to free up (or leave) a given amount of space — and always shows the resulting cutoff date first. By default only files proven to be in your library are eligible (verified copies or name + size matches); anything else goes only after you review it. That is how you weed out clips that aren't in the library (bad, unnecessary or accidental footage): each one is listed with its date, clip length and location before anything is deleted. It works only on a detected drone card, never on a browsed folder or a backup drive.
 
 ## How it works
 
@@ -49,13 +50,20 @@ A few things the design had to get right:
 | Time zones | GeoTimeZone (offline lat/lon ► IANA) + .NET `TimeZoneInfo` |
 | Hashing | System.IO.Hashing (XxHash128) |
 | Tests | xUnit v3 on Microsoft.Testing.Platform |
-| Packaging | Unpackaged, self-contained, trimmed + ReadyToRun folder with a Start-menu shortcut |
+| Packaging | Unpackaged, self-contained Native AOT folder with a Start-menu shortcut |
 
 ## Requirements (planned)
 
 - Windows 11 (24H2 or later), x64 (ARM64 builds are produced but untested)
-- To build: .NET 11 SDK and PowerShell 7 (`winget install Microsoft.DotNet.SDK.Preview`, `winget install Microsoft.PowerShell`)
-- To run: nothing extra — the published app carries its own .NET and Windows App SDK runtimes
+- To build (install once):
+  - .NET 11 SDK: `winget install Microsoft.DotNet.SDK.Preview` (11.0.100-rc.1 for now; the GA SDK from Nov 10)
+  - PowerShell 7: `winget install Microsoft.PowerShell`
+  - C++ build tools for Native AOT (the Visual Studio Build Tools 2022 C++ workload):
+    ```powershell
+    & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive
+    ```
+  - Optional: VS Code + C# Dev Kit (`winget install Microsoft.VisualStudioCode`), or Visual Studio 2026 Insiders for the XAML designer and Hot Reload
+- To run: nothing extra — the published app is self-contained (native code plus its own Windows App SDK runtime), and WebView2 ships with Windows 11
 
 Build and run instructions will be added with the first code milestone (M0).
 
@@ -87,20 +95,21 @@ Planned source layout (from the spec): `src/UasSort.Core` (UI-free logic), `src/
 
 | Milestone | Scope |
 |---|---|
-| M0 | Solution skeleton; prove the exact package set builds, trims and runs |
+| M0 | Solution skeleton; prove the exact package set publishes as Native AOT and runs |
 | M1 | Card detection, file classification, MP4/DNG metadata probes |
 | M2 | Drone-clock learning, time zones, library index, ledger |
 | M3 | Newness, grouping, folder decisions, edit model; `uas-sort-cli plan` dry run |
 | M4 | Checkpoint: dry run against a real card |
 | M5 | Offload engine: copy/verify/rename, audit, verdict |
 | M6–M7 | WinUI review screens and commit flow — first real offload from the app |
+| M7b | Card cleanup: delete offloaded files by date or to reach a free-space target; optionally weed out clips not in the library after a listing |
 | M8 | Map pane |
 | M9 | Offline place-name suggestions |
 | M10 | Packaging and acceptance |
 
 ## Non-goals
 
-No tray icon or auto-launch (you open it when you want to offload), no changes to the card (no deleting or formatting), no editing or reorganising of existing library files, no Lightroom catalog access, no video playback or transcoding.
+No tray icon or auto-launch (you open it when you want to offload), no formatting or repairing of the card (card files are deleted only through the optional, explicitly confirmed card cleanup; offloading never touches the card), no editing or reorganising of existing library files, no Lightroom catalog access, no video playback or transcoding.
 
 ## License
 

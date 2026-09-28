@@ -3,7 +3,9 @@
 This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md`](2026-09-27-uas-sort-design.md). It holds the full types, rules, thresholds, tables and test lists behind it. **If the two disagree, the main spec wins.**
 
 - **Approved:** 2026-09-27. The user reviewed and approved every design section: approach, stack, rules, Review UI and offload safety. The user also chose the ledger location (`<videoRoot>\.uas-sort\`, §11) and accepted the remaining defaults (§15).
-- **Still marked UNVERIFIED:** facts nobody has proven on this hardware yet. Each is scheduled for a milestone check (§14) or has a named fallback. None of them waits on a user decision.
+- **Changed 2026-09-27: Card cleanup.** The user added an explicit action that deletes card files (§1.1, §10.6). This replaces the earlier requirement "copy only, never delete from card" as follows: the offload and copy path still never writes the card, and the card reader stays read-only; only `ICardEraser`, during Card cleanup, deletes, and only files in a confirmed `CleanupPlan`.
+- **Changed 2026-09-27: drone clock and packaging.** The user confirmed that the RC 2 clock was simply never switched from US Eastern (it is not set from GPS) and asked for dates built from UTC with the site's real zone plus a flag when the drone clock doesn't match (§1.1, §6.1, §6.5). The user also made Native AOT the primary build and asked to be told what to install rather than get a weaker fallback (§1.1, §2.1, §2.6).
+- **Still marked UNVERIFIED:** facts nobody has proven on this hardware yet. Each is scheduled for a milestone check (§14) or has a named fallback. None of them waits on a user decision, except that a Native AOT build failing a concrete M0 check is raised with the user rather than accepted (§1.1).
 
 **Evidence.** "The spike" and "the replay" in this document refer to these research reports and spike files in the repo:
 
@@ -14,7 +16,7 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 | Libraries: MetadataExtractor, GeoTimeZone, XxHash128 (9.2 GB/s), ledger at 10,000 rows, unbuffered verify, GeoNames | `docs/research/03-dotnet-libraries.md` | `docs/research/spikes/dotnet-stack/` (incl. `geonames/rg.py`) |
 | Grouping algorithm, the 37 Python tests, library replay | `docs/research/04-grouping-algorithm.md` | `docs/research/spikes/grouping/grouping.py`, `test_grouping.py`, `replay.py`, `replay50.py`, `more_gps.json` |
 | Approach scoring and grafts | `docs/research/05-approach-judging.md`, `docs/research/05-approaches.json` | `docs/research/spikes/judge/crossday.py`, `docs/research/spikes/minimal-arch/`, `docs/research/spikes/safety-review/` |
-| .NET 11 / C# 15 / WinUI 3 lean stack, trim + ReadyToRun, warm start | `docs/research/06-modern-stack.md` | `docs/research/spikes/modern-stack/` (`winui-src/`, `rc1-*.md`) |
+| .NET 11 / C# 15 / WinUI 3 lean stack, trim + ReadyToRun, warm start (the baseline for the Native AOT build) | `docs/research/06-modern-stack.md` | `docs/research/spikes/modern-stack/` (`winui-src/`, `rc1-*.md`) |
 | Map: MapLibre, OpenFreeMap, Esri, USGS | `docs/research/07-map-options.md` | `docs/research/spikes/map-pane/` (`web/`, `shot_*.png`) |
 | WinUI 3 + WebView2 spike: virtual host, messaging, clicks, Leaflet 1.9.4 | `docs/research/08-winui-spike.md` | `docs/research/spikes/winui/` (`src/`, `logs/`, `scripts/`) |
 | Design review findings (Review disposition, end of this document) | `docs/research/09-design-review-findings.json` | — |
@@ -29,7 +31,15 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 - It is a personal Windows app, launched by hand, that offloads a DJI Air 3S card.
 - There is no tray icon, service or auto-launch. Refreshing when a device arrives while the window is open is fine.
 - It finds media not yet in the library, groups videos by local date and GPS, and lets the user review and edit the groups and descriptions. It then copies with verification.
-- The card is copy-only: nothing on it is ever written, renamed or deleted.
+- The offload is copy-only: it never writes, renames or deletes anything on the card. *(Stated earlier as "copy only, never delete from card"; changed on 2026-09-27 by the Card cleanup request below, which is the only way the app deletes card files.)*
+- **Card cleanup** (user request, 2026-09-27; design in §10.6). In the user's words, verbatim: "Add an option to delete files on the card that are older than a certain date. Or to clear a specific amount of free space that would delete up to the, starting from the oldest up to the most recent, that has to be deleted to fit that criteria. It would confirm what the date is of that cutoff." Follow-up (as recorded with the request; may be lightly edited for grammar): "Verified name/size, and then also give an option to delete files that aren't found in the repository, because sometimes I may need to weed out footage that's bad, unnecessary, or accidental. Not everything from the card will be in the repository, but it should confirm the ones that are missing with a listing of their date, the length of the clip, and the location."
+  - It is a separate, explicit action. The card **reader** stays read-only; only `ICardEraser` deletes, and only files named in a confirmed `CleanupPlan`.
+  - It is offered only for detected card volumes that also pass the stricter cleanup volume check (removable SD/USB media, exFAT/FAT32, the drone's `MISC` index; §10.6), never for a "Browse to folder" source or a backup drive, which could hold a copy of a card.
+  - **Recorded interpretations** (2026-09-27; the user may overrule any of them):
+    - "Clear a specific amount of free space" reads two ways, so both are offered: **Have at least [X] GB free** (the default) and **Free up [X] GB**.
+    - "Verified name/size" is the default evidence. A video counts only while a current library listing holds it (the ledger alone is history, not the library); a photo may also rely on a verified ledger copy, because Lightroom moves photos.
+    - **Exception to the name/size rule:** an unfinished (truncated) recording is treated as not in the library even when name and size match, because the library copy is unfinished too and the drone may still repair the card copy.
+    - Files the user marked "not needed" or "already imported" on the Verdict page are not proven to be in the library; they are deleted only through the not-in-library review list.
 - **The app runs on the user's personal computers (plural).** This is a fact, not an assumption, so the ledger must be shared between them (§11).
 - **The ledger lives inside the video root, in `<videoRoot>\.uas-sort\`** (user decision, 2026-09-27). On this PC that is `C:\Users\damia\OneDrive\Pictures\UAS Videos\.uas-sort\`. It syncs to every PC along with the library. Each PC appends to its own `ledger-<MACHINE>.jsonl` and reads the union of all of them. The folder is derived from the video root and is not a separate setting.
 
@@ -55,8 +65,13 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 - The R slider regroups live.
 
 **Time**
-- The drone clock is US Eastern, and MP4 `creation_time` is true UTC.
+- MP4 `creation_time` is true UTC.
 - Folder dates are the local date at the site, found from GPS via the time zone.
+- **The drone clock is whatever the RC 2 is set to** (user, 2026-09-27: it was simply never switched from US Eastern after first use; it is **not** set from GPS). In the user's words: "build it from the UTC time using the actual local time zone conversion", and "get a flag for if those don't match with the time set on the drone clock". So:
+  - local dates **always** come from true UTC converted with the GPS site zone (§6.4);
+  - drone-clock time is used only to convert stamps that carry no UTC (DNG EXIF has none; filenames of clips without `mvhd`, library members and the watermark), and never for a date directly;
+  - the clock learner tries **SiteLocal** first (§6.1), and `America/New_York` is only the default of the last learned zone, not an assumption;
+  - the **`ClockMismatch`** flag (§6.5) marks items whose drone clock differs from site-local time by ≥ 15 min, with a Review InfoBar and a group-card chip; it does not affect the verdict.
 
 **Frameworks**
 - The user wants the most modern frameworks: the latest .NET and C#, WinUI 3 on the latest Windows App SDK, and modern packaging. There are no compatibility constraints ("personal computers").
@@ -65,49 +80,54 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
   - WinUI 3 on Windows App SDK 2.5.1, lean component packages;
   - WebView2 with vendored MapLibre: OpenFreeMap streets, Esri World Imagery satellite, and a USGS preset;
   - offline GeoNames suggestions;
-  - an unpackaged, self-contained, trimmed ReadyToRun folder plus a Start-menu `.lnk`. No MSIX. No Native AOT (an optional later attempt).
-- The user installs the .NET 11 SDK preview and PowerShell 7 with winget when implementation starts.
+  - an unpackaged, self-contained **Native AOT** folder (`PublishAot=true`, trimmed; `win-x64`, ARM64 built but UNVERIFIED) plus a Start-menu `.lnk`. No MSIX. *(Changed 2026-09-27 from "trimmed ReadyToRun, no Native AOT (an optional later attempt)"; see below.)*
+- The user installs the prerequisites once when implementation starts (§2.6): the .NET 11 SDK preview, PowerShell 7, and the C++ build tools for Native AOT.
+- **Native AOT is the primary build** (user decision, 2026-09-27). It is built from M0 on: M0's exit check is an AOT publish that passes `--selftest` with `TreatWarningsAsErrors`, and `deploy.ps1` publishes AOT (§14). Trimmed + ReadyToRun is no longer the plan: its measured numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline AOT must meet or beat (AOT startup UNVERIFIED until M0). It remains only as the diagnosis path if AOT fails a concrete M0 check, and that situation is raised with the user, never silently accepted.
+- **Installs over fallbacks** (user decision, 2026-09-27; verbatim: "If a framework needed to build this is not on my computer, just ask or give me the information on how to install it… I just want to maintain the best version for the app if that takes me installing something."): when the best option needs a tool that isn't installed, the plan asks the user to install it rather than designing a weaker fallback. Fallbacks remain only for runtime/behaviour risks (e.g. MapLibre-in-WebView2 MIME, unbuffered verify on exFAT, AppInstance, the preview toolkit line's compatibility).
 
 **Grafts to include**
 - From Safety: re-check card files before copying, a write-through rename that never replaces, hidden temp files, keep the PC awake, single instance, audit categories behind the "safe to format?" verdict, a banned-API analyzer, and a dry-run CLI.
 - From research: GPS for truncated clips, a multi-sample GPS search, a per-model GPS table plus a generic search, and offline GeoNames name suggestions.
 
-**Where this design departs from "most modern frameworks"** (the user approved each departure on 2026-09-27; see §15 Q5)
+**Where this design departs from "most modern frameworks"** (the user approved each departure on 2026-09-27)
 
 | Area | Most-modern option | What this design does | Why |
 |---|---|---|---|
-| Packaging | MSIX with package identity | **Unpackaged, self-contained folder** plus a Start-menu `.lnk` | MSIX needs a trusted certificate on every PC (or Developer Mode registration). Framework-dependent MSIX needs Windows App Runtime 2 ≥ 2.5.1, and winget only offers 2.3.1. Self-contained MSIX is UNVERIFIED. The app needs no identity (no notifications or background tasks); single instance works unpackaged (§4.4). |
-| Code generation | Native AOT | **Trimmed + ReadyToRun** (0.37 s warm first frame). AOT is an optional later attempt: M10 tries it behind a flag **only if** the user has installed the C++ build-tools component | AOT can't build here without the VC tools. Those are a machine-wide install, so installing them is up to the user. Its startup gain over ReadyToRun is UNVERIFIED. |
+| Packaging | MSIX with package identity | **Unpackaged, self-contained folder** plus a Start-menu `.lnk` | **Certificate trust, not a missing install:** MSIX needs a signing certificate trusted on every PC (or a loose Developer Mode registration), which no install fixes. The app needs no identity (no notifications or background tasks), and single instance works unpackaged (§4.4). Self-contained MSIX is UNVERIFIED. Rejected option, for the record: self-contained MSIX via the winapp CLI with a self-signed certificate trusted on each PC (it would give package identity and a clean uninstall); MSIX stays on the Later list (§1.4). |
 | Toolkit controls | Stable releases | **8.3.260402-preview2** | It is the only toolkit line that works with the lean WinUI package set. Fallback: 8.2.251219 with the full Windows App SDK package. |
 | Test clock package | 11.x | TimeProvider.Testing **10.10.0** | No 11.x is published. |
+
+Native AOT (code generation) was a departure until 2026-09-27: the plan was trimmed + ReadyToRun, with AOT as an optional later attempt that waited on a C++ build-tools install. It is now the primary build, and the C++ build tools are a prerequisite (§2.6).
 
 ### 1.2 Assumptions (not stated by the user; each is cheap to undo)
 
 | Assumption | If wrong |
 |---|---|
-| Every PC runs Windows 11 24H2+ (build ≥ 26100), **x64 or ARM64** | Lower `TargetPlatformMinVersion`. The modern-stack spike also ran with 10.0.22621.0 (`docs/research/spikes/modern-stack/winui-src/Spike.App/Spike.App.csproj`). `deploy.ps1` already publishes for the machine's own architecture; ARM64 is UNVERIFIED (§15 Q6). |
+| Every PC runs Windows 11 24H2+ (build ≥ 26100), **x64 or ARM64** | Lower `TargetPlatformMinVersion`. The modern-stack spike also ran with 10.0.22621.0 (`docs/research/spikes/modern-stack/winui-src/Spike.App/Spike.App.csproj`). `deploy.ps1` already publishes for the machine's own architecture; ARM64 is UNVERIFIED (§15 Q5). |
 | One card, or one drone volume, per run; ≤ ~1,000 files; ≤ 256 GB | Offload the second volume in a second run |
 | The Air 3S layout matches the research: `DCIM\DJI_###[_x]`, `DCIM\PANORAMA\<set>`, `DCIM\HYPERLAPSE\<set>`, `MISC` | Anything else falls to **Unknown**, which is Unaccounted and therefore NotSafe (§5). Add a rule after the first-card acceptance. |
-| The drone clock follows `America/New_York` **including DST** | The zone learner (§6.1) finds the mismatch on the first card with MP4s and falls back to the nearest sample |
-| Only DJI cards are offloaded; Autel exists only as 2022 library content | An Autel card's media all shows as Unknown (NotSafe); Autel support would be added later (§15 Q8) |
+| The RC 2 clock follows one IANA zone **including DST**, or local time at each site. (Which zone it is set to is not an assumption: it is whatever the RC 2 is set to, observed US Eastern and never reset, and the learner finds it; §1.1, §6.1) | The learner (§6.1) finds no fit on the first card with MP4s and falls back to the nearest sample. Video dates are unaffected, because they come from `mvhd` UTC and the GPS site zone |
+| Only DJI cards are offloaded; Autel exists only as 2022 library content | An Autel card's media all shows as Unknown (NotSafe); Autel support would be added later (§15 Q7) |
 | There is internet at home, maybe not on trips | The map falls back to an offline canvas |
 | Lightroom removes duplicates on its own imports | A double copy of a photo is harmless |
 | Nothing else writes to the library during an offload | The rename never replaces anyway |
+| Deleting DCIM files on a PC leaves the drone's `MISC` media index usable | The drone may show stale thumbnails until it rebuilds its index; formatting in the drone remains the clean option (§15 Q8) |
 | The video root is synced to every PC (OneDrive today), so `<videoRoot>\.uas-sort\` reaches them all and can be pinned "Always keep on this device" | A PC whose video root isn't synced keeps a ledger that only that PC sees. Setup and Settings show the ledger status ("no other PCs' ledgers found"), so the user can tell. The local backup in `%LOCALAPPDATA%\uas-sort\ledger-backup\` is unaffected |
 
 ### 1.3 Goals
 
 | # | Goal |
 |---|---|
-| G1 | **Zero-risk offload.** The card is never written, library files are never overwritten, and library content is never read. The app's own ledger files in `<videoRoot>\.uas-sort\` are the one exemption for pre-existing files (§4.3). Every copy is hashed while copying and re-read before it gets its final name. The re-read uses an unbuffered handle; when a buffered fallback is used, that is recorded. Durability rests on `FlushFileBuffers` before the rename, a size check after it, a directory flush on non-NTFS destinations, and safe removal of external drives. It is **not** claimed from the rename's write-through flag. |
+| G1 | **Zero-risk offload.** The offload never writes the card (deletions happen only in the separate Card cleanup, G6), library files are never overwritten, and library content is never read. The app's own ledger files in `<videoRoot>\.uas-sort\` are the one exemption for pre-existing files (§4.3). Every copy is hashed while copying and re-read before it gets its final name. The re-read uses an unbuffered handle; when a buffered fallback is used, that is recorded. Durability rests on `FlushFileBuffers` before the rename, a size check after it, a directory flush on non-NTFS destinations, and safe removal of external drives. It is **not** claimed from the rename's write-through flag. |
 | G2 | **Proposals that explain themselves.** Every group boundary states its cause, every photo decision states its reason, and every append states its confidence and reason. |
 | G3 | **One-gesture fixes.** Merge, split, move, rename, retarget, include a day, or move the R/G sliders. Everything can be undone, and drafts survive a restart. |
 | G4 | **An honest, itemised "safe to format?" verdict about the card that is in the reader right now**: identity re-checked and contents re-listed at verdict time. |
 | G5 | **A native Windows 11 app** (WinUI 3, Mica, TitleBar, system dark mode) that starts in under 1 s. |
+| G6 | **A card cleanup that deletes only what the user confirmed** (§10.6): oldest first, with the cutoff stated; by default only files with library evidence; not-in-library clips only after an opt-in and a per-row review; each file re-checked (identity, size and mtime, evidence) just before its delete, and recorded in the ledger. |
 
 ### 1.4 Non-goals
 
-- Any change to the card: deleting, formatting, or repairing `.trinf` recordings.
+- Formatting the card, or repairing `.trinf` recordings. Card files are deleted only by the explicit Card cleanup (§10.6), never by the offload.
 - Reading, renaming, moving or de-duplicating library files; any access to the Lightroom catalog. The app's own `<videoRoot>\.uas-sort\` ledger folder is not library content (§4.3).
 - Copying LRF or SRT files; playback, transcoding or MP4 repair.
 - Offloading Autel or other non-DJI cards.
@@ -120,19 +140,21 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 - Map: GeoNames place labels (and the `viewport`/`places` messages), Natural Earth outlines, keyboard forwarding from the map, Shift-drag box select, and a Protomaps offline street map.
 - Review: 960 px hover previews (MP4 `covr` / DNG preview ranges), a flight-number column, and a "Recent offloads" list.
 - Media: a stale-first-fix check (last-sample comparison for known models), GPS-time capture sources for other DJI models, a USGS toolbar button (USGS stays available as a settings URL), and a maximum group span.
-- Deployment: MSIX packaging; Native AOT if the M10 attempt doesn't happen.
+- Deployment: MSIX packaging.
 
 ### 1.5 Success criteria
 
 1. **Safety is enforced mechanically.**
    - Whole-type bans on file-system APIs apply outside Platform (§2.4). `tools/build.ps1` builds a probe project containing one call of each banned kind and expects every one of them to raise RS0030.
    - The table-driven `IoGuardPolicy` test passes (§4.3, §13), and the fake-FS hydration tripwire passes over scan, plan and offload.
+   - `CardDelete` is allowed only for a file, or an emptied set folder, named in a `ConfirmedCleanupPlan` on a card volume the eraser factory verified from Win32; the fake-FS card-delete tripwire passes over scan, offload and Card cleanup.
    - Windows integration tests prove:
      - the rename never replaces;
      - verification opened an unbuffered handle (or recorded the buffered fallback);
      - the lister opens no files;
      - no pre-existing library file is opened except `.uas-sort\ledger*.jsonl` (read) and the own ledger file (append); this run's own `*.uas-sort.tmp` and just-renamed files are tracked exceptions;
-     - the card reader works on files whose ACL denies write access.
+     - the card reader works on files whose ACL denies write access;
+     - the card eraser deletes only the files it is given (`DeleteFileW` on `\\?\` paths) and removes only an emptied set folder.
 2. **The golden replay passes** (the checked-in fixture and scenarios of §13).
    - Scenario A0 (card = every library video, empty library): clustering at R = 50 mi, G = 1 gives 7 groups.
    - The Council/Anvil group carries an emphasised day-split suggestion (about 34 mi), and applying it gives exactly the user's 8 folders.
@@ -141,10 +163,10 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 3. **The first real card works.**
    - `uas-sort-cli plan` (§4.5) is within 2 edits of the user's checked-in `tests/acceptance/first-card-expected.json`; one edit is one `PlanEdit`.
    - The offload ends with 0 failures and a verdict of Safe or SafeWithAssumptions.
-   - A before/after card listing shows no change made by the app.
+   - A before/after card listing shows no change made by the offload.
 4. **The app is responsive.**
    - Each edit or slider step derives in under 50 ms for 500 items, on a background thread, with the UI never blocked. Measured by the M3 Release benchmark: a synthetic 500-item `PlanBase`, median of 20 derives.
-   - Warm start to first frame is ≤ 1 s (0.37 s measured in the spike). Measured by `--selftest`, which writes the first-frame time to `selftest-result.json`; `deploy.ps1` runs it twice and checks the second (warm) run (M10).
+   - Warm start to first frame is ≤ 1 s (0.37 s measured in the spike's trimmed ReadyToRun build, the baseline the Native AOT build must meet or beat; AOT startup is UNVERIFIED until M0). Measured by `--selftest`, which writes the first-frame time to `selftest-result.json`; `deploy.ps1` runs it twice and checks the second (warm) run (M10).
    - Scanning and planning a 300-file card on a USB 3 reader takes ≤ 20 s (UNVERIFIED; recorded on the real card at M4).
 5. **The verdict never overstates safety.** "Safe to format" appears only when:
    - no card file is Unaccounted or AssumedByRule;
@@ -152,6 +174,10 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
    - the card listing is unchanged since the scan.
 
    A table-driven test covers every outcome and newness combination, including multi-file units, `seen` records and a card swap.
+6. **Card cleanup deletes exactly what was confirmed** (§10.6).
+   - On a `%TEMP%` fake card (Windows integration) and, at M7b, on the real card (acceptance step 7, §13: one old eligible clip), the card re-listed after cleanup differs from the one re-listed before it by exactly the files reported deleted, and every one of them is named in the confirmed plan.
+   - Every deleted file has a `cardDelete` ledger record.
+   - Nothing is deleted without a `ConfirmedCleanupPlan`, and never on a browsed folder, a volume that fails the cleanup volume check, or a write-protected card.
 
 ---
 
@@ -164,7 +190,7 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 | SDK / runtime | .NET 11 | SDK `11.0.100-rc.1.26425.128` (go-live), then RC2 (~Oct 13; date UNVERIFIED), then `11.0.100` GA (Nov 10) | Built, tested and published in two spikes (`docs/research/06-modern-stack.md`, `docs/research/08-winui-spike.md`) |
 | Language | C# 15, the default for `net11.0` | Unions, `closed` hierarchies, collection-expression arguments; C# 14 `field` keyword and extension members | Compiled in the spike. **Exhaustiveness across assemblies is UNVERIFIED** and gets an M0 test |
 | UI | WinUI 3 from the Windows App SDK 2.5.1 component packages | `Microsoft.WindowsAppSDK.WinUI` 2.3.9, `.Foundation` 2.3.12, `.InteractiveExperiences` 2.1.9 (pinned to avoid NU1603) | Spike: built, ran and published |
-| Build tools | `Microsoft.Windows.SDK.BuildTools` | 10.0.28000.2705 | No Visual Studio needed |
+| Build tools | `Microsoft.Windows.SDK.BuildTools`; for Native AOT, the MSVC linker from the VS Build Tools 2022 C++ workload (§2.6) | 10.0.28000.2705 | No Visual Studio IDE needed. The C++ workload is a one-time prerequisite: the installed Build Tools have an MSVC 14.44 folder but no `cl.exe`/`link.exe` |
 | Web host | `Microsoft.Web.WebView2` | 1.0.4191.47 (Evergreen runtime 153.x already present) | Spike: virtual host, messaging and clicks worked |
 | Map | MapLibre GL JS, vendored in the repo | 6.11.2. Streets from OpenFreeMap; satellite from Esri World Imagery; USGS as an alternate URL in settings | Verified in Chromium. **ESM `.mjs` under the WebView2 virtual host is UNVERIFIED** (M8's first task; §9.6). Leaflet 1.9.4 is proven in WebView2 and is the last-resort fallback |
 | First-party controls | TitleBar, SelectorBar, **ItemsView** (+ LinedFlowLayout), AutoSuggestBox, DropDownButton + MenuFlyout, InfoBar, Slider, ContentDialog (queued), Expander, ToolTip | Part of WinUI 2.3.9 | TitleBar, ItemsView and Mica verified |
@@ -179,8 +205,8 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 | Analyzers | `Microsoft.CodeAnalysis.BannedApiAnalyzers`; `AnalysisLevel` **pinned** to `11.0-recommended`, falling back to `10.0-recommended` if RC1 rejects it (UNVERIFIED); `TreatWarningsAsErrors` | 5.6.0 | — |
 | Tests | `xunit.v3.mtp-v2` on Microsoft.Testing.Platform 2.4.1 | 4.0.1 | Passed 5/5 in the spike |
 | Place names | GeoNames extract (CC-BY 4.0), built by `tools/places/build-places.cs` (a .NET file-based app) | Dump of 2026-09-27 | The Python spike (`docs/research/spikes/dotnet-stack/geonames/rg.py`; `docs/research/03-dotnet-libraries.md`) found "Zachar Bay" 0.4 mi and "Anvil Mountain" 0.2 mi from the clips |
-| Scripts | PowerShell 7 (`pwsh`) | Latest from winget `Microsoft.PowerShell` (version UNVERIFIED). **Not installed on this PC** (only Windows PowerShell 5.1) | Approved: the user installs it once with winget at implementation start, next to the SDK |
-| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, trimmed, ReadyToRun; a folder plus a Start-menu `.lnk`; `win-x64` and `win-arm64` | — | x64 is 87–97 MB with a warm first frame of about 0.37 s. ARM64 is UNVERIFIED. AOT is an optional M10 attempt |
+| Scripts | PowerShell 7 (`pwsh`) | Latest from winget `Microsoft.PowerShell` (version UNVERIFIED). **Not installed on this PC** (only Windows PowerShell 5.1, which the scripts don't target) | Approved: the user installs it once with winget at implementation start, next to the SDK (§2.6 Prerequisites) |
+| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, **Native AOT** (`PublishAot=true`, which trims); a folder plus a Start-menu `.lnk`; `win-x64` and `win-arm64` | — | Built and gated from M0 (§14). Baseline to meet or beat: the spike's trimmed ReadyToRun x64 build, 87–97 MB with a warm first frame of about 0.37 s. AOT size and startup are UNVERIFIED until M0; ARM64 is UNVERIFIED |
 | Dependency injection | None: a hand-written composition root | — | YAGNI |
 
 ### 2.2 Why these, and what they replace
@@ -204,7 +230,13 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 - Mapsui.WinUI is unverified on Windows App SDK 2.x.
 - Leaflet dates from 2023, but it is proven inside WebView2, so it is the last-resort fallback.
 
-**Packaging.** Unpackaged, as recorded in §1.1. Single-file publishing works only after a clean publish and unpacks 88 MB to temp, so it isn't used.
+**Packaging.** Unpackaged, as recorded in §1.1 (the reason is certificate trust, not a missing install). Single-file publishing works only after a clean publish and unpacks 88 MB to temp, so it isn't used; the AOT output is still a folder (the native exe beside the Windows App SDK DLLs and the `.pri`/`.xbf` resources).
+
+**Native AOT rather than trimmed + ReadyToRun** (user decision, 2026-09-27)
+- It is the best-performing build the stack offers: native code with no JIT at startup, and Core and Review are already `IsAotCompatible`.
+- Its only missing piece on this PC was an install (the C++ build tools), and the install rule (§1.1) says to install it rather than design around it.
+- The spike's ReadyToRun numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline; AOT must meet or beat the warm start. That, and whether the WinUI/WebView2/CsWinRT stack publishes under AOT with warnings as errors, is UNVERIFIED until M0.
+- If AOT fails a concrete M0 check, a ReadyToRun publish of the same commit is used only to tell whether the failure is AOT-specific, and the result is taken to the user; it is never adopted silently.
 
 ### 2.3 Solution layout (in `C:\dev\uas-sort`; not scaffolded yet)
 
@@ -212,9 +244,9 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 uas-sort.slnx  global.json  Directory.Build.props  Directory.Packages.props  BannedSymbols.txt  .editorconfig
 src/
   UasSort.Core/       net11.0                      model, media probes, time, geo, library index, planning, editing,
-                                                   naming, offload engine, audit, ports, JSON contexts
+                                                   naming, offload engine, card cleanup, audit, ports, JSON contexts
   UasSort.Platform/   net11.0-windows10.0.26100.0  the ONLY code that touches disk, Win32 or the shell: lister, card reader,
-                                                   GuardedFileOps/WindowsFileOps, CardSourceValidator helpers, sync-root
+                                                   card eraser, GuardedFileOps/WindowsFileOps, CardSourceValidator helpers, sync-root
                                                    detection, stores, app assets, power request, eject, single-instance
                                                    and offload locks, shell launcher, logging
   UasSort.Review/     net11.0                      view models (MVVM Toolkit), map bridge, collection sync; no WinUI types
@@ -244,7 +276,7 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 ```
 
 - Core has no project references. Its packages are MetadataExtractor, GeoTimeZone and System.IO.Hashing.
-- **ICardReader and IFileOps (plus Platform's own stores) are the only ways any code may open a file, and each of them asks `IoGuardPolicy` (§4.3) before every open, create, attribute change, delete or rename.**
+- **ICardReader and IFileOps (plus Platform's own stores) are the only ways any code may open a file, ICardEraser is the only way anything on the card is deleted (Card cleanup, §10.6), and each of them asks `IoGuardPolicy` (§4.3) before every open, create, attribute change, delete or rename.**
 
 **Banned in Core, Review, App and Cli** (`BannedSymbols.txt`, whole types where possible):
 
@@ -257,7 +289,7 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 | Processes | every `M:System.Diagnostics.Process.Start(…)` overload (the `IShellLauncher` implementation lives in Platform) |
 | Clock | `P:System.DateTime.Now`, `P:System.DateTime.Today`, `P:System.DateTime.UtcNow`, `P:System.DateTimeOffset.Now`, `P:System.DateTimeOffset.UtcNow` (use `TimeProvider`) |
 
-**Platform gets a member-level list** (writes, deletes, moves, `FileMode.Create/Truncate/OpenOrCreate/Append`, `File.SetAttributes/SetLastWriteTime*/SetCreationTime*`, the clock). Every allowed risky call there carries a local `#pragma warning disable RS0030 // IO layer: <why>`, so each one is deliberate and easy to grep.
+**Platform gets a member-level list** (writes, deletes, moves, `FileMode.Create/Truncate/OpenOrCreate/Append`, `File.SetAttributes/SetLastWriteTime*/SetCreationTime*`, the clock). Every allowed risky call there carries a local `#pragma warning disable RS0030 // IO layer: <why>`, so each one is deliberate and easy to grep. Card cleanup changes nothing in `BannedSymbols.txt`: `File.Delete`, `Directory.Delete` and the rest stay banned outside Platform. The card deletes are `LibraryImport` calls of `DeleteFileW` and `RemoveDirectoryW`, declared only in `WindowsCardEraser` (a Platform source test checks this), and each call site carries the same pragma (`// IO layer: Card cleanup, confirmed plan only`).
 
 **XAML lint** (a Platform.Tests test over `src/UasSort.App/**/*.xaml`) fails on:
 - `{Binding`, `DisplayMemberPath`, `TextMemberPath` and `SelectedValuePath`;
@@ -278,7 +310,7 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 
 **`Directory.Build.props`**
 - `Nullable=enable`, `ImplicitUsings=enable`, `AnalysisLevel=11.0-recommended` (pinned; fallback `10.0-recommended`), `TreatWarningsAsErrors=true`, `ManagePackageVersionsCentrally=true`.
-- Core and Review: `IsTrimmable=true`, `IsAotCompatible=true`.
+- Core, Review and Platform: `IsTrimmable=true`, `IsAotCompatible=true` (so trim and AOT analyzers run on every build, not only at publish).
 - Test projects: `NoWarn` CA1707.
 
 **`Directory.Packages.props`** pins exactly:
@@ -297,21 +329,35 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 - **`EnableMsixTooling=true`**. It is still required when unpackaged, or the `.pri`/`.xbf` files are missing and startup crashes with 0xC000027B.
 - `TargetPlatformMinVersion=10.0.26100.0`.
 - `DefineConstants` gets `DISABLE_XAML_GENERATED_MAIN` (custom `Program.Main`, §4.4).
-- Release builds: `PublishTrimmed=true`, `PublishReadyToRun=true`, `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`.
-  - If M0's publish shows IL2104-class warnings **only** from those rooted assemblies, add a targeted `<NoWarn>$(NoWarn);IL2104</NoWarn>` with a comment. Any other trim warning stays an error.
+- Release builds: **`PublishAot=true`** (Native AOT; it implies trimming, so there is no separate `PublishTrimmed` and no `PublishReadyToRun`), `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`. There is no opt-in flag: every Release publish, M0's exit check and `deploy.ps1` included, is AOT.
+  - If M0's publish shows IL2104/IL3053-class warnings **only** from those rooted assemblies, add a targeted `<NoWarn>` for exactly those codes with a comment. Any other trim or AOT warning stays an error.
+  - ReadyToRun (`PublishReadyToRun=true` without `PublishAot`) is not a build configuration of the app. It is used only by hand, to diagnose an AOT failure at M0, and that failure is raised with the user (§1.1).
 - Content with `CopyToOutputDirectory=PreserveNewest`: `MapAssets\**` and `places.bin.gz`. `SelfTest\*` are embedded resources.
 
 ### 2.6 Commands
 
+**Prerequisites (install once).** Machine-wide, on the development PC, before M0 (approved 2026-09-27). Under the install rule (§1.1), a missing tool is installed, never designed around.
+
+| What | Command | Notes |
+|---|---|---|
+| .NET 11 SDK | `winget install Microsoft.DotNet.SDK.Preview` | 11.0.100-rc.1 now; switch to the GA SDK on Nov 10 (§14 SDK row) |
+| PowerShell 7 | `winget install Microsoft.PowerShell` | Every script runs via `pwsh` (§15 Q6) |
+| C++ build tools for Native AOT | see below | The installed VS Build Tools 2022 has an MSVC 14.44 folder but no `cl.exe`/`link.exe`; Windows SDK 10.0.26100 is present |
+| Optional editor | `winget install Microsoft.VisualStudioCode` plus the C# Dev Kit extension; or Visual Studio 2026 Insiders for the XAML designer and Hot Reload | The default is the dotnet CLI plus VS Code |
+
 ```powershell
-# One-time, installed by the user at implementation start (approved 2026-09-27; machine-wide):
-#   winget install Microsoft.DotNet.SDK.Preview      # 11.0.100-rc.1
-#   winget install Microsoft.PowerShell              # pwsh 7, used by every script
+& "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive
+```
+
+Runtime PCs need nothing: the app is self-contained, and WebView2 ships with Windows 11.
+
+```powershell
 dotnet build uas-sort.slnx                                  # first restore ~8-13 min (~1.5-2 GB NuGet)
 dotnet test --solution uas-sort.slnx                        # MTP runner via global.json
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1 -CheckBannedApi
 dotnet run --project src/UasSort.Cli -- plan --card E:\ --json     # = uas-sort-cli plan … (§4.5)
-pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0   # publish for this machine's RID, selftest gate, copy, .lnk, keep 2 versions
+dotnet publish src/UasSort.App -c Release -r win-x64         # Native AOT (PublishAot in the csproj); needs the C++ build tools
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0   # AOT publish for this machine's RID, selftest gate, copy, .lnk, keep 2 versions
 dotnet build-server shutdown                                # after WSL-driven builds (compiler server locks files)
 ```
 
@@ -362,7 +408,9 @@ public sealed record class VideoUnit(ItemId Id, CardEntry Mp4, bool HasTrinf) : 
 public sealed record class PhotoUnit(ItemId Id, CardEntry Primary, CardEntry? JpgTwin) : MediaUnit(Id);
 public sealed record class SetUnit(ItemId Id, SetKind Kind, string SetName, ImmutableArray<CardEntry> Members) : MediaUnit(Id);
 public sealed record CardSource(string Root /* canonical, anchored at the folder holding DCIM */, CardIdentity? Identity,
-                                bool IsBrowsedFolder, bool IsWriteProtected)
+                                bool IsBrowsedFolder /* set only by CardSourceValidator: detected == null (§4.1) */,
+                                bool IsWriteProtected /* detected?.IsReadOnlyVolume */)   // UI hints only: the eraser factory
+                                                                                          // re-derives every fact from Win32
 { public string DraftKey => Identity is { } i ? $"vol-{i.VolumeSerial:X8}"
                                               : $"dir-{XxHash64.HashToUInt64(Encoding.UTF8.GetBytes(Root.ToLowerInvariant())):x16}"; }
 public sealed record CardInventory(CardSource Source, DateTime ListedUtc, string InventoryHash, ImmutableArray<CardEntry> Entries,
@@ -376,7 +424,8 @@ public enum NoFixReason { NotDji, NoDjmdTrack, AllProbedSamplesZero, Unparseable
 public sealed record NoFix(NoFixReason Reason);
 public union GpsProbe(GpsFix, NoFix);
 public sealed record Mp4Info(DateTime? MvhdUtc, bool HasMoov, GpsProbe First, GpsFix? LastSameField /* generic hits only */,
-                             string? Protocol, DateTime? SessionUtc, string? DroneSerial, ByteRange? Thumb);
+                             string? Protocol, DateTime? SessionUtc, string? DroneSerial, ByteRange? Thumb,
+                             TimeSpan? Duration /* mvhd duration / timescale; null when there is no moov (§6.3) */);
 public readonly record struct SessionKey(string? DroneSerial, DateTime SessionUtc)   // SessionUtc = mvhd − uptime µs (§6.3 step 6)
 { public bool SameSession(SessionKey o) => DroneSerial == o.DroneSerial
                                            && Math.Abs((SessionUtc - o.SessionUtc).TotalSeconds) <= 2; }  // never compare with ==
@@ -385,17 +434,23 @@ public sealed record RawItem(MediaUnit Unit, ItemKind Kind, string Name, long By
                              DateTime? DroneStamp /* filename or EXIF DTO, naive */, Mp4Info? Mp4, StillInfo? Still, string? ProbeError);
 
 // ── clock
-public enum ClockMode { Zone, NearestSample, Setting }
-public sealed record ClockSample(DateTime DroneStamp, DateTime MvhdUtc, TimeSpan Offset);
-public sealed record ClockModel(ClockMode Mode, string? ZoneId, ImmutableArray<ClockSample> Samples, TimeSpan? Modal, string SettingZoneId)
-{ public (DateTime Utc, TimeSource Src)? ToUtc(DateTime droneStamp) => /* §6.1 */ default; }
-public sealed record ClockSummary(ClockMode Mode, string? ZoneId, int SampleCount, string Headline);
+public enum ClockMode { SiteLocal, Zone, NearestSample, Setting }    // §6.1; SiteLocal = the RC 2 follows local time at each site
+public enum StoredClockMode { SiteLocal, Zone }                       // what a successful run saves (Settings.DroneClockMode)
+public sealed record ClockSample(DateTime DroneStamp, DateTime MvhdUtc, TimeSpan Offset, string? SiteZoneId /* sample's own GPS; null = no GPS or Etc/* */);
+public sealed record ClockModel(ClockMode Mode, string? ZoneId, ImmutableArray<ClockSample> Samples, TimeSpan? Modal,
+                                StoredClockMode SettingMode, string SettingZoneId)
+{ // siteZoneId: the zone that SiteLocal (or Setting with SettingMode SiteLocal) converts through, chosen by the caller (§6.1);
+  // ignored by the other modes
+  public (DateTime Utc, TimeSource Src)? ToUtc(DateTime droneStamp, string? siteZoneId) => /* §6.1 */ default;
+  public TimeSpan OffsetAt(DateTime droneStamp, string? siteZoneId) => /* the drone clock's UTC offset at that stamp (§6.5) */ default; }
+public sealed record ClockSummary(ClockMode Mode, string? ZoneId, int SampleCount, string Headline,
+                                  int MismatchItems, ImmutableArray<string> MismatchSiteZones /* IANA IDs, for the InfoBar (§9.2) */);
 
 // ── normalized item
-public enum TimeSource { Mvhd, ExifWithOffset, DroneClockZone, DroneClockSample, DroneClockSetting, Mtime }
+public enum TimeSource { Mvhd, ExifWithOffset, DroneClockSiteLocal, DroneClockZone, DroneClockSample, DroneClockSetting, Mtime }
 public enum TzSource { Gps, SameSession, NearestGpsWithin12h, NearestLandGpsOnCard, GeoNamesTz, PcZone }
 [Flags] public enum ItemFlags { None = 0, NoGps = 1, Truncated = 2, ClockNotSet = 4, CheckDate = 8, TzFallback = 16,
-                               ProbeFailed = 32, GpsGuessed = 64, ClockFromSetting = 128 }
+                               ProbeFailed = 32, GpsGuessed = 64, ClockFromSetting = 128, ClockMismatch = 256 }
 public sealed record ItemTime(DateTime CaptureUtc, TimeSource Source, string TzId, TzSource TzSource, DateOnly LocalDate, DateTime LocalTime);
 public enum NewReason { NoMatch, SeenNotCopied, AfterWatermark, NearWatermark, DayHasNewVideos }
 public enum Evidence { LibraryNameSize, LedgerVerified, LedgerNameSize }
@@ -444,7 +499,7 @@ public enum IssueSeverity { Blocking, Warning, Info }
 public enum IssueCode {                       // the closed catalogue of §9.10; tests assert on codes, never on message text
   // Planner.Derive
   EmptyFolderName, TempPathTooLong, MediumAppend, EmphasisedDaySplit, PinMembershipChanged, ConflictingPins, SharedTarget,
-  FolderExistsAppending, NewBeforeWallFolder, CheckDate, ClockNotSet, RootMissing, RootsUnconfirmed,
+  FolderExistsAppending, NewBeforeWallFolder, CheckDate, ClockNotSet, ClockMismatch, RootMissing, RootsUnconfirmed,
   LedgerParseIssue, LedgerCloudOnly, LedgerUnwritable, LedgerNotPinned, LedgerNoHistory,
   // PlanSession.Resume and the Settings page
   StaleEditsDropped, NoHistoryInNewRoot,
@@ -520,6 +575,77 @@ public sealed record UnitAudit(ItemId Unit, AuditCategory Worst, ImmutableArray<
 public sealed record FormatVerdict(VerdictLevel Level, CardIdentity Card, string Headline,
                                    ImmutableDictionary<AuditCategory, int> Counts, int NameSizeOnly, int CachedVerifies,
                                    ImmutableArray<UnitAudit> Units, ImmutableArray<string> CardChanges, string? SafeRemovalNote);
+
+// ── card cleanup (§10.6; added 2026-09-27)
+public enum CleanupMode { BeforeDate, FreeSpace }
+public enum FreeSpaceKind { HaveFree /* default: target = Bytes */, FreeUp /* target = free + Bytes */ }
+public sealed record FreeSpaceGoal(FreeSpaceKind Kind, long Bytes /* decimal GB × 10^9 */)
+{ public long TargetFreeBytes(CardSpace s) => Kind == FreeSpaceKind.FreeUp ? s.FreeBytes + Bytes : Math.Min(Bytes, s.TotalBytes); }
+public sealed record CleanupRequest(CleanupMode Mode,
+                                    DateOnly? Before /* BeforeDate: site-local day, kept; = DateOnly.FromDateTime(picker.Date.Value.DateTime) */,
+                                    FreeSpaceGoal? Goal /* FreeSpace */, bool IncludeNotInLibrary);
+public enum CleanupEligibility { Evidence, NotInLibrary, Never }       // ascending strictness; a unit takes the worst of its files
+public enum EvidenceSource { Listed /* a fresh library listing holds it */, HistoryOnly /* photos only: a verified ledger record */ }
+public enum NotInLibraryReason { New, ProbablyImported, Conflict, Unfinished, Dismissed, RecordedAsImported, NoLongerInLibrary }
+public sealed record CardSpace(long FreeBytes, long TotalBytes, int ClusterBytes);   // GetDiskFreeSpaceExW + GetDiskFreeSpaceW
+public sealed record FileProof(string CardRelPath, FileKey Key, AuditCategory Category,
+                               string? ListedFolder /* folder whose FRESH listing (§10.6 Preparation 3) held (NormName, size) */,
+                               bool LedgerVerified /* a `file` record with verify unbuffered|cached */,
+                               string? DecisionId /* ConfirmedByYou: shown in the reason, never evidence */);   // what the executor re-checks
+public sealed record CleanupCandidate(ItemId Unit, ImmutableArray<CardEntry> Files /* incl. twin and companions, in delete order */,
+    long AllocatedBytes /* Σ size rounded up to ClusterBytes */, DateTime CaptureUtc, DateOnly LocalDate, string TzId,
+    CleanupEligibility Eligibility, AuditCategory Evidence /* worst category of the primary files */, string Reason,
+    TimeSpan? Duration /* videos: Mp4Info.Duration */, GeoPoint? Location, string? PlaceLabel /* "near Anvil Mountain · 0.2 mi" */,
+    ItemKind Kind, DateTime LocalTime, NotInLibraryReason? NotInLibrary, string? SetFolder /* card rel dir, removed once empty */,
+    SessionKey? Session, ImmutableArray<FileProof> Proofs /* one per primary file */,
+    EvidenceSource? Source /* Evidence units */, bool TickedForOffload /* in Plan.Included and not copied: row starts on Keep */,
+    ImmutableArray<CardEntry> NeverCopied /* companions and uncopied JPG twins, for the summary line */);
+public sealed record CleanupKept(ItemId? Unit, ImmutableArray<string> CardRelPaths, long Bytes, DateTime? CaptureUtc, string Reason);
+public sealed record CleanupCutoff(DateOnly? BeforeDate, DateTime? LastCaptureUtc, DateTime? LastLocalTime, string? TzId,
+                                   int FilesDeletedOnCutoffDay, int FilesOnCutoffDay, DateTime? FlightContinuesLocal);
+public sealed record FreeSpaceShortfall(long FreeableBytes /* Σ allocated of every deletable unit */, long HeldByNotInLibrary, long HeldByNever);
+public sealed record CleanupInputs(CardInventory Inventory, Plan Plan, FormatVerdict Audit, OffloadResult? Offload, CardSpace Space,
+                                   LibraryListings FreshListings, LedgerSnapshot FreshLedger /* §10.6 Preparation 3 */,
+                                   VolumeInfo Volume, IPlaceIndex? Places, Settings Settings);
+public sealed record CleanupRows(ImmutableHashSet<ItemId> Keep, ImmutableHashSet<ItemId> Delete /* the rest in range are undecided */);
+public sealed class CleanupPlan {   // a class, not a record: no `with`; the ctor is internal and only CleanupPlanner.Build calls it
+  internal CleanupPlan(/* every property below */) { }
+  public string PlanId { get; }   public CardIdentity Card { get; }   public string CardRoot { get; }
+  public CleanupRequest Request { get; }   public CardSpace SpaceBefore { get; }
+  public ImmutableArray<CleanupCandidate> Delete { get; }                 // oldest first
+  public ImmutableArray<CleanupCandidate> NotInLibraryInScope { get; }    // the review list
+  public CleanupRows Rows { get; }   public ImmutableHashSet<ItemId> Undecided { get; }   // rows that joined later, not yet set
+  public ImmutableArray<CleanupKept> NotDeletable { get; }                // the "Kept" list
+  public CleanupCutoff Cutoff { get; }   public int FileCount { get; }   public long AllocatedBytes { get; }
+  public long ExpectedFreeAfter { get; }   public FreeSpaceShortfall? Shortfall { get; }
+  public string Fingerprint { get; }                                      // for binding the checkboxes; Confirm recomputes it
+  public ConfirmedCleanupPlan Confirm(CleanupAck ack, TimeProvider clock) => /* the only factory; checks in §10.6 */ default!; }
+public sealed record CleanupAck(string PlanFingerprint, bool CantBeRecovered, bool IncludesNotInLibrary,
+                                ImmutableHashSet<ItemId> NotInLibraryDelete /* review rows left on Delete */);
+public sealed class ConfirmedCleanupPlan {    // a class, not a record, so `with` can't copy it; the ctor is internal to Core
+  internal ConfirmedCleanupPlan(CleanupPlan plan, Guid token, DateTime confirmedUtc) { /* derives the sets below */ }
+  public CleanupPlan Plan { get; }   public Guid Token { get; }   public DateTime ConfirmedUtc { get; }
+  public IReadOnlySet<string> FilePaths { get; }              // canonical card paths the guard allows for CardDelete
+  public IReadOnlySet<string> SetFolders { get; }             // canonical set folders: RemoveDirectory only, once empty
+  public IReadOnlySet<ItemId> NotInLibraryConfirmed { get; } } // the per-unit confirmation tokens of NotInLibrary units
+// outcome per unit; the cases that CopyOutcome also has are prefixed "Cleanup" to keep the names apart
+public closed record class CleanupOutcome(ItemId Unit);
+public sealed record class Deleted(ItemId Unit, int Files, long Bytes, bool SetFolderRemoved) : CleanupOutcome(Unit);
+public sealed record class SkippedChanged(ItemId Unit, string CardRelPath, long? NowSize /* null = gone */, DateTime? NowMtimeUtc) : CleanupOutcome(Unit);
+public sealed record class SkippedEvidenceGone(ItemId Unit, string CardRelPath, string Why) : CleanupOutcome(Unit);
+public sealed record class PartiallyDeleted(ItemId Unit, ImmutableArray<string> DeletedPaths, ImmutableArray<string> StillOnCard, string Why) : CleanupOutcome(Unit);
+public sealed record class CleanupFailed(ItemId Unit, string CardRelPath, int Win32Error, string Error) : CleanupOutcome(Unit);   // nothing of the unit deleted
+public sealed record class CleanupNotStarted(ItemId Unit) : CleanupOutcome(Unit);
+public sealed record class CleanupCardSwapped(ItemId Unit, CardIdentity Now) : CleanupOutcome(Unit);
+public enum CleanupStop { OffloadLockHeld, LedgerUnavailable, Cancelled, CardSwapped, CardRemoved, WriteProtected, LedgerWriteFailed,
+                          InternalSafetyStop }
+public sealed record CleanupEnvironment(CardSource Source, CardIdentity Pinned, ICardReader Reader, IThumbnailSource Thumbnails,
+    ICardEraserFactory Erasers, IDirectoryLister Lister, ILedgerStore Ledger, IOffloadLock Lock, IPowerRequest Power,
+    TimeProvider Clock, Settings Settings);                               // everything CleanupExecutor.RunAsync needs (§10.6)
+public sealed record CleanupResult(string RunId, ConfirmedCleanupPlan Plan, ImmutableArray<CleanupOutcome> Outcomes,
+    CleanupStop? Stop /* null = ran to the end */, CardSpace SpaceAfter /* re-read */,
+    ImmutableArray<string> StillListed /* deleted, yet present at the re-list (another program held it open) */,
+    DateTime StartUtc, DateTime EndUtc);
 ```
 
 **Supporting types** (all Core)
@@ -538,12 +664,14 @@ public sealed record LedgerSnapshot(
     ImmutableDictionary<FileKey, DateTime> Seen,              // a set has one per member (§7.3)
     ImmutableDictionary<string, LedgerFolder> Folders,        // by full path (case-insensitive)
     ImmutableArray<LedgerRun> Runs,
+    ImmutableArray<LedgerCardDelete> CardDeletes,             // Card cleanup's audit trail (§10.6); informational, read by no rule
     ImmutableArray<LedgerParseIssue> ParseIssues,             // file, line, reason; a torn final line, or a line named by a later
                                                               // `torn` record of the same machine (§11), is not an issue
     ImmutableArray<string> SourceFiles, LedgerFolderStatus Status);
 public sealed record Draft(int V, string CardKey, string InventoryHash, DateTime SavedUtc, Tuning Tuning, ImmutableArray<PlanEdit> Edits);
 public sealed record Settings(int Schema, string VideoRoot, string PhotoRoot, ImmutableArray<string> PreviousPhotoRoots,
-                              double RadiusMiles, int GapDays, string DroneClockZone, bool CopyJpgTwin,
+                              double RadiusMiles, int GapDays, StoredClockMode DroneClockMode /* last learned; default Zone */,
+                              string DroneClockZone /* last learned zone; default America/New_York */, bool CopyJpgTwin,
                               MapSettings Map, LayoutSettings Layout, bool RootsConfirmed);
                               // deliberately NO ledger-folder property: STJ would serialise a computed getter as "ledgerDir"
 public static class LedgerPaths                                      // the ledger folder is DERIVED, never stored or configurable (§11)
@@ -596,6 +724,7 @@ public sealed record LedgerFolder(string Path, string Description, FolderSource 
 public sealed record LedgerRun(string Run, string Machine, DateTime StartUtc, DateTime EndUtc, string App, CardIdentity Card,
                                string? Model, string InventoryHash, string VideoRoot, string PhotoRoot, VerdictLevel Verdict,
                                ImmutableDictionary<AuditCategory, int> Counts);
+public sealed record LedgerCardDelete(string Run, DateTime AtUtc, FileKey Key, string Src, string Evidence, string Machine);
 public sealed record LedgerParseIssue(string File, int Line, string Reason);
 public enum LedgerFolderState { Ok, Empty, Missing, NotPinned, Unwritable, CloudOnly, VideoRootMissing }
 public sealed record LedgerFolderStatus(string Folder, LedgerFolderState State /* the most severe that applies: VideoRootMissing >
@@ -603,7 +732,7 @@ public sealed record LedgerFolderStatus(string Folder, LedgerFolderState State /
     ImmutableArray<string> LedgerFiles, ImmutableArray<string> CloudOnlyFiles, ImmutableArray<string> OtherMachineFiles);
 
 // ── ledger records (serialised; one JSON line each; fields mirror §11 one for one, camelCase)
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "t")] /* + [JsonDerivedType] per case: file, folder, seen, decision, revoke, run, torn */
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "t")] /* + [JsonDerivedType] per case: file, folder, seen, decision, revoke, run, torn, cardDelete */
 public closed record class LedgerRecord(int V, string Id, string Machine);
 public sealed record class FileRecord(int V, string Id, string Machine, string Run, DateTime At, string Kind /* video|photo|twin|setMember */,
     string Name, long Size, string Src, string Root /* video|photo */, string Dest, string? Xxh128, string Verify /* unbuffered|cached|nameSize */,
@@ -621,6 +750,11 @@ public sealed record class RunRecord(int V, string Id, string Machine, string Ru
 public sealed record RunCard(string Serial, string? Label, string Fs, string? Model, string InventoryHash);
 public sealed record RunRoots(string Video, string Photo);
 public sealed record class TornRecord(int V, string Id, string Machine, DateTime At, int Line) : LedgerRecord(V, Id, Machine);
+public sealed record class CardDeleteRecord(int V, string Id, string Machine, string Run, DateTime At, string Name, long Size,
+    string Src /* card rel path */, string Unit /* ItemId */, DateTime? CaptureUtc,
+    string Evidence /* VerifiedThisRun|InLedger|NameSizeMatch, "historyOnly:" prefix, notInLibraryConfirmed, companionOf:<evidence> */,
+    string Reason,
+    string Mode /* beforeDate|freeSpace */, RunCard Card, string? Set) : LedgerRecord(V, Id, Machine);   // written right after each delete (§10.6)
 public interface ILedgerWriter : IDisposable {    // from ILedgerStore.OpenOwn(); one instance per Commit or user action
   void Append(LedgerRecord r); }                   // one line + "\n", FlushFileBuffers, then the same line to the local mirror;
                                                    // throws on any failure (Commit stops, §10.3)
@@ -634,6 +768,12 @@ public sealed record ReportLine(string CardRelPath, string? Dest, string Outcome
 public sealed record OffloadReport(int V, string RunId, Settings SettingsSnapshot, string PlanSummary, ImmutableArray<ReportLine> Files,
                                    ImmutableArray<AuditLine> Audit, ImmutableArray<string> CardChanges, VerdictLevel Verdict,
                                    string Headline, StopReason? Stop);
+public sealed record CleanupReportLine(string CardRelPath, long Size, string Unit, string Outcome, string Eligibility, string Evidence,
+                                       string Reason, int? Win32Error, bool LedgerRecorded);
+public sealed record CleanupReport(int V, string RunId, CardIdentity Card, CleanupRequest Request, CleanupCutoff Cutoff,
+                                   ImmutableArray<CleanupReportLine> Files, ImmutableArray<CleanupKept> NotDeletable, CleanupStop? Stop,
+                                   long FreeBefore, long FreeAfter, VerdictLevel VerdictAfter /* NotSafe if the rescan failed */);
+public sealed record CleanupProgress(int FilesDone, int FilesTotal, long BytesDone, long BytesTotal, string? CurrentFile, ItemId? Unit);
 public sealed record VolumeNeed(string Volume, int Files, long Bytes, long FreeBytes, long RequiredFree);   // RequiredFree = Σ + max(1 GiB, 2 % of Σ)
 public sealed record PreflightReport(ImmutableArray<Issue> Issues, ImmutableArray<string> FoldersToCreate,
                                      ImmutableArray<(string Path, Confidence Confidence)> FoldersAppended, ImmutableArray<VolumeNeed> Volumes,
@@ -670,8 +810,8 @@ public interface IDialogService { Task<DialogResult> ShowAsync(DialogRequest r);
 - **Plan is immutable.** `Planner.Derive(PlanBase, Tuning, edits, SessionFlags)` is pure and takes milliseconds. Every edit re-derives the whole plan on the thread pool. Edits are serialised, each validated against the plan that includes every earlier edit; tuning previews are latest-wins; a plan never replaces one with a higher `Revision` (§4.2 PlanSession, §9.7).
 - **JSON.**
   - Unions stay in memory only.
-  - Everything serialised (`PlanEdit`, `TargetChoice`, `LedgerRecord`, map messages) is a `closed` record with `[JsonPolymorphic]` in a source-generated context. Reports serialise flattened `ReportLine`s, not `CopyOutcome`.
-  - M0 proves that closed records round-trip, both in unit tests and in the trimmed `--selftest`.
+  - Everything serialised (`PlanEdit`, `TargetChoice`, `LedgerRecord`, map messages) is a `closed` record with `[JsonPolymorphic]` in a source-generated context. Reports serialise flattened `ReportLine`s and `CleanupReportLine`s, not `CopyOutcome` or `CleanupOutcome`. `CleanupPlan` and `ConfirmedCleanupPlan` are never serialised (a confirmation can't outlive the page that made it).
+  - M0 proves that closed records round-trip, both in unit tests and in the Native AOT `--selftest`.
 
 ---
 
@@ -682,7 +822,10 @@ public interface IDialogService { Task<DialogResult> ShowAsync(DialogRequest r);
 ```csharp
 public interface IVolumeProvider  { IReadOnlyList<VolumeInfo> GetVolumes(); }
 public sealed record VolumeInfo(string Root, CardIdentity Identity, string DriveType, bool IsReady, bool IsReadOnlyVolume /* FILE_READ_ONLY_VOLUME */,
-                                bool IsNtfs, bool IsRemovableBus, long FreeBytes);
+                                bool IsNtfs, bool IsRemovableBus, long FreeBytes,
+                                string BusType /* IOCTL_STORAGE_QUERY_PROPERTY: "Sd", "Mmc", "Usb", "Nvme", … */,
+                                bool RemovableMedia /* STORAGE_DEVICE_DESCRIPTOR.RemovableMedia */,
+                                bool IsSystemBootOrPaging);   // the last three feed the cleanup volume check (§10.6)
 public interface IDirectoryLister {                               // listing only; never opens a file
   ListingResult Enumerate(string root, bool recurse, IReadOnlySet<string> excludeDirNames); }
                                                                   // AttributesToSkip=0, IgnoreInaccessible=false, errors collected;
@@ -693,13 +836,37 @@ public sealed record FsEntry(string FullPath, string RelPath, bool IsDirectory, 
                              DateTime LastAccessUtc, uint RawAttributes);
 public sealed record ListingResult(ImmutableArray<FsEntry> Entries, ImmutableArray<(string Path, int Win32Error)> Errors);
 public interface ICardSourceValidator {                           // anchor + overlap + sync roots (§4.3)
-  CardSourceCheck Validate(string chosenPath, Settings s, IDirectoryLister lister, IPathFacts facts, string appDataDir); }
+  CardSourceCheck Validate(string chosenPath, VolumeInfo? detected /* from CardDetector; null = Browse to folder (and the CLI) */,
+                           Settings s, IDirectoryLister lister, IPathFacts facts, string appDataDir); }
+                                                                  // IsBrowsedFolder = detected is null, even when a Browse result is a
+                                                                  // volume root; IsWriteProtected = detected?.IsReadOnlyVolume ?? false;
+                                                                  // Identity = detected?.Identity when detected is given
 public interface ICardReader {                                   // bound to one CardSource + CardIdentity; FileAccess.Read, FileShare.ReadWrite
   CardIdentity CurrentIdentity();                                 // GetVolumeInformationW on the card root (cheap)
   Stream OpenRandom(string cardRelPath);                          // probes, thumbnails (4 KB block cache on top)
   Stream OpenSequential(string cardRelPath);                      // copy
   FsEntry Stat(string cardRelPath);
-  ListingResult Relist(); }                                       // audit-time re-listing
+  ListingResult Relist();                                         // audit-time re-listing
+  CardSpace Space(); }                                            // GetDiskFreeSpaceExW + GetDiskFreeSpaceW on the card root; opens nothing
+public interface ICardEraserFactory {                            // Platform; Card cleanup only (§10.6)
+  ICardEraser Open(CardSource source, CardIdentity pinned, ConfirmedCleanupPlan plan); }
+                                                                  // Re-derives from Win32, through an internal IVolumeFacts, every item of
+                                                                  // the cleanup volume check (§10.6): volume root (GetVolumePathNameW), FS,
+                                                                  // identity (GetVolumeInformationW), bus + RemovableMedia
+                                                                  // (IOCTL_STORAGE_QUERY_PROPERTY), not system/boot/paging, no configured
+                                                                  // root on it, the MISC index. It never trusts CardSource flags. Throws
+                                                                  // UnsafeIoException on any failure, a write-protected volume, or a plan
+                                                                  // whose card root or identity differ. Builds the eraser's own
+                                                                  // GuardContext (CardIsVerifiedCardVolume, Cleanup = plan); no caller
+                                                                  // can pass one in. The IVolumeFacts constructor is internal
+                                                                  // (InternalsVisibleTo Platform.Tests only)
+public interface ICardEraser : IDisposable {                     // bound to one verified card volume, one identity, one confirmed plan;
+                                                                  // IoGuardPolicy.Check(CardDelete, …) before every call
+  EraseResult DeleteFile(string cardRelPath);                     // DeleteFileW(\\?\…); never clears attributes, never opens the file
+  EraseResult RemoveEmptySetFolder(string cardRelDir); }          // RemoveDirectoryW(\\?\…); fails on a non-empty folder; never recursive
+                                                                  // (no volume flush: safe removal flushes the card, §10.6)
+public sealed record EraseOk;   public sealed record EraseError(int Win32Error, string Message);
+public union EraseResult(EraseOk, EraseError);
 public interface IFileOps {                                      // destination writes only; guarded
   Stream CreateTemp(string finalPath, long size, out string tempPath);   // CreateNew + preallocate, Hidden|NotContentIndexed, "*.uas-sort.tmp"
   void FlushToDisk(Stream s);
@@ -718,13 +885,15 @@ public interface ILedgerStore {                                  // folder = Led
   LedgerSnapshot Load();                                          // union of every <videoRoot>\.uas-sort\ledger*.jsonl (top level only, incl. OneDrive
                                                                   // conflict copies), deduped by record id; honours `torn` records
   void EnsureFolder();                                            // creates <videoRoot>\.uas-sort if missing (the folder only), then KeepOnDevice(),
-                                                                  // also when the folder already existed unpinned. Called by Start offload and CopyInto
+                                                                  // also when the folder already existed unpinned. Called by Start offload, CopyInto
+                                                                  // and the start of Card cleanup's deletes (§10.6)
   ILedgerWriter OpenOwn();                                        // <videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl, created if missing, append,
                                                                   // FileShare.Read (single writer). If the file doesn't end in "\n", it first appends
                                                                   // "\n" and a TornRecord naming the torn line N (§11). Mirrored to
                                                                   // LedgerPaths.BackupDir(...) (local, never under the library)
   void SnapshotToBackup(string runId);                            // copies every loaded ledger*.jsonl into BackupDir\snapshots\<yyyyMMdd-HHmmss>-<run8>\
-                                                                  // (keeps 20); called by Start offload before the first copy
+                                                                  // (keeps 20); called by Start offload before the first copy and by
+                                                                  // Card cleanup before the first delete
   void KeepOnDevice();                                            // FILE_ATTRIBUTE_PINNED on the .uas-sort folder only (§4.3)
   void CopyInto(string newVideoRoot, LedgerSnapshot current); }   // video-root change [Copy]: EnsureFolder() there, then append every current
                                                                   // record, original id and machine kept, to the own ledger file under
@@ -733,7 +902,7 @@ public interface ISettingsStore { SettingsLoad Load(bool readOnly = false); void
                                                                   // Recovered=true if defaults were used; readOnly (the CLI) never renames,
                                                                   // creates or writes anything, and just returns derived defaults on a bad file
 public interface IDraftStore { Draft? Load(string cardKey); void Save(string cardKey, Draft d); void Delete(string cardKey); }
-public interface IReportStore { string Save(OffloadReport r); }
+public interface IReportStore { string Save(OffloadReport r); string Save(CleanupReport r); }   // cleanup: reports\<ts>-<run8>-cleanup.json
 public interface IAppAssets { Stream OpenPlaces(); Stream OpenSelfTest(string name); }   // app folder / embedded only
 public interface IPowerRequest { IDisposable KeepSystemAwake(string reason); }   // PowerCreateRequest/PowerSetRequest
 public interface IOffloadLock  { IDisposable? TryAcquire(); }                    // named mutex Local\uas-sort-offload
@@ -741,7 +910,10 @@ public interface IDeviceEject  { EjectResult Eject(string volumeRoot); }        
 public interface IShellLauncher { void OpenFolder(string path); void OpenFile(string path); void OpenHttps(Uri uri); }
 public interface ITimeZoneResolver { TzLookup Resolve(GeoPoint p); }           // (IanaId, Alternatives, IsEtc)
 public interface IPlaceIndex { IReadOnlyList<PlaceHit> Near(GeoPoint p, Distance r, PlaceClass cls, int max); }
-public interface IThumbnailSource { ValueTask<ReadOnlyMemory<byte>> GetAsync(ItemId id, CancellationToken ct); }  // bytes, not images
+public interface IThumbnailSource {                              // bytes, not images
+  ValueTask<ReadOnlyMemory<byte>> GetAsync(ItemId id, CancellationToken ct);
+  IDisposable Pause(); }                                          // Commit (§10.3) and Card cleanup (§10.6): closes the cached card handles;
+                                                                  // GetAsync returns empty (placeholders show) until disposed
 // Clock: System.TimeProvider everywhere.
 ```
 
@@ -750,14 +922,14 @@ public interface IThumbnailSource { ValueTask<ReadOnlyMemory<byte>> GetAsync(Ite
 | Component | Where | What it does | Key members |
 |---|---|---|---|
 | **CardDetector** | Core | Checks ready volumes and flags DJI cards (§5). It skips drives that hold a configured root; those are reachable only through Browse, which is validated | `IReadOnlyList<CardCandidate> Detect(IReadOnlyList<VolumeInfo>, IDirectoryLister, Settings)` |
-| **CardSourceValidator** | Core (policy) + Platform (`IPathFacts`: canonical paths, sync roots) | Anchors a browsed folder at the nearest ancestor holding `DCIM`. Rejects any root that equals, is inside, or contains a library root, a previous photo root, the ledger folder (`<videoRoot>\.uas-sort`, which the video-root check covers too), app data, or any cloud sync root (§4.3) | `CardSourceCheck Validate(string chosenPath, Settings s, IDirectoryLister lister, IPathFacts facts, string appDataDir)` → `SourceOk(CardSource)` / `SourceRefused(reason)` |
+| **CardSourceValidator** | Core (policy) + Platform (`IPathFacts`: canonical paths, sync roots) | Anchors a browsed folder at the nearest ancestor holding `DCIM`. Rejects any root that equals, is inside, or contains a library root, a previous photo root, the ledger folder (`<videoRoot>\.uas-sort`, which the video-root check covers too), app data, or any cloud sync root (§4.3). Sets `IsBrowsedFolder` and `IsWriteProtected` from `detected` (§4.1) | `CardSourceCheck Validate(string chosenPath, VolumeInfo? detected, Settings s, IDirectoryLister lister, IPathFacts facts, string appDataDir)` → `SourceOk(CardSource)` / `SourceRefused(reason)` |
 | **CardClassifier** | Core | Classifies every entry with fail-safe rules (§5); builds pairs and sets, flags `.trinf` files, turns enumeration errors into `ForcesNotSafe` warnings, and computes the inventory hash: `InventoryHash` = XxHash64 (16 hex digits) over the UTF-8 lines `relPath\|size\|mtimeTicks` plus a line feed of every file entry, sorted ordinally by lowercase `relPath` | `CardInventory Classify(CardSource, ListingResult)` |
-| **Mp4Probe** | Core.Media | Port of `docs/research/spikes/djmd/djmd_gps.py`, about 350 lines (§6.3). Never reads `mdat` or the whole `moov` | `static Mp4Info Read(Stream s)` |
+| **Mp4Probe** | Core.Media | Port of `docs/research/spikes/djmd/djmd_gps.py`, about 350 lines (§6.3), plus the `mvhd` duration. Never reads `mdat` or the whole `moov` | `static Mp4Info Read(Stream s)` |
 | **StillProbe** | Core.Media | DTO from the EXIF directory that actually has it, offset, GPS, model and IFD0 thumbnail range, via MetadataExtractor **Stream** overloads | `static StillInfo Read(Stream s)` |
 | **MetadataHarvester** | Core.Media | Reads **sequentially**: videos, photos, then the first frame of each set. Reports progress. A probe failure becomes `ProbeError`, not an exception | `IAsyncEnumerable<RawItem> HarvestAsync(CardInventory, ICardReader, IProgress<ScanProgress>, CancellationToken)` |
-| **ThumbnailReader** | Core.Media | Reads a stored byte range from the card: MP4 `tnal` 160×90 or DNG IFD0 160×120 | `: IThumbnailSource` |
-| **DroneClock** | Core.Time | Learns the drone clock **as a zone** (§6.1) | `static ClockModel Learn(IEnumerable<RawItem>, string settingZoneId)` |
-| **TimeResolver** | Core.Time | Works out capture time, zone, local date, session and flags (§6.2–6.5). Zone fallbacks don't depend on R or G | `ImmutableArray<ResolvedItem> Resolve(IReadOnlyList<RawItem> raw, ClockModel clock, ITimeZoneResolver tz, IPlaceIndex? places, TimeZoneInfo pc, DateTime nowUtc)` |
+| **ThumbnailReader** | Core.Media | Reads a stored byte range from the card: MP4 `tnal` 160×90 or DNG IFD0 160×120. `Pause()` closes its cached card handles until disposed (Commit, Card cleanup) | `: IThumbnailSource` |
+| **DroneClock** | Core.Time | Learns the drone clock: **SiteLocal** first, then a zone (§6.1). Sample site zones come from each sample's own GPS through `ITimeZoneResolver` | `static ClockModel Learn(IEnumerable<RawItem>, StoredClockMode settingMode, string settingZoneId, ITimeZoneResolver tz, TimeZoneInfo pc)` |
+| **TimeResolver** | Core.Time | Works out capture time, zone, local date, session and flags (§6.2–6.5), including `ClockMismatch` from `ClockModel.OffsetAt`. Zone fallbacks don't depend on R or G | `ImmutableArray<ResolvedItem> Resolve(IReadOnlyList<RawItem> raw, ClockModel clock, ITimeZoneResolver tz, IPlaceIndex? places, TimeZoneInfo pc, DateTime nowUtc)` |
 | **GpsPlausibility** | Core.Geo | Gates generic-search GPS hits (§6.3 step 5b) | `GpsProbe Check(GpsFix first, GpsFix? last, TzLookup, IReadOnlyList<GeoPoint> cardPoints)` |
 | **GeoTimeZoneResolver** | Core.Geo | Wraps GeoTimeZone and flags `Etc/*` results | `: ITimeZoneResolver` |
 | **PlaceIndex** | Core.Geo | Compact binary GeoNames extract with a 0.1° grid index, loaded lazily on a background thread via `IAppAssets` | `static PlaceIndex Load(Stream gz) : IPlaceIndex` |
@@ -774,21 +946,29 @@ public interface IThumbnailSource { ValueTask<ReadOnlyMemory<byte>> GetAsync(Ite
 | **OffloadCompiler / Preflight** | Core.Offload | §10.1–10.2. `Check` writes nothing | `OffloadBatch Compile(Plan)`; `PreflightReport Check(OffloadBatch, Plan, IFileOps, IDirectoryLister, ICardReader, ILedgerStore, IOffloadLock, Settings)` |
 | **IoGuardPolicy** | Core | The one set of IO rules (§4.3), pure and table-tested; Platform and the fake FS both call it | `static GuardDecision Check(IoOp op, string canonicalPath, uint? attributes, GuardContext ctx)` |
 | **CopyEngine** | Core.Offload | §10.3–10.4 | `Task<OffloadResult> RunAsync(OffloadBatch, ICardReader, IFileOps, ILedgerWriter, IProgress<OffloadProgress>, CancellationToken)` |
-| **CardAudit** | Core.Offload | §10.5: re-lists and diffs the card, audits per file, and takes the worst category per unit | `FormatVerdict Audit(CardInventory, ListingResult relisted, CardIdentity now, Plan, OffloadResult?, LedgerSnapshot)` |
-| **Platform** | Platform | Windows implementations of the ports: <br>• `WindowsVolumeProvider`; <br>• `WindowsDirectoryLister`: a `FileSystemEnumerator<FsEntry>` subclass with `ContinueOnError` recording errors; <br>• `WindowsCardReader`; <br>• `GuardedFileOps` wrapping `WindowsFileOps`: `LibraryImport` for `MoveFileExW`, `FlushFileBuffers`, `GetFinalPathNameByHandleW`, `CfGetSyncRootInfoByPath`, `CM_Request_Device_Eject`, `RtlSetProcessPlaceholderCompatibilityMode`, `AllowSetForegroundWindow`; `\\?\` prefix on every P/Invoke path; `File.OpenHandle` for unbuffered verify; <br>• `PlaceholderGuard`, `SyncRootDetector`, `KnownFolders`; <br>• JSON stores (settings, `LedgerStore` for `<videoRoot>\.uas-sort\` with its local backup, drafts, reports), `AppAssets`, `PowerRequest`, `OffloadLock`, `SingleInstance`, `ShellLauncher`, `FileLog`; <br>• `WindowsCardReaderFactory : ICardReaderFactory`, `PathFacts : IPathFacts`. <br>Every open, create, attribute change, delete and rename in `GuardedFileOps`, `WindowsCardReader` and `LedgerStore` first calls `IoGuardPolicy.Check` | — |
-| **Review VMs** | Review | <br>• Stages: `ShellVm` (stage machine), `SetupVm`, `CardStageVm`, `ScanStageVm`. <br>• Review: `ReviewVm` (`VideosTabVm`, `PhotosTabVm`, `OtherTabVm`), `GroupCardVm` (carries its preceding boundary chip and any folded run), `FoldedRunVm`, `ClipRowVm` (carries an optional day-split banner), `SuggestionVm` (`ToString()` = text), `PhotoDayVm`, `TuningVm`, `IssuesVm`. <br>• Map and commit: `MapBridge`, `PreflightVm`, `CopyVm`, `VerdictVm`, `SettingsPageVm`. <br>• Plumbing: `CollectionSync` (keyed diff that keeps selection and scroll) | Services: `IUiDispatcher`, `IDialogService` (queued), `IShellLauncher`, `IThumbnailSource` |
-| **App** | App | `Program.Main` (single instance), `MainWindow` (TitleBar, Mica, Frame), Pages (Setup, Card, Scan, Review, Preflight, Copy, Verdict, Settings), `MapPane` (WebView2), `Thumb.Key` attached property + `ThumbnailCache` (LRU of 400 decoded at 96 px), `DeviceChangeWatcher`, `SelfTest`, `CompositionRoot` | — |
-| **Cli** | Cli | `uas-sort-cli plan` is a dry run that writes nothing: no drafts, no ledger, no files; logs go to stderr. It uses the same `CardSourceValidator`. Contract in §4.5 | `static int Main(string[] args)` |
+| **CardAudit** | Core.Offload | §10.5: re-lists and diffs the card, audits per file, and takes the worst category per unit. Also run by Card cleanup's preparation, with this run's `OffloadResult` or none (§10.6) | `FormatVerdict Audit(CardInventory, ListingResult relisted, CardIdentity now, Plan, OffloadResult?, LedgerSnapshot)` |
+| **CleanupVolumeCheck** | Core.Cleanup | §10.6: the cleanup volume check for the button (the eraser factory repeats it from Win32) | `static string? Refusal(VolumeInfo, ListingResult card, Settings, string appDataDir)` (null = passes) |
+| **CleanupPlanner** | Core.Cleanup | §10.6: builds every unit's candidate from the fresh listings and ledger (files in delete order, eligibility, evidence source, reason, allocated bytes, time, clip length, place, ticked for offload), then the oldest-first plan for either mode, the cutoff, the shortfall and the fingerprint. Pure; the only caller of `CleanupPlan`'s constructor | `ImmutableArray<CleanupCandidate> Candidates(CleanupInputs)`; `CleanupPlan Build(CleanupInputs, ImmutableArray<CleanupCandidate>, CleanupRequest, CleanupRows rows, IReadOnlySet<ItemId> firstShown /* rows present when the list was first shown; later ones start undecided */)` |
+| **CleanupExecutor** | Core.Cleanup | §10.6: owns the whole run: offload lock, keep-awake, thumbnail pause, ledger `Check`/`EnsureFolder`/`SnapshotToBackup`/`OpenOwn`, fresh listings, `ICardEraserFactory.Open`, per-file identity and stat checks, the evidence re-check, deletes, a `cardDelete` record after each delete, the closing re-list. The rescan and the report belong to `CleanupVm` | `Task<CleanupResult> RunAsync(ConfirmedCleanupPlan, CleanupEnvironment, IProgress<CleanupProgress>, CancellationToken)` |
+| **Platform** | Platform | Windows implementations of the ports: &lt;br>• `WindowsVolumeProvider`; &lt;br>• `WindowsDirectoryLister`: a `FileSystemEnumerator<FsEntry>` subclass with `ContinueOnError` recording errors; &lt;br>• `WindowsCardReader` (`LibraryImport` for `GetDiskFreeSpaceW`/`GetDiskFreeSpaceExW` behind `Space()`); &lt;br>• `WindowsCardEraser` + `WindowsCardEraserFactory` (Card cleanup, §10.6): `LibraryImport` for `DeleteFileW` and `RemoveDirectoryW` (declared only there), `\\?\` paths; the factory's internal `IVolumeFacts` (`WindowsVolumeFacts`: `GetVolumePathNameW`, `GetVolumeInformationW`, `IOCTL_STORAGE_QUERY_PROPERTY` through a `DeviceIoControl` on a volume handle opened with no data access, system/boot/paging checks); &lt;br>• `GuardedFileOps` wrapping `WindowsFileOps`: `LibraryImport` for `MoveFileExW`, `FlushFileBuffers`, `GetFinalPathNameByHandleW`, `CfGetSyncRootInfoByPath`, `CM_Request_Device_Eject`, `RtlSetProcessPlaceholderCompatibilityMode`, `AllowSetForegroundWindow`; `\\?\` prefix on every P/Invoke path; `File.OpenHandle` for unbuffered verify; &lt;br>• `PlaceholderGuard`, `SyncRootDetector`, `KnownFolders`; &lt;br>• JSON stores (settings, `LedgerStore` for `<videoRoot>\.uas-sort\` with its local backup, drafts, reports), `AppAssets`, `PowerRequest`, `OffloadLock`, `SingleInstance`, `ShellLauncher`, `FileLog`; &lt;br>• `WindowsCardReaderFactory : ICardReaderFactory`, `PathFacts : IPathFacts`. &lt;br>Every open, create, attribute change, delete and rename in `GuardedFileOps`, `WindowsCardReader`, `WindowsCardEraser` and `LedgerStore` first calls `IoGuardPolicy.Check` | — |
+| **Review VMs** | Review | &lt;br>• Stages: `ShellVm` (stage machine), `SetupVm`, `CardStageVm`, `ScanStageVm`. &lt;br>• Review: `ReviewVm` (`VideosTabVm`, `PhotosTabVm`, `OtherTabVm`), `GroupCardVm` (carries its preceding boundary chip and any folded run), `FoldedRunVm`, `ClipRowVm` (carries an optional day-split banner), `SuggestionVm` (`ToString()` = text), `PhotoDayVm`, `TuningVm`, `IssuesVm`. &lt;br>• Map and commit: `MapBridge`, `PreflightVm`, `CopyVm`, `VerdictVm`, `SettingsPageVm`. &lt;br>• Card cleanup: `CleanupVm` (mode, date picker to `DateOnly`, free-space kind, summary, acknowledgements; after the run it asks `ShellVm` to rescan and saves the `CleanupReport` through `IReportStore`), `CleanupRowVm` (one not-in-library review row with Keep/Delete/undecided; `ToString()` = its text), `CleanupResultVm`. &lt;br>• Plumbing: `CollectionSync` (keyed diff that keeps selection and scroll) | Services: `IUiDispatcher`, `IDialogService` (queued), `IShellLauncher`, `IThumbnailSource` |
+| **App** | App | `Program.Main` (single instance), `MainWindow` (TitleBar, Mica, Frame), Pages (Setup, Card, Scan, Review, Preflight, Copy, Verdict, Cleanup, Settings), `MapPane` (WebView2), `Thumb.Key` attached property + `ThumbnailCache` (LRU of 400 decoded at 96 px), `DeviceChangeWatcher`, `SelfTest`, `CompositionRoot` | — |
+| **Cli** | Cli | `uas-sort-cli plan` is a dry run that writes nothing: no drafts, no ledger, no files; logs go to stderr. There is no cleanup command. It uses the same `CardSourceValidator`. Contract in §4.5 | `static int Main(string[] args)` |
 
-### 4.3 IO guard (`IoGuardPolicy`, enforced by `GuardedFileOps`, `WindowsCardReader`, `LedgerStore`, `PlaceholderGuard`, `CardSourceValidator`)
+### 4.3 IO guard (`IoGuardPolicy`, enforced by `GuardedFileOps`, `WindowsCardReader`, `WindowsCardEraser`, `LedgerStore`, `PlaceholderGuard`, `CardSourceValidator`)
 
-**The policy is one pure Core function.** Every rule in this section is implemented once, in `IoGuardPolicy.Check`, and never re-implemented. `GuardedFileOps`, `WindowsCardReader` and the Platform `LedgerStore` call it before every open, create, attribute change, delete or rename, and throw `UnsafeIoException` (or report `CloudOnly`) on anything but `GuardAllow`. `FakeFileSystem` (Testing, `net11.0`) calls the same function and throws `HydrationViolation` for `GuardHydration`. Listings and attribute reads are not opens and are not checked.
+**The policy is one pure Core function.** Every rule in this section is implemented once, in `IoGuardPolicy.Check`, and never re-implemented. `GuardedFileOps`, `WindowsCardReader`, `WindowsCardEraser` and the Platform `LedgerStore` call it before every open, create, attribute change, delete or rename, and throw `UnsafeIoException` (or report `CloudOnly`) on anything but `GuardAllow`. `FakeFileSystem` (Testing, `net11.0`) calls the same function and throws `HydrationViolation` for `GuardHydration`. Listings and attribute reads are not opens and are not checked.
 
 ```csharp
-public enum IoOp { ReadData, AppendOwnLedger, CreateNew, CreateDir, SetPinned, SetAttributesOrTimes, Delete, Rename, OpenForFlush }
+public enum IoOp { ReadData, AppendOwnLedger, CreateNew, CreateDir, SetPinned, SetAttributesOrTimes, Delete, Rename, OpenForFlush,
+                   CardDelete /* Card cleanup only (§10.6): a card file, or an emptied set folder */ }
 public sealed record GuardContext(string VideoRoot, string PhotoRoot, ImmutableArray<string> PreviousPhotoRoots, string? CardRoot,
     string AppDataDir /* %LOCALAPPDATA%\uas-sort */, string Machine, IReadOnlySet<string> NewFolderDirs /* incl. YYYY, YYYY-MM parents */,
-    IReadOnlySet<string> OwnTempsThisRun, IReadOnlySet<string> RenamedThisRun);   // all canonical, compared case-insensitively
+    IReadOnlySet<string> OwnTempsThisRun, IReadOnlySet<string> RenamedThisRun,   // all canonical, compared case-insensitively
+    string SystemVolumeRoot /* e.g. C:\ */,
+    bool CardIsVerifiedCardVolume /* true only in the GuardContext that WindowsCardEraserFactory builds after its Win32 volume check */,
+    ConfirmedCleanupPlan? Cleanup /* set only in the eraser's own context while CleanupExecutor runs; null everywhere else */);
+public sealed record CardDeleteViolation(string Path, IoOp Op, string Reason);   // FakeFileSystem.CardDeleteViolations (§4.3, §13)
 public sealed record GuardAllow;   public sealed record GuardUnsafe(string Reason);
 public sealed record GuardCloudOnly(string Path);   public sealed record GuardHydration(string Path, uint Attributes);
 public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydration);
@@ -796,18 +976,23 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
 
 `Check(op, canonicalPath, attributes, ctx)` evaluates, in order:
 1. Callers read the target's attributes first; a read that fails for any reason other than "not found" is refused before the policy runs (PlaceholderGuard). `attributes` is null only for a target that doesn't exist, which only `CreateNew`, `CreateDir` and `AppendOwnLedger` accept (null for any other op → `GuardUnsafe`). Any of `0x400000`, `0x40000`, `0x1000` set → `GuardCloudOnly` if the path is a top-level `.uas-sort\ledger*.jsonl`, else `GuardHydration`.
-2. Under `CardRoot`: `ReadData` → allow; anything else → unsafe.
+1b. `CardDelete` of a path equal to or under the video root, the photo root, a previous photo root, `LedgerPaths.For(VideoRoot)`, `AppDataDir` or `SystemVolumeRoot` → unsafe, whatever else the context says. This runs before rule 2, so a wrong `CardRoot` can never reach a library, ledger or system file.
+2. `CardDelete` outside `CardRoot` → unsafe. Under `CardRoot`:
+   - `ReadData` → allow.
+   - `CardDelete` → allow only if **all** hold: `Cleanup` is set; `CardIsVerifiedCardVolume`; `Cleanup.Plan.CardRoot` equals `CardRoot`; and either the target is a file (attributes without `FILE_ATTRIBUTE_DIRECTORY`) whose path is in `Cleanup.FilePaths`, or a directory whose path is in `Cleanup.SetFolders` (the eraser removes it with `RemoveDirectoryW`, which fails unless it is empty).
+   - Anything else, including `OpenForFlush`, `SetAttributesOrTimes`, `CreateNew` and the offload's `Delete`, of the card root or anything under it → unsafe, in every context.
 3. Under `LedgerPaths.For(VideoRoot)`: the four exemption operations below → allow; anything else → unsafe.
 4. Under the video root, photo root or a previous photo root: `CreateNew` of a `*.uas-sort.tmp`; `ReadData`, `SetAttributesOrTimes`, `Rename` (to its final name in the same directory) and `Delete` of a path in `OwnTempsThisRun`; `Delete` of any other `*.uas-sort.tmp` (stale temps, at Start offload); `OpenForFlush` of a path in `RenamedThisRun` or a directory in `NewFolderDirs` or holding a renamed file; `CreateDir` of a path in `NewFolderDirs` → allow; anything else → unsafe.
 5. Under `AppDataDir`: allow (Platform's own stores).
 6. Anything else → unsafe.
 
 **Card**
-- Reads only, and only for paths under the anchored card root.
-- Handles request `FileAccess.Read` (GENERIC_READ); never `FILE_WRITE_ATTRIBUTES` or any write right. A Platform test runs the reader against files whose ACL denies all write rights.
-- Nothing under the card root is ever created, written, renamed or deleted.
-- The reader is bound to the `CardIdentity` taken at scan time. `CurrentIdentity()` is re-checked at Commit start, before each file, and before the verdict.
-- A write-protected volume (`FILE_READ_ONLY_VOLUME`) gets a "write-protected" badge.
+- The **reader** only reads, and only paths under the anchored card root.
+- Its handles request `FileAccess.Read` (GENERIC_READ); never `FILE_WRITE_ATTRIBUTES` or any write right. A Platform test runs the reader against files whose ACL denies all write rights.
+- Nothing under the card root is ever created, written or renamed, and no attribute or time is ever changed. The offload never deletes anything there.
+- **The one exception is Card cleanup (§10.6):** `ICardEraser` deletes card files, and set folders it has emptied, and only those named in the `ConfirmedCleanupPlan` in its own `GuardContext` (rules 1b and 2). It is created only for a volume that `WindowsCardEraserFactory` has verified from Win32 as a removable card volume (§10.6 cleanup volume check), never for a browsed folder or a backup drive (which could hold a copy of a card) and never for a write-protected card. It never opens a card file, never opens a write or flush handle on the volume, never clears an attribute, and never deletes a directory recursively.
+- The reader is bound to the `CardIdentity` taken at scan time. `CurrentIdentity()` is re-checked at Commit start, before each file, and before the verdict, and before each delete during Card cleanup.
+- A write-protected volume (`FILE_READ_ONLY_VOLUME`) gets a "write-protected" badge, and [Clean up card…] is disabled.
 
 **Card source validation** (detected volumes and Browse alike)
 1. **Anchor.**
@@ -820,7 +1005,7 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
 3. **Refuse overlaps.** Refuse if the root equals, is inside, or contains any of: the video root, the photo root, any `previousPhotoRoots`, the ledger folder `<videoRoot>\.uas-sort` (checked explicitly although the video-root check already covers it), `%LOCALAPPDATA%\uas-sort`, or **any cloud sync root**.
    - "Inside" a sync root: `CfGetSyncRootInfoByPath` succeeds.
    - "Contains" a sync root: OneDrive's `HKCU\Software\Microsoft\OneDrive\Accounts\*\UserFolder` values, plus the registered sync roots under `HKLM\…\SyncRootManager` (read-only registry reads; UNVERIFIED for non-OneDrive providers).
-   - Message: "This is part of your library (or a synced folder); uas-sort only reads cards."
+   - Message: "This is part of your library (or a synced folder); uas-sort only offloads from cards."
 
 **Library roots**
 - Never opened for reading, with these exceptions:
@@ -840,7 +1025,7 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
 - **What the exemption allows.** Only the operations below; nothing else under the library. Paths are matched on the canonical path (`GetFinalPathNameByHandleW`), case-insensitively:
   - **Read** any file **directly** in `<videoRoot>\.uas-sort\` whose name matches `ledger*.jsonl`. This covers other PCs' files and OneDrive conflict copies. Reads use `FileAccess.Read` and `FileShare.ReadWrite`.
   - **Append** only to this PC's own file, `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` (created if missing), with `FileShare.Read`. That makes it the single writer.
-  - **Create the `.uas-sort` folder itself** when it is missing, through `ILedgerStore.EnsureFolder()`: on **Start offload** (§4.4), or on the video-root [Copy] (§9.14).
+  - **Create the `.uas-sort` folder itself** when it is missing, through `ILedgerStore.EnsureFolder()`: on **Start offload** (§4.4), on the video-root [Copy] (§9.14), or when Card cleanup starts deleting (§10.6).
   - **Set `FILE_ATTRIBUTE_PINNED` on that folder**, from `EnsureFolder()` and [Keep on this device].
 - **Everything else there is a violation** and throws `UnsafeIoException`. That includes:
   - any other file name;
@@ -864,7 +1049,8 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
 
 **Fake file system**
 - `FakeFileSystem` does not copy these rules: it calls `IoGuardPolicy.Check` like Platform does. That gives the **hydration tripwire**: any open of a placeholder throws `HydrationViolation`, and so does any open of a pre-existing library file, except under the ledger exemption above (local `.uas-sort\ledger*.jsonl` read, own file append). This run's own temps and just-renamed files are tracked exceptions.
-- Tests therefore prove the shipped rules in three layers (§13): the table-driven policy test (Core.Tests), the end-to-end tripwire (fake FS), and Platform tests showing that `GuardedFileOps`, `WindowsCardReader` and `LedgerStore` consult the policy.
+- **Card-delete tripwire.** A card delete the policy refuses (no `ConfirmedCleanupPlan`, a path the plan doesn't name, a directory that isn't a named set folder, an unverified volume) throws `UnsafeIoException` **and** is appended to `FakeFileSystem.CardDeleteViolations` (`IReadOnlyList<CardDeleteViolation>`, §4.3 types); every fixture asserts the list is empty at teardown, so a swallowed exception still fails the test. The fake's eraser factory treats its card as a verified card volume unless a test marks it browsed or fails one of its volume facts.
+- Tests therefore prove the shipped rules in three layers (§13): the table-driven policy test (Core.Tests), the end-to-end tripwires (fake FS), and Platform tests showing that `GuardedFileOps`, `WindowsCardReader`, `WindowsCardEraser` and `LedgerStore` consult the policy.
 
 ### 4.4 Flow
 
@@ -890,6 +1076,10 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
    - On **Start offload**, before the first copy: `ILedgerStore.EnsureFolder()` (creates `<videoRoot>\.uas-sort` if it is missing, the folder only, and pins it, also when it already existed unpinned), `SnapshotToBackup(runId)` (§11), and `DeleteOwnTemp` for each stale temp preflight listed.
    - Run `CopyEngine`. Ledger lines are written per file, and `seen` records at the end.
    - Then the re-list, the audit, the verdict, and the report.
+7. **Card cleanup** (optional; §10.6). From the Verdict page, or from the Review title bar, for a scanned card that passes the cleanup volume check.
+   - Preparation re-checks the identity, re-lists the card, runs `CardAudit`, lists the library roots afresh and loads the ledger; `CleanupPlanner` builds the plan live as the user chooses a mode, a date or a target, and toggles rows.
+   - The confirmation turns the plan into a `ConfirmedCleanupPlan`. `CleanupExecutor.RunAsync` then owns the run: it takes the offload lock, keeps the PC awake, pauses thumbnails, runs `EnsureFolder()`, `SnapshotToBackup(runId)` and `OpenOwn()`, opens the eraser (which re-verifies the volume), deletes oldest first with per-file re-checks, appends a `cardDelete` record after each delete, and re-lists the card.
+   - The caller, `CleanupVm`, then has the card rescanned (the verdict is recomputed), saves the cleanup report and shows the result page.
 
 ### 4.5 CLI contract (`UasSort.Cli`, `AssemblyName=uas-sort-cli`; M3's deliverable, M4's gate)
 
@@ -898,7 +1088,7 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
                   [--settings <path>] [--json] [--expect <expected.json>]
 ```
 
-- **Roots and tuning.** Command-line values win. Otherwise they come from `ISettingsStore.Load(readOnly: true)` of `%LOCALAPPDATA%\uas-sort\settings.json` (or `--settings`). A missing or unreadable file gives the derived defaults (video root `KnownFolder(Pictures)\UAS Videos`, photo root `<videoRoot>\Picture Offload`, R 50 mi, G 1, `America/New_York`, `copyJpgTwin` on) and **nothing is renamed, created or written**; that is how the CLI runs before the Setup UI exists (M3–M6a). `previousPhotoRoots` come only from settings.
+- **Roots and tuning.** Command-line values win. Otherwise they come from `ISettingsStore.Load(readOnly: true)` of `%LOCALAPPDATA%\uas-sort\settings.json` (or `--settings`). A missing or unreadable file gives the derived defaults (video root `KnownFolder(Pictures)\UAS Videos`, photo root `<videoRoot>\Picture Offload`, R 50 mi, G 1, stored clock mode `Zone` with `America/New_York`, `copyJpgTwin` on) and **nothing is renamed, created or written**; that is how the CLI runs before the Setup UI exists (M3–M6a). `previousPhotoRoots` come only from settings.
 - **What it runs.** `CardSourceValidator` → `ScanService.ScanAsync` (the ledger is read through `Check()` + `Load()`; never `OpenOwn`, `EnsureFolder` or `SnapshotToBackup`) → `Planner.Prepare` → `Derive` with no edits. The guard is the same as the app's.
 - **Output.** Logs and progress go to stderr; the plan goes to stdout. Without `--json`: one block per group, `NEW FOLDER 2026\2026-09\2026-09-27 · 13 clips · Sep 27 · issues: EmptyFolderName`, then photo days, sets, other files and issues. With `--json`, this schema (`v:1`, camelCase, enums as names):
 
@@ -907,14 +1097,15 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
   "card": { "root": "E:\\", "identity": { "serial": "1A2B3C4D", "label": null, "fs": "exFAT", "totalBytes": 256060514304 },
             "model": "FC9113", "files": 214, "inventoryHash": "9f3c0a6d12e4b7a1" },
   "settings": { "videoRoot": "C:\\…\\UAS Videos", "photoRoot": "C:\\…\\Picture Offload", "radiusMiles": 50, "gapDays": 1 },
-  "clock": { "mode": "Zone", "zone": "America/New_York", "samples": 13 },
+  "clock": { "mode": "Zone", "zone": "America/New_York", "samples": 13,
+             "mismatch": { "items": 25, "siteZones": [ "America/Anchorage" ] } },
   "watermarkUtc": "2026-09-27T18:24:16Z",
   "groups": [ { "id": "DCIM/DJI_001/DJI_20260725232655_0117_D.MP4", "target": "Append",
                 "relPath": "2026\\2026-07\\2026-07-25 Council Road", "confidence": "Medium", "why": "different day, 34 mi from Council Road",
                 "start": "2026-07-25", "end": "2026-07-26",
                 "boundaryBefore": { "cause": "DayGap", "jumpMiles": null, "gapHours": 1488.5, "dayGap": 62 },
                 "videos": [ { "id": "DCIM/DJI_001/DJI_20260725232655_0117_D.MP4", "status": "Imported", "included": false,
-                              "captureUtc": "2026-07-26T03:26:55Z", "localDate": "2026-07-25", "timeSource": "Mvhd", "flags": [] } ],
+                              "captureUtc": "2026-07-26T03:26:55Z", "localDate": "2026-07-25", "timeSource": "Mvhd", "flags": [ "ClockMismatch" ] } ],
                 "daySplits": [ { "firstOfDay": "DCIM/DJI_001/DJI_20260726235645_0001_D.MP4", "from": "2026-07-25", "to": "2026-07-26",
                                  "apartMiles": 33.7, "emphasised": true } ],
                 "issues": [ "MediumAppend", "EmphasisedDaySplit" ] } ],
@@ -925,6 +1116,7 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
                 "message": "Name this folder", "requiresAck": false } ] }
 ```
 
+- **No cleanup.** The CLI has no Card cleanup command and never deletes anything, on the card or elsewhere.
 - **Exit codes.** 0 = plan printed (even with Blocking issues); 1 = source refused by the validator (reason on stderr); 2 = any other error (bad arguments, IO, unhandled exception).
 - **Expected folder list.** Before M4 the user writes `tests/acceptance/first-card-expected.json`: `{ "folders": [ { "relPath": "2026\\2026-10\\2026-10-04 Nome Roads", "clips": ["DJI_…_0151_D.MP4", …] } ] }`. `--expect <file>` prints the differences and the **edit count**: for each expected folder whose clips span k > 1 CLI groups, k − 1 (merges); for each CLI group whose clips span k > 1 expected folders, k − 1 (splits or moves); plus 1 per matched folder whose description or target kind differs (a `Rename` or `Retarget`). One edit is one `PlanEdit`; M4 passes at ≤ 2.
 
@@ -939,6 +1131,7 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
   - `\DCIM\` contains a folder matching `^DJI_\d{3}(_.+)?$`, or `PANORAMA\`, or `HYPERLAPSE\`;
   - and at least one file matches `^DJI_(\d{14})_(\d{4})_([A-Z])(?:_[^.]*)?\.([A-Za-z0-9]+)$`.
 - **Anything else is "not a card".** That includes RC 2 internal storage and Autel cards; they are listed only as "not a DJI card".
+- **Detection is not enough for Card cleanup.** A USB SSD or thumb drive whose root holds a copied card passes these rules, so Card cleanup adds its own, stricter volume check (§10.6).
 - **Drone over USB:** it appears as two mass-storage volumes (names UNVERIFIED). Both are listed, and each one is its own run.
 - **Camera model:** from `\MISC\FC*.db` (FC9113 = Air 3S, UNVERIFIED), otherwise from the EXIF Model of the first DNG.
 - **Listing options:** explicit `EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = false, ReturnSpecialDirectories = false }`, with errors collected per path. Hidden and system files are listed like any other.
@@ -966,33 +1159,52 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
 | Non-media file outside `DCIM` | Skip ("outside DCIM, not media") | — | Listed, collapsed |
 | Enumeration error (access denied, I/O error) | ScanWarning, `ForcesNotSafe` | — | The verdict is NotSafe while it remains |
 
+**Companions (used only by Card cleanup, §10.6).** Card cleanup deletes an MP4 together with these Skip files in the same folder, matched case-insensitively on its stem: `<stem>.LRF`, `<stem>.SRT`, the hidden `.<stem>.MP4.trinf`, `.<stem>.MP4.avc1` or `.<stem>.avc1`, and `<stem>.JPG` once the "video cover" Skip rule is on (until then that JPG is Unknown and never deleted). Every other Skip file is never deleted: `MISC\**`, `LOST.DIR\**`, system and dot files not tied to a unit, and an LRF or SRT whose MP4 is gone.
+
 ---
 
 ## 6. Time & location normalization
 
-### 6.1 Learning the drone clock (as a time zone)
+### 6.1 Learning the drone clock (site-local or a time zone)
+
+**What the drone clock is** (user decision, 2026-09-27; §1.1). It is whatever the RC 2 is set to: observed US Eastern, never switched since first use, and **not** set from GPS. **Local dates always come from true UTC converted with the GPS site zone** (§6.4). The drone clock is used only to turn stamps that carry no UTC into UTC (DNG EXIF; filenames of truncated or probe-failed clips; library member starts and the watermark, §7.1), and a drone-clock date or time is never used as a local date directly.
 
 **Samples**
-- Every DJI MP4 that has a `moov` gives one sample: `(stamp, mvhdUtc, offset = round15min(stamp − mvhdUtc))`. So far every sample is −4 h, and all are from summer.
+- Every DJI MP4 that has a `moov` gives one sample: `(stamp, mvhdUtc, offset = round15min(stamp − mvhdUtc), siteZone)`. So far every sample is −4 h, and all are from summer.
+- `siteZone` is the zone of the sample's own first GPS fix through `ITimeZoneResolver` (GeoTimeZone), only for a model-table fix (`DjmdModelTable`) that resolves to a non-`Etc` zone. Any other sample has no `siteZone` (generic-search hits are not gated until §6.3 step 5b runs, and `Etc/*` means the sea).
 
-**Zone fit.** A candidate IANA zone *fits* when `zone.GetUtcOffset(stamp as zone-local) == offset` for every sample. Candidates, in order:
-1. the stored `droneClockZone` (default `America/New_York`, from the user's statement);
-2. `America/New_York`, `America/Chicago`, `America/Denver`, `America/Phoenix`, `America/Los_Angeles`, `America/Anchorage`, `Pacific/Honolulu`;
-3. the PC zone.
+**Candidates, in order; the first that fits is chosen**
+1. **SiteLocal.** Fits when, for every sample that has a `siteZone`, `offset == siteZone.GetUtcOffset(mvhdUtc)`. Samples without a `siteZone` are ignored for this test, and at least one sample must have one.
+2. **The stored `droneClockZone`**: the last learned zone (default `America/New_York`; a default, not an assumption).
+3. `America/New_York`, `America/Chicago`, `America/Denver`, `America/Phoenix`, `America/Los_Angeles`, `America/Anchorage`, `Pacific/Honolulu`.
+4. The PC zone.
 
-The first zone that fits is chosen. Summer samples fit both New York and zones fixed at −4 (e.g. `America/Puerto_Rico`); the order resolves that.
+A zone (2–4) *fits* when `zone.GetUtcOffset(stamp as zone-local) == offset` for every sample. Summer samples fit both New York and zones fixed at −4 (e.g. `America/Puerto_Rico`); the order resolves that. An Eastern clock flown only in the Eastern zone (Newport RI) fits both SiteLocal and New York; SiteLocal wins by order, and the conversions are identical there.
 
 **Modes**
 
 | Mode | When | Conversion | Time source |
 |---|---|---|---|
-| `Zone` | A candidate fits every sample | Every stamp converts through the zone, so DST is handled | `DroneClockZone` |
+| `SiteLocal` | Candidate 1 fits | Through the site zone of the item itself: the zone of its own GPS; without GPS (or with an `Etc` zone), the zone of the nearest GPS item on the card within 12 h (compared on drone stamps); else the stored zone. So DST and a trip across zones are handled | `DroneClockSiteLocal` |
+| `Zone` | A zone (2–4) fits every sample | Every stamp converts through the zone, so DST is handled | `DroneClockZone` |
 | `NearestSample` | No candidate fits (e.g. the RC doesn't follow DST, or clock drift) | The nearest sample within 60 days, else the card's most common offset | `DroneClockSample`; the clock banner says why |
-| `Setting` | No MP4 samples on the card | The stored zone | `DroneClockSetting`, flag `ClockFromSetting` |
+| `Setting` | No MP4 samples on the card (a photo-only card) | The stored mode: `SiteLocal` converts as in the SiteLocal row, `Zone` through the stored zone | `DroneClockSetting`, flag `ClockFromSetting` |
 
-- **The same `ClockModel` is used everywhere** a drone stamp becomes UTC: card items, library member start times, and the watermark (§7.1).
-- **After a successful run,** a fitted zone is saved as `droneClockZone`.
-- **Header text:** "Drone clock: US Eastern (America/New_York), learned from 13 videos. Folder dates use local time at each site." A "Why?" link explains the RC 2 time-zone setting.
+- **The same `ClockModel` is used everywhere** a drone stamp becomes UTC: card items, library member start times, and the watermark (§7.1). Library members have no GPS of their own, so in `SiteLocal` mode (and `Setting` with a stored `SiteLocal`) a member converts through its event folder's ledger `tz` (`LedgerFolder.TzId`), else the stored zone; the mtime check of §7.1 still applies.
+- **After a successful run,** the learned mode is saved: `SiteLocal` as `droneClockMode = SiteLocal` (`droneClockZone` is left as it was), or a fitted zone as `droneClockMode = Zone` plus `droneClockZone`. `NearestSample` and `Setting` save nothing.
+- **Header text** (the clock banner, §9.2):
+  - Zone: "Drone clock: US Eastern (America/New_York), learned from 13 videos. Folder dates use local time at each site."
+  - SiteLocal: "Drone clock: follows local time at each site, learned from 13 videos."
+  - NearestSample and Setting say why ("no single time zone fits these videos"; "no videos on this card: using the last learned clock").
+  - In any mode, when any item has `ClockMismatch`, the line continues: "It doesn't match local time where this card was shot (Alaska)." The clock-mismatch InfoBar (§9.2) sits right below it.
+  - A "Why?" link explains the RC 2 time-zone setting.
+
+**Worked example** (Zachar Bay 0128, a real clip; §11 ledger example)
+- Filename `DJI_20260927140627_0128_D.MP4`: 14:06:27 on the drone clock.
+- `mvhd` `creation_time`: 2026-09-27T18:06:27Z, so the sample offset is −4 h.
+- GPS 57.55044, −153.73897 → `America/Anchorage`, UTC−8 (AKDT) on that date → local **10:06:27 AKDT, Sep 27**; the folder date is 2026-09-27.
+- SiteLocal doesn't fit (−4 ≠ −8); `America/New_York` fits (EDT, −4) → `Zone` mode.
+- Drone clock UTC−4 vs site UTC−8: 4 h ≥ 15 min → `ClockMismatch` (§6.5).
 
 ### 6.2 Capture-time precedence (first rule that applies)
 
@@ -1000,7 +1212,7 @@ The first zone that fits is chosen. Summer samples fit both New York and zones f
 |---|---|---|---|
 | 1 | DJI video with `moov` | `mvhd` creation time, taken as UTC (`SpecifyKind(Utc)`) | `Mvhd` |
 | 2 | EXIF DTO plus `OffsetTimeOriginal` (DJI doesn't write it today) | DTO − offset | `ExifWithOffset` |
-| 3 | DJI photo, set, truncated clip or probe-failed item with a drone stamp (EXIF DTO, else the filename) | `ClockModel.ToUtc(stamp)` | `DroneClockZone` / `DroneClockSample` / `DroneClockSetting` |
+| 3 | DJI photo, set, truncated clip or probe-failed item with a drone stamp (EXIF DTO, else the filename) | `ClockModel.ToUtc(stamp, siteZoneId)`, with the item's site zone for SiteLocal (§6.1) | `DroneClockSiteLocal` / `DroneClockZone` / `DroneClockSample` / `DroneClockSetting` |
 | 4 | Anything else | Card mtime (whether exFAT mtime is true UTC is UNVERIFIED) | `Mtime` |
 
 GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS time).
@@ -1012,7 +1224,7 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
    - Size 1 means a 64-bit size follows; size 0 means the box runs to end of file; `uuid` boxes have 16 extra header bytes.
    - Reject any size smaller than its header or larger than what remains of the file. Never read `mdat`.
 2. **Inside `moov`:**
-   - `mvhd` gives the creation time (seconds since 1904; 32-bit in version 0, 64-bit in version 1).
+   - `mvhd` gives the creation time (seconds since 1904; 32-bit in version 0, 64-bit in version 1) and the clip length: `duration / timescale` (duration 32-bit in version 0, 64-bit in version 1) → `Mp4Info.Duration`, shown by Card cleanup (§10.6). A file without `moov` has no duration (`null`); Card cleanup then shows "unfinished · ~7 MB".
    - For each track, check `mdhd`, `hdlr` and `stsd`, and pick the track whose `stsd` has an entry with format `djmd`.
    - Keep `stsc` in memory. Read `stsz`/`stz2` and `stco`/`co64` entries on demand.
    - Check that `stsc`'s description index points at the `djmd` entry.
@@ -1028,7 +1240,7 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
 | dvtm_ac203/204/206, dvtm_oq101 | 3-4-2-1 | 3-4-2-2 | field 1: 0 or absent = radians, 1 = degrees |
 
    - **Unknown protocol:** use a generic search for the first sub-message whose fields 2 and 3 are doubles within the valid latitude/longitude range, in degrees or radians. It is recorded with `FieldPath` and source `DjmdGenericSearch`.
-5. **Multi-sample search.** A fix with |lat| and |lon| both below 1e-6 means "no fix". Sample indexes are **0-based**; sample 0 is always read (it carries the protocol and the first fix). If it has no fix, probe samples 1–9, then 16, 32, 64, … (each below n), then the last sample, n − 1. The read count is at most 1 + 9 + |{2^k : k ≥ 4, 2^k < n}| + 1, e.g. 16 for n = 300.
+5. **Multi-sample search.** A fix with |lat| and |lon| both below 1e-6 means "no fix". Sample indexes are **0-based**; sample 0 is always read (it carries the protocol and the first fix). If it has no fix, probe samples 1–9, then 16, 32, 64, … (each below n), then the last sample, n − 1. The read count is at most 1 + 9 + |{2^k : k ≥ 4, 2^k &lt; n}| + 1, e.g. 16 for n = 300.
    - **5b. Generic hits only.** Also decode the last sample at the same `FieldPath` (`LastSameField`). During normalisation, `GpsPlausibility` accepts the hit only if all of these hold:
      - the first and last fixes are within 3 mi;
      - the point resolves to a non-`Etc` zone;
@@ -1055,9 +1267,10 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
 
    Set `TzFallback`. None of this depends on clustering, so R and G never change a local date.
 3. **Items without GPS:** the zone of a GPS item in the same power-on session (`SessionKey.SameSession`), else the nearest GPS item within 12 h, else the PC zone.
-4. **Local date:** `ConvertTimeFromUtc(CaptureUtc, tz).Date`.
+4. **Local date:** `ConvertTimeFromUtc(CaptureUtc, tz).Date`. It never comes from the drone clock's own date (§6.1).
 5. **Worked examples:**
    - Clip `20260726035000` is 07:50Z, which is **Jul 25** 23:50 AKDT.
+   - Zachar Bay 0128: 14:06:27 on the drone clock, 18:06:27Z, **10:06:27 AKDT** on Sep 27 (§6.1).
    - A Makaha clip at 09:30Z falls on Feb 28 in Honolulu (it would be Mar 1 in Alaska).
 
 ### 6.5 Flags
@@ -1071,6 +1284,7 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
 | `CheckDate` | (a) GeoTimeZone gave alternative zones **and** local time is within 60 min of midnight; or (b) the time source is `Mvhd` or any `DroneClock*`, **and** local time is within **75 min** of midnight (covers a 1 h DST error plus Air 3S drift of 23–30 min) | "Check date" chip on the item and its group |
 | `TzFallback` | An `Etc/*` fallback or the PC zone was used | Zone badge shown in italics, with a tooltip |
 | `ClockFromSetting` | No clock sample on the card | Clock banner: "from settings" |
+| `ClockMismatch` | The item has a drone stamp (filename or EXIF DTO; videos with `mvhd` included), its site zone is not the PC-zone fallback (`TzSource.PcZone`), and \|`ClockModel.OffsetAt(stamp, siteZone)` − `siteZone.GetUtcOffset(CaptureUtc)`\| **≥ 15 min** (the drone-clock offset from the learned model at that stamp vs the site zone's offset). Never set in `SiteLocal` mode for an item converted through its own site zone | Info only: the Review InfoBar (§9.2), a "clock ≠ local" chip on the group card (§9.4), the clip time tooltip (§9.5), Info issue `ClockMismatch` (§9.10). It never changes a date, and it does not affect the verdict (§10.5) |
 | `ProbeFailed` | Reading metadata threw an error | Item timed from the filename, else mtime; still copyable |
 
 ---
@@ -1091,7 +1305,7 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
 
 **Event folders**
 - An event folder is the nearest ancestor, at any depth, whose name matches `^(\d{4})-(\d{2})-(\d{2})(?:\s+(.*))?$`. The photo-root subtrees and the `.uas-sort` subtree are excluded. Legacy depths (e.g. `2022\2022-03-27 Makaha Valley`) work too.
-- Member start times: DJI filename stamp → UTC via the **card's `ClockModel`**. If mtime (true UTC, about start + duration) is earlier than that, or more than 2 h later, use mtime and set a flag. Non-DJI names (Autel `MAX_####`) use mtime.
+- Member start times: DJI filename stamp → UTC via the **card's `ClockModel`** (in `SiteLocal` mode through the folder's ledger `tz`, else the stored zone; §6.1). If mtime (true UTC, about start + duration) is earlier than that, or more than 2 h later, use mtime and set a flag. Non-DJI names (Autel `MAX_####`) use mtime.
 - A folder's days are its members' local dates in the folder's ledger zone, else in the zone of the group being compared.
 - The centroid comes from ledger folder or file records, else from leftover clips on the card that match the folder's files, else it is unknown.
 
@@ -1105,7 +1319,7 @@ GPS-time sources for other DJI models are deferred (the Air 3S has no real GPS t
 
 | Status | Test | Ticked |
 |---|---|---|
-| Imported | `(NormName, Size)` found in any listed root (evidence `LibraryNameSize`), or a ledger `file` record (`LedgerVerified`; or `LedgerNameSize` when the record says `verify:"nameSize"`), including files culled from the library since | Hidden, folded into "already in library" (§8.5 fold rule) |
+| Imported | `(NormName, Size)` found in any listed root (evidence `LibraryNameSize`), or a ledger `file` record (`LedgerVerified`; or `LedgerNameSize` when the record says `verify:"nameSize"`), including files culled from the library since. (This is newness only; Card cleanup never treats a ledger record alone as proof that a video is in the library, §10.6) | Hidden, folded into "already in library" (§8.5 fold rule) |
 | Decided | A ledger `decision` (only `dismissed` is possible for videos, and only set individually), not revoked | Listed under "Dismissed by you" on the Other tab with [Un-dismiss] |
 | Conflict | Same `NormName` with a different size in any listed root or the ledger, and no same-size match | ☐ with the reason. If ticked, it copies as `name (2).ext` (§7.4) |
 | New | Anything else | ☑; a Truncated clip is ☐ (§7.5) |
@@ -1116,7 +1330,7 @@ DJI names contain a timestamp, so they are unique. Autel `MAX_####` names repeat
 
 1. **Ledger `file` record** (for a set: every member), or a ledger **`decision`** (`assumedImported` or `dismissed`) that hasn't been revoked → **Imported** (evidence Ledger) or **Decided**.
 2. **Name and size found in any listed root** (video root, photo root, or previous photo roots).
-   - For a set: a set folder exists with every member matching name, size and **mtime ±2 s**. An empty folder doesn't count.
+   - For a set: a set folder exists whose members match the card's by name, size and **mtime ±2 s**: every card member matches and the folder holds nothing else, or the folder holds a superset of the card's members (the card kept only some of them, e.g. after a partial Card cleanup, §10.6). An empty folder doesn't count.
    - → **Imported**.
    - **2b.** The same `NormName` with a different size in any listed root or the ledger, and no same-size match → **Conflict**, unticked (§7.4). For a pair, the DNG decides and the JPG twin follows it, including its `(n)` name when ticked (`X (2).DNG` + `X (2).JPG`).
 3. **A ledger `seen` record, with no `file` or `decision` record** → **New**, "not copied on Oct 4" (§10.4).
@@ -1136,7 +1350,7 @@ DJI names contain a timestamp, so they are unique. Autel `MAX_####` names repeat
 
 ### 7.4 Conflicts (videos and flat photos)
 
-- **What counts as a conflict:** the same `NormName` exists with a different size, anywhere in the listed roots or the ledger, and no same-size match exists (video table §7.2; photo rule 2b §7.3). By default it is unticked, with the text "A different file named X exists: <path>, <size>".
+- **What counts as a conflict:** the same `NormName` exists with a different size, anywhere in the listed roots or the ledger, and no same-size match exists (video table §7.2; photo rule 2b §7.3). By default it is unticked, with the text "A different file named X exists: &lt;path>, &lt;size>".
 - **If ticked:** the destination becomes `stem (2).ext`, or the next free `(n)` after checking the listings, the ledger and the batch. The existing file is never touched.
 - **A target that appears between preflight and rename** is caught by the no-replace rename and becomes a `ConflictAtRename` outcome.
 
@@ -1228,7 +1442,7 @@ Every boundary records its cause, the jump distance, the time gap and the day ga
 | Contains items Imported into F (the wall), and some New item's local date is one of F's days | Append(F) | High, "same day as clips already in this folder" |
 | Contains items Imported into F, and **none** of the New items' dates are F's days | Append(F), with `CrossDayHint` "[New folder instead]" = `SplitBefore(split point)` | **Medium**: "different day, {d} from {F.Description}" (distance from the New items' centroid to F's centroid), or "different day, location unknown" |
 | No wall; a folder F with `F.NameDate ≤ g.Start ≤ F.End + G days`; both centroids known and ≤ R apart; the New days overlap F's days | Append(F) | High, "same dates, {d}" |
-| As above, but the dates are only adjacent (no overlap) and the distance is **< 10 mi** | Append(F) | High, "next day, {d}" |
+| As above, but the dates are only adjacent (no overlap) and the distance is **&lt; 10 mi** | Append(F) | High, "next day, {d}" |
 | As above, dates only adjacent, distance **10 mi–R** | Append(F), with `CrossDayHint` "[New folder instead]" = `Retarget(NewFolderTarget)` | **Medium**, "different day, {d}" |
 | One centroid unknown and the dates overlap | Append(F) | Medium, "same dates, location unknown" (badge) |
 | Dates only adjacent and a location unknown, or more than R apart | NewFolder (F still offered in the dropdown) | – |
@@ -1240,7 +1454,7 @@ Every boundary records its cause, the jump distance, the time gap and the day ga
 **Further rules**
 - **Tie-break:** the smallest date gap, then the smallest distance.
 - **Never auto-append earlier clips to a later-dated folder** (F's name date after g.Start). A manual `Retarget` to such a folder needs the confirmation "Folder is dated Sep 28; these clips start Sep 27", and the edit stores that confirmation.
-- **Two groups with the same target:** both get an Info note, "also targeted by <group>; both land in the same folder", with a [Merge] quick fix.
+- **Two groups with the same target:** both get an Info note, "also targeted by &lt;group>; both land in the same folder", with a [Merge] quick fix.
 - **Every Medium append** is a Warning that must be acknowledged at preflight.
 
 **Scenario D check** (library lacks Anvil; Council leftovers on the card; R = 50 mi)
@@ -1271,7 +1485,7 @@ Each suggestion is computed at **each local day's centroid**, in day order. That
 2. Names of ledger folders whose centroid is within 3 mi ("used before, 1.1 mi").
 3. A GeoNames named feature within 1.5 mi: mountain, peak, hill, valley, pass, cape, island, peninsula, point, bay, lake, glacier, fjord, cove, lagoon, inlet, sound, strait, harbor, falls, or park ("Anvil Mountain · feature · 0.2 mi").
 4. A GeoNames populated place within 3 mi.
-5. "near <town>", for the nearest town with population ≥ 1,000 within 30 mi.
+5. "near &lt;town>", for the nearest town with population ≥ 1,000 within 30 mi.
 
 - **Prefill:** a NewFolder group is prefilled with the top suggestion from rules 1–4, shown in italics as a suggestion. It is not blocking, and accepting it is a no-op. With no suggestion, the box stays blank, which is blocking.
 - **Data** (`tools/places/build-places.cs` writes `src/UasSort.App/places.bin.gz`; `PlaceIndex.Load` reads it):
@@ -1293,6 +1507,7 @@ Resolve(set):
       if !exists or existing is empty                                                 → Plain / DateSuffixed(candidate)
       if existing members == card members (name + size + mtime ±2 s)                  → Imported
       if existing members ⊂ card members, all by name + size + mtime ±2 s, no extras  → Resume(candidate): copy only missing members
+      if card members ⊂ existing members, all by name + size + mtime ±2 s              → Imported (e.g. after a partial Card cleanup)
       else                                                                            → clash → next
 ```
 
@@ -1347,7 +1562,7 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
 
 ### 9.1 Stages (the `ShellVm` state machine)
 
-`Setup → Card → Scan → Review → Commit (Preflight sheet → Copy → Verdict)`
+`Setup → Card → Scan → Review → Commit (Preflight sheet → Copy → Verdict)`, plus the optional `Cleanup (Choose → Not-in-library review → Confirm → Deleting → Result)`, entered from Review or Verdict and followed by a rescan (§10.6)
 
 - **Setup.** Shown on first run and after a settings recovery; the same cards as the Settings page, §9.14.
   - The user confirms the video root and the photo root, each validated with free space shown. **Setup doesn't ask for a ledger folder.**
@@ -1367,13 +1582,15 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
   - A progress bar and Cancel.
 - **Review.** Described below.
 - **Commit.** §10. During Commit, device-arrival refresh, Rescan, Settings and Browse are disabled. Review comes back read-only on the Verdict page through "Show plan".
+- **Cleanup.** §10.6. The same controls are disabled as during Commit, and so are Offload and Undo/Redo. Leaving before Delete deletes nothing. After the run the card is rescanned automatically; the result page shows the recomputed verdict, and Done returns to Review of the rescanned card.
 
 ### 9.2 Window chrome
 
-- **TitleBar** (Windows App SDK 2.1): app icon; "uas-sort"; a card chip ("E:\ · DJI Air 3S · serial 1A2B-3C4D · 214 files · 61.3 GB"); Rescan, Undo, Redo and Settings buttons. Settings navigates the Frame to the Settings page.
+- **TitleBar** (Windows App SDK 2.1): app icon; "uas-sort"; a card chip ("E:\ · DJI Air 3S · serial 1A2B-3C4D · 214 files · 61.3 GB"); Rescan, Undo, Redo, **Clean up card…** (§10.6; disabled with a tooltip giving the reason) and Settings buttons. Settings navigates the Frame to the Settings page.
 - **Backdrop:** Mica through `SystemBackdrop`. **Theme** follows the system; the map follows it with `setTheme`.
 - **Size:** minimum 1100×700 through `OverlappedPresenter` preferred minimums, scaled by `RasterizationScale`.
-- **InfoBars** sit under the title bar: clock banner, first-run banner, draft resume ("Resume edits from 14:02? 3 of 4 still apply [Resume] [Discard]"), ledger status (cloud-only / not pinned / parse issues / no history in a changed video root), settings recovery, and device notices.
+- **Clock-mismatch InfoBar** (Warning; dismissible for the session, not persisted; shown again on the next scan while any item has `ClockMismatch`, §6.5). Text, with the clock's offset and zone from the `ClockModel` and the card's site zones from `ClockSummary.MismatchSiteZones`: "Drone clock is set to UTC−4 (America/New_York), but footage on this card was shot in Alaska (UTC−8). Dates here use local time at each site. To fix the drone clock: RC 2 → Settings → System → Date & time → automatic time zone." Site zones are named from a short table for US zones (Eastern, Central, Mountain, Arizona, Pacific, Alaska, Hawaii), else by IANA ID, each with its UTC offset at the flagged items' times, joined with commas. In `NearestSample` mode the clock is named by its offset only ("set to UTC−4"). It changes nothing in the plan or the verdict.
+- **InfoBars** sit under the title bar: clock banner, clock mismatch (above), first-run banner, draft resume ("Resume edits from 14:02? 3 of 4 still apply [Resume] [Discard]"), ledger status (cloud-only / not pinned / parse issues / no history in a changed video root), settings recovery, and device notices.
 - **SelectorBar tabs:** **Videos · 3 to offload**, **Photos · 5 days**, **Other · 12**.
 
 ### 9.3 Videos tab layout
@@ -1419,7 +1636,7 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
 6. **Location:** "near Zachar Bay · spread 1.1 mi", or "no GPS".
 7. **Counts:** "Videos 4 new / 13 · 2.1 GB" and "Photos that day: 12 new, 40 probably imported" (links to the Photos tab, filtered).
 8. **Thumbnail strip:** up to 8 `tnal` thumbnails, with "+N".
-9. **Chips:** unfinished recordings, conflicts, check date, GPS guessed, empty description, cross-day append (Medium), emphasised day split, pin membership changed, conflicting pins.
+9. **Chips:** unfinished recordings, conflicts, check date, GPS guessed, "clock ≠ local" (any member has `ClockMismatch`; tooltip "The drone clock (UTC−4) doesn't match local time here (UTC−8). Dates use local time."), empty description, cross-day append (Medium), emphasised day split, pin membership changed, conflicting pins.
 
 ### 9.5 Clip list
 
@@ -1429,7 +1646,7 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
   - include checkbox;
   - 96 px thumbnail;
   - name;
-  - local time with a time-source icon (the tooltip shows UTC, the drone-clock time and the source);
+  - local time with a time-source icon. The tooltip shows UTC, the drone-clock time and the site-local time side by side, each with its offset, then the source: "18:06:27 UTC · drone clock 14:06:27 (UTC−4) · 10:06:27 AKDT (UTC−8) · from the video (mvhd)"; with `ClockMismatch` it adds "Drone clock ≠ local time". Every `TimeSource` value has its icon and source text (a VM test enumerates the enum, §13);
   - size;
   - status pill (New, Conflict, Unfinished, Imported, Dismissed) with a reason tooltip;
   - distance from the group centre in miles.
@@ -1575,6 +1792,7 @@ The page's error forwarding makes a MIME rejection visible in the host log, and 
 | `NewBeforeWallFolder` | Info | – | Planner.Derive | group | "These clips start before '{F}' (dated {date})" | [Split here] = `SplitBefore(split point)` (§8.5) |
 | `CheckDate` | Warning | – | Planner.Derive | item | "Check date: {local time} is within {60 or 75} min of midnight ({source})" | – |
 | `ClockNotSet` | Warning | – | Planner.Derive | item | "Clock not set: {time} ({source})" | – |
+| `ClockMismatch` | Info (never blocking; shown as the Warning-styled InfoBar of §9.2, dismissible per session) | – | Planner.Derive (one issue per plan, from the items' `ClockMismatch` flags) | – | "Drone clock is set to {clock offset} ({clock zone}), but footage on this card was shot in {site zones}. Dates here use local time at each site. To fix the drone clock: RC 2 → Settings → System → Date & time → automatic time zone." | – |
 | `RootMissing` | Blocking if an included job targets the root (the video root always), else Warning | – | Planner.Derive; re-checked by Preflight.Check | – | "{root} is not available; its items are unticked" | – |
 | `RootsUnconfirmed` | Blocking | – | Planner.Derive (from `Settings.RootsConfirmed`) | – | "Confirm the video and photo folders (settings were recovered)" | [Open Settings] |
 | `LedgerParseIssue` | Blocking; Warning after [Accept and continue] | yes, once accepted | Planner.Derive (from `LedgerSnapshot.ParseIssues`, `SessionFlags`) | – | "Ledger line {file}:{line} can't be read: {reason}" | [Accept and continue] = `PlanSession.AcceptLedgerIssues()` |
@@ -1639,10 +1857,11 @@ A smoke test types a space into the rename box and checks that `Included` is unc
 
 | What | Format |
 |---|---|
-| Distances | Always miles: under 0.1 → "<0.1 mi"; under 10 → one decimal ("7.8 mi"); otherwise whole numbers ("34 mi") |
+| Distances | Always miles: under 0.1 → "&lt;0.1 mi"; under 10 → one decimal ("7.8 mi"); otherwise whole numbers ("34 mi") |
 | Sizes | Decimal units ("31.4 GB", "7 MB") |
 | Times | Site local, with the zone abbreviation. A time estimated from the drone clock is prefixed "~" |
 | Dates | "Jul 25–26" |
+| Clip lengths | `mvhd` duration as "m:ss" ("3:42"), or "h:mm:ss" from one hour ("1:02:05") |
 
 ### 9.14 Settings (a **Page** in the Frame, built with toolkit `SettingsCard`s)
 
@@ -1660,7 +1879,7 @@ The Setup stage shows the first three cards: video root, photo root, and the rea
     - [Start empty] leaves the new root without history. The first-run photo rules (§7.6) then apply. **If the new root's listing already holds files matching the current ledger's `file` keys (name + size)**, a confirmation comes first: "N videos here were copied by uas-sort; starting empty treats them as manual imports and may mark un-copied photos as probably imported. [Copy] is recommended." (Starting empty there would move the watermark to the latest of those videos and could turn photos that were New into ProbablyImported, the failure of review finding #16.)
     - The old `.uas-sort` folder is left untouched.
 - **Grouping defaults:** R in miles and G.
-- **Drone clock zone:** an IANA zone picker (default `America/New_York`) with the learned status.
+- **Drone clock:** the last learned clock (§6.1), editable: **Follows local time at each site** (`SiteLocal`) or **Fixed zone** with an IANA zone picker (default `America/New_York`), plus the learned status ("learned from 13 videos on Sep 27"). The stored zone is the learner's candidate 2; the stored mode and zone are used on their own only when a card has no videos to learn from (`Setting` mode). A successful run overwrites them with what it learned.
 - **Copy the JPG twin** (on by default).
 - **Map:** default base; streets, dark streets and satellite URLs under an "Advanced" expander, where USGS is a preset.
 - **About:** versions, and attributions for OpenFreeMap/OpenStreetMap, Esri, USGS, GeoNames CC-BY, and MapLibre BSD-3.
@@ -1771,7 +1990,7 @@ In every case the `seen` records (§10.4) and the `run` record are still written
 **Invariants**
 - A file gets its final name only after it has been verified, so a crash can leave only `*.uas-sort.tmp` files, which the next preflight lists and Start offload deletes.
 - **Keep awake:** `IPowerRequest.KeepSystemAwake("Offloading drone media")` for the whole run. **Offload lock** held for the whole Commit.
-- **No thumbnails during a copy:** thumbnail reads from the card are paused, so placeholders show.
+- **No thumbnails during a copy:** `IThumbnailSource.Pause()` for the whole Commit stops thumbnail reads from the card and closes the cached card handles, so placeholders show.
 
 ### 10.4 Ledger writes during Commit
 
@@ -1784,7 +2003,7 @@ Every record carries `id` (a GUID, used to deduplicate across files and OneDrive
 - One `run` record: card identity, video and photo roots, verdict, counts.
 - A `torn` record only from `OpenOwn()`, when the own file lacks its final `\n` (§11).
 
-Nothing is written to the ledger before Commit, except explicit user actions: Verdict-page decisions (one `decision` per member for a set), Un-dismiss/Undo (`revoke`, one per revoked decision), and the video-root [Copy] (§9.14). All of these go to this PC's own `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` and its local mirror (`LedgerPaths.BackupDir`), through `ILedgerWriter.Append`.
+Nothing is written to the ledger before Commit, except explicit user actions: Verdict-page decisions (one `decision` per member for a set), Un-dismiss/Undo (`revoke`, one per revoked decision), the video-root [Copy] (§9.14), and Card cleanup (one `cardDelete` per deleted card file, §10.6). All of these go to this PC's own `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` and its local mirror (`LedgerPaths.BackupDir`), through `ILedgerWriter.Append`.
 
 ### 10.5 Audit and verdict (`CardAudit`)
 
@@ -1829,7 +2048,220 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
   - Both actions open a confirmation dialog showing counts by kind and total GB. Then they append to the ledger and recompute the verdict.
   - **[Undo]** on the page, and later [Un-dismiss] on the Other and Photos tabs, append `revoke` records.
 - **Report** is saved automatically, and there is a button to open it.
+- **[Clean up card…]** opens Card cleanup (§10.6) for this card, with this run's `OffloadResult`.
 - **Done** goes back to the Card stage.
+
+### 10.6 Card cleanup (`CleanupPlanner`, `CleanupExecutor`, `ICardEraser`; added 2026-09-27)
+
+The user asked for this on 2026-09-27 (§1.1). It is the only code path that deletes anything on the card. The offload (§10.1–10.5) still never writes the card, and `ICardReader` stays read-only. Types: §3 (card cleanup); ports: §4.1; guard rules: §4.3 rules 1b and 2.
+
+**Where it starts, and when it can't.** **[Clean up card…]** sits on the Verdict page (§10.5) and in the title bar (§9.2).
+
+| Condition | [Clean up card…] | Tooltip |
+|---|---|---|
+| A card has been scanned (Review, or the Verdict page after a Commit) and passes the cleanup volume check | enabled | — |
+| Commit is running, or a scan is running | disabled | "Wait until the offload finishes" / "Wait until the scan finishes" |
+| The volume is write-protected (`CardSource.IsWriteProtected`, from `FILE_READ_ONLY_VOLUME`) | disabled | "The card is write-protected (lock switch)" |
+| The source came from **Browse to folder** (`CardSource.IsBrowsedFolder`) | disabled | "Cleanup works only on a detected card. A browsed folder could be a backup copy." |
+| The volume fails the cleanup volume check (below) | disabled | "This doesn't look like a drone card (it may be a backup drive)" |
+| The card was removed, or no card has been scanned | disabled | "Rescan first" |
+
+- **Decision: detected card volumes only, and only real card media.** A browsed folder may be a copy of a card on a PC or a backup drive, where deleting "old files" would destroy the backup. Detection (§5) deliberately ignores DriveType, so a USB SSD, a spare SD card or a thumb drive whose root holds a copied card passes it; the cleanup volume check is therefore stricter than detection.
+
+**Cleanup volume check.** Core's `CleanupVolumeCheck.Refusal(VolumeInfo, ListingResult card, Settings, string appDataDir)` decides the button; `WindowsCardEraserFactory.Open` repeats every check from Win32 through its own `IVolumeFacts` (§4.1) and never trusts `CardSource` flags or a caller's `GuardContext`.
+1. The source is not a Browse result (`CardSource.IsBrowsedFolder` false; the factory ignores this flag and relies on 2–6).
+2. The root is a volume root: `GetVolumePathNameW(root) == root`.
+3. The file system is exFAT or FAT32 (`GetVolumeInformationW`), and the volume identity equals the pinned one.
+4. The bus: `IOCTL_STORAGE_QUERY_PROPERTY` (`StorageDeviceProperty`) reports `BusTypeSd` or `BusTypeMmc`, or `BusTypeUsb` with `RemovableMedia` true. A fixed USB SSD or hard disk fails. (The values a given reader and the drone over USB report are UNVERIFIED; recorded at M4.)
+5. The volume is not the system, boot or paging volume, and no configured root, previous photo root or `%LOCALAPPDATA%\uas-sort` lies on it.
+6. The drone-written index is present: `MISC\FC*.db` or a `MISC\IDX\` folder (both seen on the Air 3 in the research; which the Air 3S writes is confirmed at M4, UNVERIFIED).
+
+A thumb drive holding a full clone of a card, `MISC` included, can still pass; the summary names the volume ("E: · SD card · exFAT · 256 GB · serial 1A2B-3C4D") so the user can see what is about to be changed.
+
+**Preparation** (when the page opens; nothing is written)
+1. `ICardReader.CurrentIdentity()` must equal the scan identity. Otherwise a Blocking InfoBar says "A different card is in E:; rescan", with [Rescan]. From here on the identity is pinned.
+2. `ICardReader.Relist()`, then `CardAudit.Audit(inventory, relisted, now, plan, offloadResult, ledger)`. `offloadResult` is this session's Commit result when the page is opened from the Verdict page, else null. Every card file gets its audit line, and `CardChanges` (files added, removed or changed since the scan) feed the eligibility rules.
+3. **Fresh evidence:** list the video root, the photo root and every `previousPhotoRoots` entry (`excludeDirNames = {".uas-sort"}`; listings only), then `ILedgerStore.Check()` and `Load()`. The proofs below come from these listings, not from the scan-time index, which may be old. An unavailable root contributes nothing. `CloudOnly`, `Unwritable` or `VideoRootMissing` shows a Blocking InfoBar (as for Commit) and disables Delete.
+4. `ICardReader.Space()` → `CardSpace` (free bytes, total bytes, cluster size).
+5. `CleanupPlanner.Candidates(inputs)` builds one candidate per unit, plus the Never list of files outside any unit. Every change of mode, date, target, switch or row then calls `Build`, which is pure and takes milliseconds, so the summary updates live.
+
+**Eligibility** (per file, first match). A unit's eligibility is the worst over its **primary** files (the MP4; the DNG, or a lone JPG, and its JPG twin unless twin copying is off; every set member) in the order Evidence &lt; NotInLibrary &lt; Never, and it is Never if any companion is Never. A companion otherwise inherits its unit's eligibility, so it can never make a unit eligible. "Listed" below means that a fresh listing of any library root (Preparation step 3) holds `(NormName, size)`.
+
+| # | Per-file state | Eligibility | Reason text |
+|---|---|---|---|
+| 1 | A directory | Never (an emptied set folder is removed after its members, below) | — |
+| 2 | Added, removed or changed since the scan (`CardChanges`), or `ChangedOnCard` in this run | Never | "changed since the scan" |
+| 3 | Under a path with an enumeration error (a `ForcesNotSafe` `ScanWarning`) | Never | "part of the card couldn't be read" |
+| 4 | `FILE_ATTRIBUTE_READONLY` set | Never | "marked read-only on the card" (the app never clears attributes) |
+| 5 | Class `Unknown` | Never | "unknown file" |
+| 6 | Its unit has a `ProbeError` | Never | "its metadata couldn't be read" |
+| 7 | Class `Skip` and not a companion (§5) | Never | "DJI system file" / "system file" / "not tied to a clip" |
+| 8 | A companion (§5), or a JPG twin that is SkippedByRule because twin copying is off | inherits the unit; counted in the summary as a file uas-sort never copies | — |
+| 9 | Its unit is a Truncated video | NotInLibrary (`Unfinished`) | "unfinished recording; the drone may still repair it", or with a name+size match "unfinished (a same-size copy is in your library; the drone may still repair the card copy)" |
+| 10 | `ConfirmedByYou`, `dismissed` | NotInLibrary (`Dismissed`) | "you marked it not needed on Oct 4" |
+| 11 | `ConfirmedByYou`, `assumedImported` | NotInLibrary (`RecordedAsImported`) | "you recorded it as imported on Oct 4; not verified" |
+| 12 | A video that is `VerifiedThisRun`, `InLedger` or `NameSizeMatch`, and Listed | Evidence (`Listed`) | "copied and verified today" / "in the history, verified" / "same name and size in the library" |
+| 13 | A video that is `VerifiedThisRun`, `InLedger` or `NameSizeMatch`, not Listed | NotInLibrary (`NoLongerInLibrary`) | "copied on Sep 27, no longer in your library" |
+| 14 | A photo, JPG twin or set member that is `VerifiedThisRun`, `InLedger` or `NameSizeMatch`, and Listed | Evidence (`Listed`) | as row 12 |
+| 15 | A photo, JPG twin or set member, not Listed, with a fresh ledger `file` record of `verify` `unbuffered` or `cached` | Evidence (`HistoryOnly`) | "copied and verified on Sep 27; Lightroom may have moved it" |
+| 16 | A photo, JPG twin or set member, not Listed, with only a `nameSize` ledger record | NotInLibrary (`NoLongerInLibrary`) | "matched by name and size on Sep 27, no longer in your library" |
+| 17 | `AssumedByRule` | NotInLibrary (`ProbablyImported`) | "probably imported, not proven" |
+| 18 | `Unaccounted` with newness `IsNew`, including this run's `Failed`, `Cancelled`, `NotStarted` and `ConflictAtRename` | NotInLibrary (`New`) | "new: not in your library" |
+| 19 | `Unaccounted` with newness `Conflict` | NotInLibrary (`Conflict`) | "a different file named X is in the library" |
+| 20 | Anything else | Never | "not proven either way" |
+
+- **Row 9** applies even when the clip matches the library by name and size: the library copy is unfinished too, and the card copy is the one the drone may repair (§7.5). This is a recorded exception to the user's name/size rule (§1.1).
+- **Rows 10–11:** a Verdict-page decision settles the format verdict; it is not consent to delete. It may be months old, made on another PC through the shared ledger, or made per day in bulk (photos), so those files go through the review list like any other file not proven to be in the library.
+- **Rows 12–16:** the ledger is history, not the library's current state. A video's clip may have been deleted from the library, lost in a sync incident, or moved with a renamed event folder, and then the card holds the only copy; so a video needs a current listing. Photos and set members may rely on a verified ledger record, because Lightroom moves them out of the photo root (§1.1); the summary counts them apart.
+- The unit's `Evidence` is the worst audit category among its primary files and its `EvidenceSource` is `Listed` unless any primary file is `HistoryOnly`; both go into the `cardDelete` record and select the re-check below.
+- **Ticked for offload.** A NotInLibrary unit that is in `CleanupInputs.Plan.Included` and was not copied (no `Verified` or `AlreadyThere` outcome in this session) has `TickedForOffload = true`. Its review row starts on **Keep** with the badge "ticked for offload" (the user's own plan says to copy it), and [Delete all] leaves it alone; only its own toggle can set it to Delete.
+- NotInLibrary units are deleted **only** when the switch "Also delete files not in my library" is on **and** the unit's review row is set to Delete.
+
+**Units and delete order**
+
+| Unit | Files, in delete order | Folder |
+|---|---|---|
+| Video | its companions (`<stem>.LRF`, `<stem>.SRT`, `.<stem>.MP4.trinf`, the `.avc1` journal, and `<stem>.JPG` once the "video cover" rule is on), then the MP4 | never removed |
+| Photo | the JPG twin if present, then the DNG (a lone JPG is its own primary) | never removed |
+| Set | its members, in ordinal name order | `DCIM\PANORAMA\<set>` or `DCIM\HYPERLAPSE\<set>`: `RemoveDirectoryW` after the last member, only if the folder is then empty |
+
+- Deleting the primary file last means an interrupted unit always keeps its primary file on the card, never an orphan companion (which rule 7 would make undeletable later).
+- `DCIM`, `DCIM\DJI_###`, `PANORAMA`, `HYPERLAPSE` and `MISC` are never removed, even when empty. Nothing is deleted recursively.
+
+**Order and size**
+- Units are ordered by `CaptureUtc` (§6.2; a set uses its first frame), then by `ItemId` (ordinal). Both modes use this order.
+- `Allocated(file) = ⌈size / ClusterBytes⌉ × ClusterBytes`, and 0 for an empty file. A unit's `AllocatedBytes` sums all its files, companions included. exFAT frees whole clusters, so this is what a delete gives back (directory entries aside); the result page shows the real free space, re-read afterwards.
+- Sizes and targets use decimal GB (10^9 bytes, §9.13).
+
+**Mode 1: Before date**
+- A `CalendarDatePicker` with no default. Continue stays disabled until a date is picked.
+- **The cutoff day** is the picker's own calendar date: `Before = DateOnly.FromDateTime(picker.Date.Value.DateTime)`. It is never converted through `UtcDateTime`, `ToLocalTime` or any other zone, and every cutoff text is formatted from that same `DateOnly`, so the day shown is the day kept.
+- In range: units whose `LocalDate` (site-local, §6.4; never the PC's date) is **strictly before** the chosen day. The chosen day itself is kept.
+- Deleted: in-range Evidence units, plus in-range NotInLibrary units when the switch is on and their row is on Delete.
+- **Cutoff line**, worded from the plan: "Deletes 152 files captured before Jul 26, 2026 (local time at each site) that are in your library; Jul 26 and later are kept. 14 older files are kept (see 'Kept')." With not-in-library rows included: "…that are in your library, plus 9 you reviewed…". It says "Deletes everything captured before Jul 26, 2026" only when the Kept list is empty.
+- **Midnight.** Clip `20260726035000` (07:50Z, Jul 25 23:50 AKDT) is before Jul 26 and goes; the next clip of the same flight at Jul 26 00:10 AKDT stays. When a flight (`SessionKey.SameSession`) straddles the cutoff, the summary adds "A flight continues past the cutoff (Jul 26 00:10 AKDT); its later clips are kept" (`CleanupCutoff.FlightContinuesLocal`).
+
+**Mode 2: Free space**
+- The user's words ("clear a specific amount of free space") read two ways, so both are offered as `RadioButtons` above one `NumberBox` (one decimal, GB):
+  - **Free up [X] GB** (`FreeSpaceGoal(FreeUp, X)`): target free = `FreeBytes + X`;
+  - **Have at least [X] GB free** (default; `FreeSpaceGoal(HaveFree, X)`): target free = `X`, at most the card's total.
+- Next to it: "E: 12.4 GB free of 256.1 GB" and a live "will delete ≈ Y GB" (in the second option also "= free up ≈ Y GB").
+- The sequence S is every unit, in the order above, that is Evidence, or NotInLibrary with the switch on and its row on Delete or undecided. Never units and Keep rows are passed over; they don't end the walk.
+- The plan is the **shortest prefix** S₁…S_k with `FreeBytes + Σ_{i≤k} AllocatedBytes(S_i) ≥ target`.
+  - k = 0 when the card already has the target free: "E: already has 73.8 GB free; nothing to delete".
+  - **Unreachable** (`FreeBytes + Σ S < target`): the plan is all of S, and `FreeSpaceShortfall` drives the message: "Only 41.0 GB can be freed; 12.3 GB is held by files that are not in your library", with [Include files not in my library], which turns the switch on. When the switch is already on, or no NotInLibrary bytes are involved: "Only 41.0 GB can be freed; 3.1 GB is held by files uas-sort never deletes (unknown files, changed files, DJI system files)". The Delete button still works: it deletes everything deletable, after the same acknowledgements.
+- **Cutoff.** The last unit S_k is the cutoff: "Deletes 143 files · 58.2 GB · captured Jul 3 – Aug 30 14:22 AKDT → cutoff: Aug 30 14:22 (3 of 9 files from Aug 30)".
+  - The range runs from the first deleted unit's local date to the cutoff's local date and time. If the two ends are in different zones, each shows its own abbreviation.
+  - "3 of 9 files from Aug 30" counts card files (companions included) of the units whose local date is the cutoff's day: those the plan deletes, of all of them.
+- **In range** (for the Kept list and the review list) means at or before S_k in the order above.
+
+**The not-in-library switch and the review list**
+- The switch "Also delete files not in my library" starts off on every visit and is never remembered.
+- When it is on, the review list is **required**: Confirm can't be reached without it, and it can't be collapsed away. It holds one `CleanupRowVm` per NotInLibrary unit in range, oldest first, each with:
+  - a thumbnail (`Thumb.Key`, the same `IThumbnailSource` as the clip list);
+  - the capture's local date, time and zone ("Jul 26 20:20 AKDT"; "~" for drone-clock times);
+  - the clip length: `Mp4Info.Duration` as "3:42"; a truncated clip "unfinished · ~7 MB"; photos "photo"; sets "panorama · 33 frames" or "hyperlapse · 240 frames";
+  - the location: `PlaceLabel` from the PlaceIndex, in the §8.7 order (a feature ≤ 1.5 mi, a populated place ≤ 3 mi, "near &lt;town>" ≤ 30 mi), as "near Anvil Mountain · 0.2 mi"; else the coordinates to 4 decimals, "64.5627, -165.3709"; else "no GPS". Without M9, coordinates only;
+  - the size, and the reason (the row 9–19 text: new, probably imported, conflict, unfinished, not needed, recorded as imported, no longer in your library), plus the "ticked for offload" badge where it applies;
+  - a **Keep/Delete** toggle, with [Keep all] and [Delete all] above the list.
+- **Initial state.** When the list is first shown, every row starts on **Delete** because the user opted in, except "ticked for offload" rows, which start on Keep.
+- **Rows that join later.** A row that enters the list after it was first shown (another date, another target, or a Keep that extends the Free-space prefix) arrives **undecided** with the badge "new in range". The Delete button then reads "Decide 2 new rows" and stays disabled until each is set to Keep or Delete, or [Delete all] is pressed again; the list scrolls to the first undecided row. An undecided row counts as Delete for the Free-space walk (so the range doesn't keep growing) but is never deleted.
+- **Recompute.** Every toggle rebuilds the plan. In Free-space mode a Keep row leaves S, so the prefix may reach later units and move the cutoff later. A row that leaves the range keeps its toggle for when it returns.
+
+**Summary and acknowledgement** (`CleanupPage`)
+- **Summary:**
+  - the mode and the cutoff line (the date, or the computed date and time with zone);
+  - the card: "E: · SD card · exFAT · 256 GB · serial 1A2B-3C4D";
+  - counts by kind (videos, photos, sets); files (companions included) and GB (allocated); the captured range; free space now → after (≈);
+  - the evidence split: "140 in the library listing · 12 photos found only in the history (Lightroom may have moved them)";
+  - the files uas-sort never copies, on their own line: "Also deletes 38 files uas-sort never copies: 20 JPG twins (copying is off in Settings), 12 LRF proxies, 6 SRT captions".
+- **"Kept (older than the cutoff but not deletable)"**, an expander of the in-range units the plan doesn't delete (Never, NotInLibrary with the switch off, or rows set to Keep), grouped by reason with one line per unit or file (`CleanupKept`), plus a collapsed line "Never touched: `MISC` (DJI index), system files" with its count.
+- **Checkboxes:** "Files deleted from a memory card can't be recovered." and, when the plan holds any NotInLibrary unit, "Includes 9 files not proven to be in your library." (the card files of those units).
+- **The button** says "Delete 152 files (61.4 GB)". It is disabled while a box is unticked, a row is undecided, the plan is empty, or a Blocking InfoBar shows (identity changed; ledger folder cloud-only, unwritable or video root missing; the volume check failed). Another window's offload lock is not probed here; execution step 1 reports it.
+- **Fingerprint.** XxHash64 (16 hex digits) over the request, `SpaceBefore`, the sorted lines `relPath|size|mtimeTicks` of every file in `Delete`, and the sorted `ItemId`s of the NotInLibrary units in `Delete`. The checkboxes are bound to it, so any recompute that changes it clears them.
+- It is a Page in the Frame because the review list can be long. Its own dialogs (for example "Stop the cleanup after the current file?") go through `IDialogService`.
+
+**Confirm** (`CleanupPlan.Confirm(CleanupAck, TimeProvider)`, the only factory of `ConfirmedCleanupPlan`)
+- `CleanupPlan` is a sealed **class** whose constructor is `internal` to Core and called only by `CleanupPlanner.Build`, so no other code can build one or copy one with `with`.
+- `Confirm` **recomputes** the fingerprint from the plan's content and never trusts the stored field. It throws `InvalidOperationException` (a VM bug) unless all of these hold:
+  - the recomputed fingerprint equals both `Fingerprint` and `ack.PlanFingerprint`;
+  - `ack.CantBeRecovered`; `Delete` isn't empty; `Undecided` is empty;
+  - no candidate in `Delete` is Never;
+  - every NotInLibrary unit in `Delete` is in `ack.NotInLibraryDelete`, that set equals the NotInLibrary units in `Delete`, `Request.IncludeNotInLibrary` is true whenever there is one, and `ack.IncludesNotInLibrary` is true exactly then;
+  - every file path, canonicalised, lies under `<CardRoot>\DCIM\`, and every set folder is a `DCIM\PANORAMA\<set>` or `DCIM\HYPERLAPSE\<set>` folder.
+- It returns a `ConfirmedCleanupPlan` with a new `Token` (GUID), `ConfirmedUtc` (from the `TimeProvider`), the canonical `FilePaths` and `SetFolders`, and `NotInLibraryConfirmed` (the per-unit confirmation tokens).
+- `ConfirmedCleanupPlan` is also a class with an `internal` constructor (`InternalsVisibleTo` only for Core.Tests). Neither type is serialised; a confirmation lives only in memory and dies with the page.
+
+**Execution.** `CleanupExecutor.RunAsync(ConfirmedCleanupPlan, CleanupEnvironment, IProgress<CleanupProgress>, CancellationToken)` runs on a background thread, reports progress at 10 Hz, and **owns every step below**; `CleanupEnvironment` (§3) carries the source, the pinned identity, the reader, the thumbnail source, the eraser factory, the lister, the ledger store, the offload lock, the power request, the `TimeProvider` and the settings. The rescan and the report belong to the caller, `CleanupVm` (after the loop, below).
+
+Before the first delete:
+1. `IOffloadLock.TryAcquire()`: if another window holds it, the run returns at once with `Stop = OffloadLockHeld` ("Another uas-sort window is offloading"), every unit `CleanupNotStarted`, and nothing deleted. Then `IPowerRequest.KeepSystemAwake("Cleaning up drone card")`. Both are held until the run ends.
+2. `IThumbnailSource.Pause()`: card thumbnail reads stop and the reader's cached card handles are closed, so no handle of ours holds a file being deleted. Disposed at the end.
+3. `ILedgerStore.Check()`: `CloudOnly`, `Unwritable` or `VideoRootMissing` returns with `Stop = LedgerUnavailable` before anything is deleted. Then `EnsureFolder()`, `SnapshotToBackup(runId)`, and only then `OpenOwn()`, so the writer is opened after the folder exists.
+4. Fresh evidence: list the video root, the photo root and every `previousPhotoRoots` entry (`excludeDirNames = {".uas-sort"}`), and `Load()` the ledger union. An unavailable root contributes nothing.
+5. `ICardEraserFactory.Open(source, pinned, confirmed)`, which re-runs the cleanup volume check from Win32 and builds the eraser's own `GuardContext` with `Cleanup = confirmed`; a refusal is `Stop = InternalSafetyStop` with nothing deleted.
+
+For each unit in plan order: first steps 0 and 1 for each of its files and step 2 once for the unit; then, for each file in delete order, steps 0, 1, 3 and 4. After a set's last member, `RemoveEmptySetFolder`.
+
+| Step | Check or action | On failure |
+|---|---|---|
+| 0 | `ICardReader.CurrentIdentity()` equals the pinned identity | `CleanupCardSwapped` (or `PartiallyDeleted` if part of the unit is gone); stop `CardSwapped`; the rest `CleanupNotStarted` |
+| 1 | `ICardReader.Stat`: the file exists with the size and mtime of the preparation re-list | `SkippedChanged` before the unit's first delete; `PartiallyDeleted` after it |
+| 2 | Evidence re-check for Evidence units (table below). NotInLibrary units skip it, but the unit must be in `NotInLibraryConfirmed` | `SkippedEvidenceGone`. A NotInLibrary unit without its token → `CleanupFailed` and stop `InternalSafetyStop` (Confirm makes this unreachable) |
+| 3 | `ICardEraser.DeleteFile` → `DeleteFileW(\\?\E:\DCIM\…)`. Removable media have no Recycle Bin, and `DeleteFileW` never uses it | See the outcome table |
+| 4 | Append and flush a `cardDelete` record **immediately after** the successful delete | Stop `LedgerWriteFailed`; the file is gone and the report names it |
+
+- **Why step 4 comes after the delete:** a record written first would claim a delete that might then fail. Written after, a crash between the two loses at most one audit line, and the rescan shows the truth. The records are informational only (below).
+
+**Evidence re-check** (listings and the ledger only; no library file is ever opened)
+
+| `EvidenceSource` at plan time | Videos | Photos, JPG twins, set members |
+|---|---|---|
+| `Listed` | The fresh listing of any library root still holds `(NormName, size)`. A ledger record alone is never enough | The fresh listing still holds `(NormName, size)`, or the fresh ledger has a verified (`unbuffered`/`cached`) `file` record (Lightroom may have moved it since the plan) |
+| `HistoryOnly` | — (a video is never `HistoryOnly`) | The fresh ledger still has the verified `file` record |
+
+Every primary file of the unit must pass; companions follow their unit.
+
+**Outcomes** (fault-injection tests assert every row)
+
+| Cause | Unit in flight | Remaining units | `CleanupResult.Stop` |
+|---|---|---|---|
+| Offload lock held elsewhere (before step 0) | `CleanupNotStarted` | `CleanupNotStarted` | `OffloadLockHeld` |
+| Ledger folder cloud-only, unwritable, or video root missing (before step 0) | `CleanupNotStarted` | `CleanupNotStarted` | `LedgerUnavailable` |
+| Identity mismatch (step 0) | `CleanupCardSwapped`, or `PartiallyDeleted` | `CleanupNotStarted` | `CardSwapped` |
+| File changed or gone (step 1) | `SkippedChanged`, or `PartiallyDeleted` | continue | – |
+| Evidence gone (step 2) | `SkippedEvidenceGone` | continue | – |
+| `ERROR_WRITE_PROTECT` (the lock switch moved) | `CleanupFailed`, or `PartiallyDeleted` | `CleanupNotStarted` | `WriteProtected` |
+| Card gone (`ERROR_NOT_READY`, `ERROR_DEVICE_NOT_CONNECTED`, or `CurrentIdentity()` fails after an error) | `CleanupFailed`, or `PartiallyDeleted` | `CleanupNotStarted` | `CardRemoved` |
+| `ERROR_ACCESS_DENIED`, `ERROR_SHARING_VIOLATION` or any other delete error | `CleanupFailed`, or `PartiallyDeleted` | continue | – |
+| The emptied set folder can't be removed (`ERROR_DIR_NOT_EMPTY` or another error) | `Deleted` with `SetFolderRemoved = false`, noted "folder kept" | continue | – |
+| The `cardDelete` append fails (step 4) | the file counts as deleted: `Deleted` if it was the unit's last file, else `PartiallyDeleted` | `CleanupNotStarted` | `LedgerWriteFailed` |
+| Cancel (checked between files) | `PartiallyDeleted` if mid-unit | `CleanupNotStarted` | `Cancelled` |
+| `UnsafeIoException` from the guard, or the eraser factory refuses the volume | `CleanupFailed`, or `PartiallyDeleted` (`CleanupNotStarted` if the factory refused) | `CleanupNotStarted` | `InternalSafetyStop` |
+
+A failed file always stops the rest of its unit. The unit's remaining files stay on the card, and the rescan audits them as usual: a partial set's remaining members form a smaller set (Imported when a matching library set folder holds them, §8.8), and a video whose companions went first still has its MP4.
+
+**After the loop** (also after a stop or Cancel)
+1. The executor calls `ICardReader.Relist()` and `Space()`. A deleted file that is still listed (another program held it open, so Windows removes it when that program closes it) goes into `StillListed`.
+2. The executor disposes the eraser, the ledger writer and the thumbnail pause, releases the offload lock and keep-awake, and returns the `CleanupResult`.
+3. `CleanupVm` asks `ShellVm` to rescan the card (the normal Scan stage, `ScanService.ScanAsync`), which recomputes the plan and the verdict for what is left.
+4. `CleanupVm` builds the report `reports\<yyyyMMdd-HHmmss>-<run8>-cleanup.json` (`CleanupReport`: every planned file with its outcome, eligibility, evidence, reason, error, and whether its `cardDelete` record was written, plus free space before and after and the verdict after the rescan) and saves it with `IReportStore.Save(CleanupReport)`. If the rescan fails (card pulled), the report is still written, with the verdict after as `NotSafe`.
+5. **Result page:** "Deleted 152 files (61.4 GB) · E: now has 73.8 GB free"; skipped and partial units with reasons and the files still on the card; anything in `StillListed`; the recomputed verdict; "Safely remove the card before putting it back in the drone. The drone may show old thumbnails until it rebuilds its index; formatting in the drone is the clean option (§15 Q8)", with **[Eject E:]** and [Done].
+- **Durability comes from safe removal.** [Eject E:] (`IDeviceEject`, `CM_Request_Device_Eject`) flushes the volume. The app never opens a write or flush handle on the card volume or a card file (a whole-volume `FlushFileBuffers` needs a write-capable `\\.\E:` handle and administrator rights, so it was dropped on 2026-09-27).
+
+**Ledger `cardDelete` records** (`CardDeleteRecord`, §3; example in §11)
+- One per deleted file, companions included, written right after its delete. Fields: name, size, card relative path (`src`), unit, `captureUtc`, evidence, the reason text, the mode, the card identity (`RunCard`), the set name, and the cleanup's run id.
+- `evidence` is the primary file's category (`VerifiedThisRun`, `InLedger`, `NameSizeMatch`), prefixed `historyOnly:` for a photo found only in the history; `notInLibraryConfirmed` for a reviewed NotInLibrary unit; or `companionOf:<the unit's evidence>` for a companion or a JPG twin that uas-sort never copies.
+- They are informational: loaded into `LedgerSnapshot.CardDeletes` and read by no rule. They change no newness, watermark or evidence of other files. A later scan of the same card simply no longer lists the deleted files.
+- A cleanup writes no `run` record (those describe offloads and feed settings recovery).
+
+**What Card cleanup never does**
+- Delete anything the confirmed plan doesn't name, or anything on a browsed folder, a volume that fails the cleanup volume check, or a write-protected card.
+- Open a card file for writing, open a write or flush handle on the card volume, clear an attribute, or change a time.
+- Remove a directory other than an emptied set folder, delete recursively, or touch `MISC`, `LOST.DIR` or system files.
+- Treat a Verdict-page decision, or a ledger record alone for a video, as proof that a file is in the library.
+- Open a library file (evidence comes from listings and the ledger).
+- Run from the CLI, or without the offload lock.
 
 ---
 
@@ -1844,10 +2276,10 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 | Item | Path | Format | Written | Crash safety |
 |---|---|---|---|---|
 | Settings | `settings.json` | JSON, `schema:1` | On change (debounced 500 ms) | Write a temp file, then `File.Replace` with a `.bak`. If unreadable: use derived defaults, keep the bad file as `.corrupt-<ts>`, set `RootsConfirmed=false` (**Blocking until the user confirms the roots**), and offer to restore the roots from the latest ledger `run` record. That record comes from the local backup mirrors (the latest `run` across every `ledger-backup\<root key>\`), because the ledger folder itself hangs off the lost video root. It may also come from `<derived default video root>\.uas-sort\`. `Load(readOnly: true)` (the CLI, §4.5) does none of this: it never renames, creates or writes, and returns the derived defaults |
-| Ledger | `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` (append; the only file the app writes there). **Reads the union of every `ledger*.jsonl`** directly in `<videoRoot>\.uas-sort\`, including other PCs' files and OneDrive conflict copies, deduplicated by record `id` | JSON Lines, `t` discriminator, `v:1` | During Commit and on explicit decision/undo/[Copy] actions | Append and `FlushFileBuffers` per line. The own file is opened with `FileShare.Read`, so there is a single writer. **Torn tail repair:** if the own file doesn't end in `\n` (a crash mid-append), `OpenOwn()` first appends `\n` and a `torn` record naming that line's number N; readers skip line N of that machine's file without a parse issue. A torn **final** line of any file is skipped too. **Any other bad line is a Blocking issue until [Accept and continue]** (§9.10), and the verdict is then capped at SafeWithAssumptions |
-| Ledger backup | `%LOCALAPPDATA%\uas-sort\ledger-backup\<root key>\` (**local**, never under the library or synced; one subfolder per video root) | A live mirror of the own file (appended together with it) plus `snapshots\<yyyyMMdd-HHmmss>-<run8>\` of all ledger files at each Start offload (keep 20 per root) | Mirror: during Commit and on every own-file append (decisions, revokes, [Copy]). Snapshots: at Start offload | Restorable by hand; Settings has [Open]. Also the source for settings recovery and for [Copy] when the old video root is gone (latest snapshot ∪ mirror, deduped by `id`) |
+| Ledger | `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` (append; the only file the app writes there). **Reads the union of every `ledger*.jsonl`** directly in `<videoRoot>\.uas-sort\`, including other PCs' files and OneDrive conflict copies, deduplicated by record `id` | JSON Lines, `t` discriminator, `v:1` | During Commit, on explicit decision/undo/[Copy] actions, and during Card cleanup (`cardDelete`, §10.6) | Append and `FlushFileBuffers` per line. The own file is opened with `FileShare.Read`, so there is a single writer. **Torn tail repair:** if the own file doesn't end in `\n` (a crash mid-append), `OpenOwn()` first appends `\n` and a `torn` record naming that line's number N; readers skip line N of that machine's file without a parse issue. A torn **final** line of any file is skipped too. **Any other bad line is a Blocking issue until [Accept and continue]** (§9.10), and the verdict is then capped at SafeWithAssumptions |
+| Ledger backup | `%LOCALAPPDATA%\uas-sort\ledger-backup\<root key>\` (**local**, never under the library or synced; one subfolder per video root) | A live mirror of the own file (appended together with it) plus `snapshots\<yyyyMMdd-HHmmss>-<run8>\` of all ledger files at each Start offload and at the start of Card cleanup's deletes (keep 20 per root) | Mirror: during Commit and on every own-file append (decisions, revokes, [Copy], `cardDelete`). Snapshots: at Start offload and before Card cleanup's first delete | Restorable by hand; Settings has [Open]. Also the source for settings recovery and for [Copy] when the old video root is gone (latest snapshot ∪ mirror, deduped by `id`) |
 | Drafts | `drafts\<DraftKey>.json` | `{v, cardKey, inventoryHash, savedUtc, tuning, edits[]}` | 1 s after a change | Temp file, then replace |
-| Reports | `reports\<yyyyMMdd-HHmmss>-<run8>.json` | Full run report: settings snapshot, plan summary, outcome per file, audit lines, card diff, verdict | End of each run | Written once |
+| Reports | `reports\<yyyyMMdd-HHmmss>-<run8>.json`; Card cleanup: `reports\<yyyyMMdd-HHmmss>-<run8>-cleanup.json` | Full run report: settings snapshot, plan summary, outcome per file, audit lines, card diff, verdict. Cleanup: `CleanupReport` (request, cutoff, every planned file's outcome, the Kept list, free space before and after, the verdict after) | End of each run or cleanup | Written once |
 | Logs | `logs\uas-sort-<yyyyMMdd>.log` | Text | Always | Kept 14 days |
 | WebView2 | `WebView2\` | WebView2's own data, including the HTTP tile cache | By WebView2 | — |
 | Thumbnails | Memory only | Decoded images, LRU of 400 | — | Re-read from the card; about 12.7 KB each |
@@ -1855,11 +2287,11 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 
 **Ledger folder status** (`ILedgerStore.Check()` → `LedgerFolderStatus`, §3; attributes and security descriptors only, before every load; `Writable` comes from the ReadOnly attribute plus `GetFileSecurityW` + `AccessCheck` for `FILE_ADD_FILE` on the folder (or the video root, if the folder is missing) and `FILE_APPEND_DATA` on the own file, which reads the security descriptor with `READ_CONTROL` and never opens data)
 - **`VideoRootMissing`:** Blocking, because the root itself is missing (§10.2).
-- **`Missing`** (`<videoRoot>\.uas-sort` doesn't exist): Info `LedgerNoHistory`, "No history yet". The folder is created (the folder only) and pinned on **Start offload** by `EnsureFolder()`. If creating it fails, Commit stops before the first copy.
+- **`Missing`** (`<videoRoot>\.uas-sort` doesn't exist): Info `LedgerNoHistory`, "No history yet". The folder is created (the folder only) and pinned by `EnsureFolder()` on **Start offload**, or when Card cleanup starts deleting. If creating it fails, Commit stops before the first copy, and a cleanup before the first delete.
 - **`Empty`** (the folder exists without any `ledger*.jsonl`): Info `LedgerNoHistory`, as above.
 - **`NotPinned`** (in a sync root, `Pinned` false): Warning InfoBar `LedgerNotPinned`, "Set `UAS Videos\.uas-sort` to *Always keep on this device*", with [Keep on this device]. Start offload pins it anyway, so the preflight sheet doesn't repeat it.
 - **`CloudOnly`** (any `ledger*.jsonl` in `CloudOnlyFiles`): Blocking `LedgerCloudOnly`, with [Keep on this device] (§4.3). Never opened until it is local.
-- **`Unwritable`:** Blocking `LedgerUnwritable` for Commit.
+- **`Unwritable`:** Blocking `LedgerUnwritable` for Commit and for Card cleanup.
 - **Video root changed, and `<new root>\.uas-sort\` has no `ledger*.jsonl`** (the new root's `Check()` gives `Missing` or `Empty` while the loaded snapshot has records): Warning `NoHistoryInNewRoot` on the Settings page, "No history found in `<new root>\.uas-sort`; copy current ledger there?", with [Copy] and [Start empty] (§9.14).
 
 **`settings.json`**. The values shown are this PC's; defaults are derived at Setup, never literal. **There is no `ledgerDir` key.** The ledger folder is always derived as `<videoRoot>\.uas-sort` (here `C:\Users\damia\OneDrive\Pictures\UAS Videos\.uas-sort`).
@@ -1869,7 +2301,7 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
   "videoRoot": "C:\\Users\\damia\\OneDrive\\Pictures\\UAS Videos",
   "photoRoot": "C:\\Users\\damia\\OneDrive\\Pictures\\UAS Videos\\Picture Offload",
   "previousPhotoRoots": [],
-  "radiusMiles": 50, "gapDays": 1, "droneClockZone": "America/New_York", "copyJpgTwin": true,
+  "radiusMiles": 50, "gapDays": 1, "droneClockMode": "Zone", "droneClockZone": "America/New_York", "copyJpgTwin": true,
   "map": { "base": "streets", "streetsStyleUrl": "https://tiles.openfreemap.org/styles/liberty",
            "streetsDarkStyleUrl": "https://tiles.openfreemap.org/styles/dark",
            "satelliteUrl": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -1899,6 +2331,10 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
  "why":"confirmed by you","set":"001_0087"}
 {"t":"revoke","v":1,"id":"…","machine":"LAPTOP-B","at":"2026-10-05T02:00:00Z","decision":"a91…"}
 {"t":"torn","v":1,"id":"…","machine":"DESKTOP-A","at":"2026-10-06T18:02:11Z","line":412}
+{"t":"cardDelete","v":1,"id":"…","machine":"DESKTOP-A","run":"c4e2…","at":"2026-10-12T19:30:05Z","name":"DJI_20260725232655_0117_D.MP4",
+ "size":1234567890,"src":"DCIM/DJI_001/DJI_20260725232655_0117_D.MP4","unit":"DCIM/DJI_001/DJI_20260725232655_0117_D.MP4",
+ "captureUtc":"2026-07-26T03:26:55Z","evidence":"InLedger","reason":"in the history, verified","mode":"beforeDate",
+ "card":{"serial":"1A2B3C4D","label":null,"fs":"exFAT","model":"FC9113","inventoryHash":"…"},"set":null}
 {"t":"run","v":1,"id":"…","machine":"DESKTOP-A","run":"8f1c…","start":"…","end":"…","app":"0.1.0",
  "card":{"serial":"1A2B3C4D","label":null,"fs":"exFAT","model":"FC9113","inventoryHash":"…"},
  "roots":{"video":"C:\\…\\UAS Videos","photo":"C:\\…\\Picture Offload"},
@@ -1906,7 +2342,7 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 ```
 
 **Ledger snapshot and scale**
-- Loading builds `LedgerSnapshot` (§3): files, sets, decisions after revokes, seen, folders, runs, parse issues, and the source files.
+- Loading builds `LedgerSnapshot` (§3): files, sets, decisions after revokes, seen, folders, runs, card deletes (informational), parse issues, and the source files.
 - At 10k lines the ledger is about 2.5 MB and loads in about 120 ms (measured single-file). The per-machine union scales linearly.
 
 ---
@@ -1918,7 +2354,7 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 | No card | Detector finds nothing | Card stage: "Insert a card", Browse, Rescan; arrival is watched | F5 / auto on arrival |
 | Browsed folder is inside, equal to or contains a root, the ledger folder (`<videoRoot>\.uas-sort`) or a sync root | `CardSourceValidator` | Refused with the reason | Pick the card |
 | Browsed folder without DCIM | Validator | Refused: "pick the card's top folder" | — |
-| Card write-protected | `FILE_READ_ONLY_VOLUME` | Badge (informational) | — |
+| Card write-protected | `FILE_READ_ONLY_VOLUME` | Badge; [Clean up card…] disabled | — |
 | Card removed during Scan | IOException / device gone | Scan aborts; the draft is kept | Reinsert, then Rescan |
 | Card removed during Review | Removal event | InfoBar; Offload disabled; thumbnails show placeholders | Reinsert |
 | **Different card inserted** (same letter) | Identity check at Commit start, per file, and at verdict | Blocking at preflight; `CardSwapped` stops the run; verdict NotSafe | Rescan |
@@ -1927,12 +2363,13 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 | Truncated MP4 | No `moov` / `.trinf` | GPS from fallback; unticked; chip | Repair in the drone and rescan, or tick |
 | No GPS / implausible generic GPS | Search exhausted / plausibility gate | Time-only grouping; badge | Move items by hand if needed |
 | `Etc/*` or ambiguous zone | GeoTimeZone result | Fallback zone (independent of R/G); `CheckDate` chip | Retarget or rename if the date is wrong |
-| Drone clock doesn't fit any zone | Zone learner | Nearest-sample mode; clock banner explains | — |
+| Drone clock doesn't fit any zone | Clock learner | Nearest-sample mode; clock banner explains | — |
+| Drone clock doesn't match site-local time (e.g. still on US Eastern in Alaska) | `ClockMismatch` (≥ 15 min, §6.5) | Warning InfoBar (dismissible per session), "clock ≠ local" chips, tooltips; dates use site-local time; verdict unaffected | Set the RC 2 to automatic time zone (the InfoBar says where) |
 | Implausible clock | Before 2015 or after now + 1 d | `ClockNotSet` warning | — |
 | A library root is missing (D: unplugged) | Listing fails | Banner (`RootMissing`). Newness for that root is shown as unknown (items stay New and unticked, with a reason). Blocking at preflight only if an included job targets that root; the video root always blocks, because it holds the ledger | Plug in, then Rescan |
 | Access denied on a library subfolder | Listing error | Warning; the folder is skipped from the index | — |
-| Ledger folder `<videoRoot>\.uas-sort` has a cloud-only `ledger*.jsonl`, or isn't writable | `ILedgerStore.Check` (attributes before any open) | InfoBar; Blocking for Commit; [Keep on this device] | Pin the folder and let OneDrive download it, or fix permissions; then Rescan |
-| Ledger folder `<videoRoot>\.uas-sort` missing | `ILedgerStore.Check` | Info "No history yet"; created (the folder only) and pinned on Start offload; a failed create stops Commit before the first copy | If the app was used on another PC, wait for OneDrive to sync, then Rescan |
+| Ledger folder `<videoRoot>\.uas-sort` has a cloud-only `ledger*.jsonl`, or isn't writable | `ILedgerStore.Check` (attributes before any open) | InfoBar; Blocking for Commit and Card cleanup; [Keep on this device] | Pin the folder and let OneDrive download it, or fix permissions; then Rescan |
+| Ledger folder `<videoRoot>\.uas-sort` missing | `ILedgerStore.Check` | Info "No history yet"; created (the folder only) and pinned on Start offload or when Card cleanup starts deleting; a failed create stops Commit before the first copy, or cleanup before the first delete | If the app was used on another PC, wait for OneDrive to sync, then Rescan |
 | Ledger folder not pinned | `ILedgerStore.Check` | Warning with [Keep on this device] | Click it |
 | Ledger bad line (not the final one, and not named by a `torn` record) | Parse issues | Blocking `LedgerParseIssue` until [Accept and continue] (this session only; raised again on each scan); then a RequiresAck Warning and the verdict capped at SafeWithAssumptions; file and line shown | Fix or accept; backups in `ledger-backup\<root key>\` |
 | Own ledger file ends without `\n` (crash mid-append) | `OpenOwn()` | Appends `\n` and a `torn` record naming the torn line; that line is skipped by every reader; no parse issue and no cap | — |
@@ -1959,6 +2396,17 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 | Second launch | AppInstance (mutex fallback) | Activates and foregrounds the existing window | — |
 | Second instance tries to offload | Offload lock / single-writer ledger | Blocking: "Another uas-sort window is offloading" | — |
 | Unhandled exception | `Application.UnhandledException`, `TaskScheduler.UnobservedTaskException` | Log; dialog listing what this run copied (from the ledger) | Restart; the draft survives |
+| Card cleanup requested on a browsed folder | `CardSource.IsBrowsedFolder` | [Clean up card…] disabled with the reason; `ICardEraserFactory.Open` would throw `UnsafeIoException` (it checks the volume itself) | Insert the card and let detection find it |
+| Card cleanup on a volume that fails the cleanup volume check (a USB SSD or spare card holding a card copy; no `MISC` index; not a volume root) | `CleanupVolumeCheck`; again in `ICardEraserFactory.Open` from Win32 | [Clean up card…] disabled: "This doesn't look like a drone card (it may be a backup drive)"; the factory refuses it with `UnsafeIoException` | Offload from the real card; delete a backup's files by hand if intended |
+| Card cleanup: another window holds the offload lock, or the ledger folder is cloud-only, unwritable or its video root missing | Execution steps 1 and 3 | Nothing deleted; `Stop = OffloadLockHeld` ("Another uas-sort window is offloading") / `LedgerUnavailable` | Finish the other offload, or fix the ledger folder; run cleanup again |
+| Card cleanup: card removed mid-run | Delete error `ERROR_NOT_READY` / `ERROR_DEVICE_NOT_CONNECTED`, then `CurrentIdentity()` fails | Stop (`CardRemoved`); the unit in flight is `PartiallyDeleted` or `CleanupFailed`; the rest `CleanupNotStarted`; files already deleted keep their `cardDelete` records; report written | Reinsert, then Rescan (the listing shows what is left) |
+| Card cleanup: a different card inserted | Step 0 identity check | `CleanupCardSwapped`; stop; the rest `CleanupNotStarted`; nothing on the new card is touched | Rescan |
+| Card cleanup: a card file changed since the plan | Step 1 `Stat` | `SkippedChanged` (or `PartiallyDeleted` mid-unit); cleanup continues | Rescan and plan again |
+| Card cleanup: library evidence gone | Step 2 re-check (fresh listings, ledger) | `SkippedEvidenceGone`; the unit stays on the card; cleanup continues | Offload it again, or delete it as a not-in-library file |
+| Card cleanup: delete refused | `ERROR_WRITE_PROTECT`; `ERROR_ACCESS_DENIED`; `ERROR_SHARING_VIOLATION` | Write-protected → stop (`WriteProtected`); access denied or sharing violation → that unit `CleanupFailed` / `PartiallyDeleted`, continue | Unlock the card, or close the program holding the file; run cleanup again |
+| Card cleanup: `cardDelete` append fails | IOException from `ILedgerWriter.Append` | Stop at once (`LedgerWriteFailed`); the file is already gone and the cleanup report names it | Fix the ledger folder; the rescan shows the card as it is |
+| Card cleanup: set partly deleted | A member's delete fails | `PartiallyDeleted`; the remaining members and the set folder stay; the rescan audits the smaller set normally (a subset of a matching library set folder is Imported, §8.8) | Run cleanup again |
+| Card cleanup: a deleted file is still listed | Re-list after the loop | Listed under "still on the card": another program held it open, and Windows removes it when that program closes it | Close the program, then Rescan |
 
 ---
 
@@ -1971,7 +2419,8 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 *Planner, ported from `docs/research/spikes/grouping/test_grouping.py` (37 cases)*
 - **Summary.** 24 keep their expectations ("Same": spike strings mapped to enums, and the approved model may add assertions such as the blank-name Blocking issue); 9 are restated for the approved model ("Changed"); 3 are R-dependent; 1 is dropped. Verified 2026-09-27 by re-running `test_grouping.py` with the default R set to 80.467 km: 34 of 37 pass, and the 3 R-dependent ones fail at R = 50 mi because they depend on Council and Anvil being split.
 - **Fixture.** The spike's constants: ANVIL (64.5627, −165.3696), COUNCIL (64.6935, −164.2657), NOME_A (64.6932, −165.7665), NOME_B (64.5925, −165.6731), ZACHAR (57.5368, −153.7484), KODIAK_TOWN (57.7996, −152.3902), NEWPORT_AM (41.5155, −71.2967), NEWPORT_PM (41.4762, −71.3237), MAKAHA (21.47, −158.21); PC zone `America/Anchorage`. `vid(stamp, n, loc)` is a DJI clip `DJI_<stamp>_<n:0000>_D.MP4` whose `mvhd` = stamp + 4 h as UTC and mtime = `mvhd` + 90 s; `dng(stamp, n, loc)` is a DNG with EXIF DTO = stamp. Z = `vid` 0123, 0124, 0148 at 20260927140127, 140144, 142416, ZACHAR; ZREL = `2026\2026-09\2026-09-27 Zachar Bay`. Defaults: `Tuning(50, 1)`, `droneClockZone` America/New_York, `IPlaceIndex` null, empty ledger. Scenarios are built as `ScanResult`s by `UasSort.Testing`'s scenario builder and run through `Planner.Prepare` + `Derive`.
-- **String mapping.** `droneclock+learned` → `DroneClockZone` (a zone fits); `droneclock+setting` → `DroneClockSetting` + `ClockFromSetting`; `mtime` → `Mtime`; `autel-*-floating` → dropped; `high (date + location)` → `High`, Why "same dates, <0.1 mi"; `medium…` → `Medium` with the §8.5 Why; `AppendSplit` → two groups split by a `LibraryFolder` wall, each an Append; `PhotosOnly` groups → `PhotoDays`; `PossibleDuplicate` → `IsNew(NoMatch)`; `RemovedFromLibrary` → `Imported(LedgerVerified)`; `/` in paths → `\`; `radius_km` → `RadiusMiles`.
+- **Clock flags in the fixture.** Its clock is Eastern (`mvhd` = stamp + 4 h) and most sites are in Alaska, so the learner picks Zone `America/New_York` (SiteLocal doesn't fit), and every drone-stamped item at an Alaska or Hawaii site also carries `ClockMismatch` (Newport items don't). Tests that assert an exact flag set include it; the others don't mention it.
+- **String mapping.** `droneclock+learned` → `DroneClockZone` (a zone fits); `droneclock+setting` → `DroneClockSetting` + `ClockFromSetting`; `mtime` → `Mtime`; `autel-*-floating` → dropped; `high (date + location)` → `High`, Why "same dates, &lt;0.1 mi"; `medium…` → `Medium` with the §8.5 Why; `AppendSplit` → two groups split by a `LibraryFolder` wall, each an Append; `PhotosOnly` groups → `PhotoDays`; `PossibleDuplicate` → `IsNew(NoMatch)`; `RemovedFromLibrary` → `Imported(LedgerVerified)`; `/` in paths → `\`; `radius_km` → `RadiusMiles`.
 
 | # | Spike test → C# test | Inputs | Expected (approved model) | Port |
 |---|---|---|---|---|
@@ -1980,9 +2429,9 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 | 3 | `test_dng_uses_learned_offset_and_site_zone` → `Dng_UsesClockZoneAndSiteZone` | vid 20260726035000 #1, dng 20260726035500 #2, ANVIL | DNG: `DroneClockZone` (America/New_York), CaptureUtc 2026-07-26T07:55Z, LocalDate 2026-07-25 | Same |
 | 4 | `test_hawaii_site_zone_differs_from_pc_zone` → `Hawaii_SiteZoneNotPcZone` | vid 20260301053000 #1, MAKAHA | Tz `Pacific/Honolulu`, LocalDate 2026-02-28 | Same |
 | 5 | `test_offset_nearest_sample_handles_clock_change` → `ZoneLearner_DstChangeStillFitsNewYork` | vid 20261020120000 #1 (−4 h), vid 20261110120000 #2 (−5 h), dng 20261110121000 #3, ANVIL | `ClockMode.Zone`, America/New_York; DNG `DroneClockZone`, 2026-11-10T17:10Z | Changed (zone learner) |
-| 6 | `test_offset_from_setting_when_card_has_no_mp4` → `NoMp4_UsesStoredZone` | dng 20260927150000 #1, ZACHAR; once with `droneClockZone` = America/New_York set explicitly, once with the default | Both: `ClockMode.Setting`, `DroneClockSetting`, flag `ClockFromSetting`, 2026-09-27T19:00Z. Never `Mtime`: Setting mode always has a zone | Changed |
-| 7 | `test_truncated_clip_without_moov_uses_filename_and_joins` → `Truncated_TimedByClockAndJoins` | vid 20260726235645 #1, 20260727002013 #14 (no `moov`), 20260727002118 #15, ANVIL | #14: `DroneClockZone`, 2026-07-27T04:20:13Z, flag `Truncated`; 1 group | Same |
-| 8 | `test_autel_floating_time_no_gps` | — | Dropped with the Autel card path (§15 Q8) | Dropped |
+| 6 | `test_offset_from_setting_when_card_has_no_mp4` → `NoMp4_UsesStoredZone` | dng 20260927150000 #1, ZACHAR; stored mode `Zone`, once with `droneClockZone` = America/New_York set explicitly, once with the default | Both: `ClockMode.Setting`, `DroneClockSetting`, flags `ClockFromSetting` and `ClockMismatch`, 2026-09-27T19:00Z. Never `Mtime`: Setting mode always has a zone | Changed |
+| 7 | `test_truncated_clip_without_moov_uses_filename_and_joins` → `Truncated_TimedByClockAndJoins` | vid 20260726235645 #1, 20260727002013 #14 (no `moov`), 20260727002118 #15, ANVIL | #14: `DroneClockZone`, 2026-07-27T04:20:13Z, flags `Truncated` and `ClockMismatch`; 1 group | Same |
+| 8 | `test_autel_floating_time_no_gps` | — | Dropped with the Autel card path (§15 Q7) | Dropped |
 | 9 | `test_trip_across_month_boundary` → `Trip_AcrossMonth` | vid 20260731230000 ANVIL, 20260801230000 (64.58, −165.40), 20260802230000 ANVIL | 1 group; `2026\2026-07\2026-07-31 Trip` | Same |
 | 10 | `test_trip_across_year_boundary` → `Trip_AcrossYear` | vid 20261231230000, 20270101230000, ANVIL | `2026\2026-12\2026-12-31 NY` | Same |
 | 11 | `test_two_day_gap_splits` → `TwoDayGap_Splits` | vid 20260722230000, 20260725230000, ANVIL | 2 groups, boundary `DayGap` | Same |
@@ -1998,10 +2447,10 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 | 21 | `test_R_and_G_are_parameters` → `R_And_G_AreParameters` | vid #117 COUNCIL, #1 ANVIL | R 40 → 1 group; R 25 → 2 (`Distance`); R 50 with G 0 → 2 (`DayGap`) | Changed (miles; G case added) |
 | 22 | `test_video_only_card_new_folder` → `EmptyLibrary_NewFolder` | card Z; empty library | 1 group: NewFolder `2026\2026-09\2026-09-27`, Blocking `EmptyFolderName`; `PhotoDays` empty | Same |
 | 23 | `test_append_today_via_card_leftovers` → `AppendToday_ViaCardLeftovers` | card Z + vid 20260927160000 #160, 161000 #161 ZACHAR; library Z in ZREL | 1 group, wall ZREL: Append(ZREL) · High, "same day as clips already in this folder" | Same |
-| 24 | `test_append_today_via_ledger_centroid` → `AppendToday_ViaLedgerCentroid` | card #160; library Z in ZREL; ledger `file` records for Z with ZACHAR lat/lon, tz America/Anchorage | Append(ZREL) · High, "same dates, <0.1 mi" | Same |
+| 24 | `test_append_today_via_ledger_centroid` → `AppendToday_ViaLedgerCentroid` | card #160; library Z in ZREL; ledger `file` records for Z with ZACHAR lat/lon, tz America/Anchorage | Append(ZREL) · High, "same dates, &lt;0.1 mi" | Same |
 | 25 | `test_append_today_location_unknown_same_date_is_medium` → `AppendToday_LocationUnknown_Medium` | card #160; library Z in ZREL | Append(ZREL) · Medium, "same dates, location unknown" | Same |
 | 26 | `test_next_day_far_away_new_folder` → `NextDay_Far_NewFolder` | card vid 20260928180000 #170 KODIAK_TOWN; library Z; ledger centroid as #24 | NewFolder `2026\2026-09\2026-09-28` + Blocking `EmptyFolderName` (53.4 mi > R) | Same |
-| 27 | `test_next_day_same_place_appends` → `NextDay_SamePlace_AppendHigh` | card #170 at ZACHAR; library Z; ledger centroid | Append(ZREL) · High, "next day, <0.1 mi" | Same |
+| 27 | `test_next_day_same_place_appends` → `NextDay_SamePlace_AppendHigh` | card #170 at ZACHAR; library Z; ledger centroid | Append(ZREL) · High, "next day, &lt;0.1 mi" | Same |
 | 28 | `test_next_day_location_unknown_defaults_new` → `NextDay_LocationUnknown_NewFolder` | card #170 at ZACHAR; library Z; no ledger | NewFolder `2026\2026-09\2026-09-28`; `AppendCandidates` contains ZREL | Same |
 | 29 | `test_never_prepend_before_folder_name_date` → `NeverAppendBeforeFolderNameDate` | card vid 20260926180000 #170 ZACHAR; library Z | NewFolder `2026\2026-09\2026-09-26` | Same |
 | 30 | `test_legacy_depth_autel_append` → `LegacyDepth_DjiAppendsBesideAutelMembers` | library `2022\2022-03-27 Makaha Valley\MAX_0061.MP4`, `MAX_0062.MP4`, `MAX_0064.MP4` (61,000,000 / 62,000,000 / 64,000,000 bytes; mtimes 2022-03-27T15:01Z, 15:02Z, 15:04Z); card items built directly: those three (TimeSource `Mtime`, no GPS; matched by name and size) + vid 20220327110500 #1 MAKAHA | 1 group, wall Makaha Valley: Append(`2022\2022-03-27 Makaha Valley`) · High, "same day as clips already in this folder"; the MAX members' start times come from mtime (§7.1) | Changed (rewritten) |
@@ -2023,7 +2472,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - **Inclusion before Decide:** a group whose only non-Imported member is a Conflict is AlreadyImported(F); `SetIncluded([conflict], true)` turns it into Append(F) with the conflict copied as `name (2).ext`.
 - **Two-pass UserSplit:** groups A | B (A earlier) split by the user, both of which could target F, neither walled → pass 1 gives both Append(F); pass 2 gives B NewFolder (F is its earlier neighbour's pass-1 target) and A keeps Append(F). With F as B's Wall instead, A becomes NewFolder. A Retarget pin on A never feeds B's rule.
 - **Structural-edit algorithm (§8.9 worked examples):** SplitBefore at R 50 → 25 → 50 keeps a `UserSplit` chip; Merge absorbs the groups between a and b; MoveToNewGroup leaves a non-contiguous group ordered by its anchor, with a `UserSplit` boundary; a missing-item edit is counted as dropped, an inactive one is not.
-- Adjacent-day appends: < 10 mi → High; 10 mi–R → Medium with hint.
+- Adjacent-day appends: &lt; 10 mi → High; 10 mi–R → Medium with hint.
 - Pins: membership change → Warning with [Keep]/[Reset]; conflicting pins after merge → Blocking; `Rename` on Append → `Rejected(RenameExistingFolder)`.
 - Retarget into `<videoRoot>\.uas-sort`, `<videoRoot>\.uas-sort\x`, the photo root or a previous photo root → `Rejected(RetargetIntoReservedFolder)`; to a later-dated folder without confirmation → `Rejected(RetargetLaterDatedFolderUnconfirmed)`.
 - Fold rule: a group with Conflict, Truncated or ProbeFailed members never folds.
@@ -2046,12 +2495,21 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 
 *Time*
 - Midnight: drone `20260726035000` → Jul 25. Hawaii Feb 28.
-- **Zone learner:**
-  - summer samples → New York;
-  - a winter card with −5 samples → New York (DST handled);
-  - a fixed −4 in winter → no zone fits → nearest-sample mode;
-  - a photo-only winter card → the stored zone (−5);
-  - library member starts and the watermark use the same model.
+- **Clock learner** (`DroneClock.Learn`, §6.1):
+  - summer −4 samples at Alaska sites → New York; the same samples at Eastern sites → SiteLocal (New York also fits; SiteLocal wins by order);
+  - a winter card with −5 samples in Alaska → New York (DST handled);
+  - a fixed −4 in winter → no candidate fits → nearest-sample mode;
+  - a photo-only winter card with a stored `Zone` → the stored zone (−5);
+  - library member starts and the watermark use the same model; in SiteLocal mode a member converts through its folder's ledger `tz`, else the stored zone.
+- **SiteLocal and `ClockMismatch`** (user decision 2026-09-27; §6.1, §6.5):
+  - **SiteLocal fit:** vid 20260927100127 #123 and 100144 #124 at ZACHAR with `mvhd` = stamp + 8 h (an RC 2 set to Alaska time) → `ClockMode.SiteLocal`; a DNG 20260927101000 at ZACHAR → `DroneClockSiteLocal`, 2026-09-27T18:10Z; no `ClockMismatch`; the saved settings after a successful run are `droneClockMode = SiteLocal` with `droneClockZone` unchanged.
+  - **Eastern clock in Alaska:** card Z (stamp + 4 h, ZACHAR) plus a DNG → Zone `America/New_York`; `ClockMismatch` on every item; one Info issue `ClockMismatch`; the InfoBar reads "Drone clock is set to UTC−4 (America/New_York), but footage on this card was shot in Alaska (UTC−8). …"; the verdict computed for the same card is unchanged by the flag.
+  - **Eastern clock in Newport RI:** vid 20260510104103 #2 NEWPORT_AM and 20260510193745 #30 NEWPORT_PM (stamp + 4 h) → SiteLocal (New York also fits); no `ClockMismatch`, no InfoBar.
+  - **Trip crossing zones with a site-local clock:** vid 20260510104103 at NEWPORT_AM (stamp + 4 h) and vid 20260726195000 at ANVIL (stamp + 8 h) → no single zone fits, SiteLocal does; a no-GPS DNG 20260726195500 converts through the ANVIL clip's zone (nearest GPS item ≤ 12 h) → 2026-07-27T03:55Z; no `ClockMismatch`.
+  - **Photo-only card uses the stored mode:** dng 20260927110000 #1 at ZACHAR with stored `SiteLocal` → `ClockMode.Setting`, `DroneClockSetting`, `ClockFromSetting`, converted through `America/Anchorage` → 2026-09-27T19:00Z, no `ClockMismatch`; the same card with stored `Zone` `America/New_York` → 2026-09-27T15:00Z and `ClockMismatch`.
+  - **15-min boundary:** the predicate is true at a 15:00 min difference and false at 14:59; end to end, a clock set to `Asia/Kolkata` (+5:30) flown in Kathmandu (27.7172, 85.3240, `Asia/Kathmandu`, +5:45) → NearestSample (+5:30), `ClockMismatch` (exactly 15 min); the same clock flown in Kolkata → no flag.
+  - **Worked example:** `DJI_20260927140627_0128_D.MP4` with `mvhd` 2026-09-27T18:06:27Z at 57.55044, −153.73897 → Zone `America/New_York`, local 10:06:27 AKDT, LocalDate 2026-09-27, `ClockMismatch`.
+  - No `ClockMismatch` for an item whose site zone is the PC-zone fallback, or whose time source is `Mtime`.
 - `Etc/*` fallback uses the nearest land-zone GPS item on the whole card.
 - `CheckDate` windows: 60 min for zone alternatives; 75 min for `Mvhd`/`DroneClock*`.
 - Pre-2015 and future timestamps.
@@ -2120,14 +2578,63 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - Allowed: `ReadData` of `<videoRoot>\.uas-sort\ledger-B.jsonl` and of a conflict copy `ledger-B-DESKTOP-A.jsonl`; `AppendOwnLedger` of `ledger-<MACHINE>.jsonl` (existing, or null attributes = create); `CreateDir` of `<videoRoot>\.uas-sort` itself; `SetPinned` on it; `CreateNew` of `X.MP4.uas-sort.tmp` in a NewFolder directory; `ReadData`/`Rename`/`Delete` of an own temp; `Delete` of a stale `*.uas-sort.tmp`; `OpenForFlush` of a renamed file; `CreateDir` of a NewFolder path and its `YYYY`/`YYYY-MM` parents; `ReadData` under the card root; anything under `AppDataDir`.
 - `GuardUnsafe`: `AppendOwnLedger` or any write to `ledger-B.jsonl`; `ReadData` of `.uas-sort\settings.json` or `.uas-sort\sub\ledger-C.jsonl`; `Delete` or `Rename` of any ledger file; `CreateDir` of `.uas-sort\sub`; `ReadData` of `<videoRoot>\ledger-X.jsonl` (outside `.uas-sort`) and of the same name under the photo root; `ReadData` of any pre-existing library file; `CreateNew` of a non-temp name in a library root; `CreateDir` of an Append target; any write under the card root; null attributes for `ReadData`.
 - `GuardCloudOnly`: `ReadData` of a `ledger*.jsonl` with `0x400000`. `GuardHydration`: `ReadData` of a library file with `0x401620`, `0x40000` or `0x1000`.
+- **`CardDelete`.** Allowed: a file named in the context's `ConfirmedCleanupPlan` with `CardIsVerifiedCardVolume`; a set folder named in its `SetFolders`. `GuardUnsafe`: no plan in the context; a path the plan doesn't name; a named path when `CardIsVerifiedCardVolume` is false; a directory not in `SetFolders` (`DCIM`, `DCIM\DJI_001`, `MISC`); a plan whose `CardRoot` differs; null attributes; `CardDelete` of a library, previous photo root, ledger, `AppDataDir` or system-volume path, **even with `CardRoot` set to that path's folder and the path in the plan** (rule 1b); the old `Delete` op under the card root; `OpenForFlush`, `SetAttributesOrTimes` and `CreateNew` of the card root or a card file in every context, with or without a plan.
 - Case and form: `.UAS-SORT\LEDGER-B.JSONL` is allowed (case-insensitive); `.uas-sort2\ledger-A.jsonl` is refused (the canonical-path half of this lives in the Windows `subst`/junction test).
 
 *Source validation*
 - Refuses equal, inside and containing cases for each root, `previousPhotoRoots`, the ledger folder (`<videoRoot>\.uas-sort`, including a browse straight into it) and sync roots.
+- `detected` given → `IsBrowsedFolder` false and `IsWriteProtected` from `IsReadOnlyVolume`; `detected` null → `IsBrowsedFolder` true, also when the browsed path is a volume root such as `E:\`.
 - Canonical comparison through subst and junctions (fakes plus one Windows integration case).
 
+*Card cleanup* (`CleanupPlanner` pure; `CleanupExecutor` against `FakeFileSystem`; §10.6)
+- **Eligibility table** (table-driven): every `AuditCategory` × newness (`IsNew`, `Imported`, `Decided` assumedImported and dismissed, `ProbablyImported`, `Conflict`) × flags (Truncated, ProbeFailed) × class (Video, Photo, PhotoTwin, SetMember, Skip companion, Skip non-companion, Unknown) × fresh listing (holds it or not) × ledger record (verified, nameSize, none) × the include switch → the §10.6 eligibility, evidence source, reason text, and deleted or kept. Named cases:
+  - changed since the scan, read-only, and under an enumeration-error folder → Never;
+  - a truncated clip matched by name+size → NotInLibrary (`Unfinished`) with the "same-size copy" reason; a dismissed truncated clip → NotInLibrary (`Dismissed`);
+  - a dismissed video and an `assumedImported` photo day → NotInLibrary (`Dismissed` / `RecordedAsImported`), never deleted with the switch off, and listed in the review list with the decision date;
+  - a video with a verified ledger record whose library file was deleted (no fresh listing) → NotInLibrary (`NoLongerInLibrary`); the same video listed → Evidence (`Listed`);
+  - a photo moved by Lightroom with a verified ledger record → Evidence (`HistoryOnly`), counted apart in the summary; with only a `nameSize` record → NotInLibrary (`NoLongerInLibrary`);
+  - a DNG InLedger with its JPG twin AssumedByRule → the pair is NotInLibrary; a twin SkippedByRule (copying off) follows its DNG and is counted in "files uas-sort never copies", its `cardDelete` evidence `companionOf:…`;
+  - this run's `Failed` or `NotStarted` New clip → NotInLibrary (`New`); a Conflict → NotInLibrary (`Conflict`).
+- **Ticked for offload:** opened from Review with 20 ticked New clips and the switch on, every one of their rows starts on Keep with the badge, [Delete all] leaves them on Keep, and the plan deletes none of them until each row is set to Delete by hand (planner and VM test).
+- **Unit completeness:**
+  - a DNG+JPG pair is deleted together, twin first;
+  - a set's members in name order, then its folder;
+  - an MP4 goes with `.LRF`, `.SRT`, `.<stem>.MP4.trinf` and `.avc1`, and with its cover JPG only when the rule is on (with it off, the JPG is Unknown and kept while the MP4 goes);
+  - a companion never makes a unit eligible: an Unknown or NotInLibrary MP4's LRF stays with it;
+  - a changed companion keeps the whole unit; an orphan LRF is Never; the primary file is always deleted last.
+- **Before date:**
+  - strictly before the chosen site-local day; the day itself is kept; a PC in another zone changes nothing;
+  - the midnight flight: with cutoff Jul 26, `20260726035000` (Jul 25 23:50 AKDT) is deleted and the same session's 00:10 AKDT clip is kept, with `FlightContinuesLocal` set;
+  - a Makaha clip at 09:30Z is Feb 28 in Honolulu: deleted with cutoff Mar 1, kept with cutoff Feb 28 (it would be Mar 1 in the PC's Alaska zone);
+  - the cutoff line: "…that are in your library; Jul 26 and later are kept. 14 older files are kept" with a non-empty Kept list, and "Deletes everything captured before…" only with an empty one.
+- **Free space:**
+  - both readings: `FreeUp` 20 GB on a card with 12.4 GB free targets 32.4 GB; `HaveFree` 20 GB targets 20 GB; the same prefix algorithm and cutoff line;
+  - the minimal prefix (k − 1 units fall short);
+  - cluster rounding: with 128 KiB clusters a 1-byte file counts 131,072 bytes, and a target met only with rounded sizes is met;
+  - Never units are passed over without ending the walk;
+  - target already met → empty plan and the "nothing to delete" text;
+  - unreachable target → every deletable unit, with `FreeableBytes`, `HeldByNotInLibrary` and `HeldByNever` and both messages;
+  - the cutoff text, including "3 of 9 files from Aug 30" and zone abbreviations at both ends.
+- **Keep toggles and new rows:** in Free-space mode, Keep on a row inside the prefix extends it to the next deletable unit and moves the cutoff later; a NotInLibrary unit entering the range arrives **undecided** with the badge, counts as Delete for the walk, is not deleted, and keeps Delete disabled ("Decide 1 new row") until it is set or [Delete all] is pressed again; the fingerprint changes and the acknowledgements clear. In Before-date mode, Keep drops only that unit, and a later date brings new rows in undecided.
+- **Confirm:** refused on a fingerprint mismatch, a missing acknowledgement, a NotInLibrary unit without its row decision, an undecided row, an unticked not-in-library box, or an empty plan. A plan whose `Delete` no longer matches its stored `Fingerprint` (built through Core.Tests internals) is refused, because Confirm recomputes it. A candidate that is Never, or a file outside `<CardRoot>\DCIM\`, is refused. Neither `CleanupPlan` nor `ConfirmedCleanupPlan` has a constructor reachable outside Core, and `with` doesn't compile on them (Review.Tests compile checks).
+- **Executor** (every row of the §10.6 outcome table), including:
+  - the offload lock held elsewhere → `OffloadLockHeld`, nothing deleted; a cloud-only or unwritable ledger folder → `LedgerUnavailable`, nothing deleted; `OpenOwn()` runs only after `EnsureFolder()` on a missing folder;
+  - the identity changes before the 3rd file → `CleanupCardSwapped`, stop, the rest `CleanupNotStarted`;
+  - a file's mtime changed → `SkippedChanged`, and the next unit is still deleted;
+  - a `Listed` video whose library file is deleted between plan and run, while the ledger still has its verified record → `SkippedEvidenceGone`; a photo moved by Lightroom but with a verified ledger record is still deleted;
+  - a delete error on a set's 5th member → `PartiallyDeleted` with 4 deleted and the rest still listed; the run continues; the set folder stays; the rescan finds the 29 remaining members Imported through the library set folder (§8.8);
+  - `ERROR_WRITE_PROTECT` → stop `WriteProtected`; the card vanishes → `CardRemoved`;
+  - the ledger append throws → stop `LedgerWriteFailed`, the file gone and named in the report;
+  - a deleted file that stays in the re-list (a fake delete-pending entry) → `StillListed` and "still on the card" on the result page;
+  - Cancel stops after the current file;
+  - `IThumbnailSource.Pause()` is held for the whole run;
+  - one `cardDelete` per deleted file (companions included) with the right evidence, `historyOnly:` prefix, `companionOf:` or `notInLibraryConfirmed`; no `run` record; after a reload, the newness of every other file is unchanged.
+- **Report (`CleanupVm`):** one line per planned file with its outcome and `LedgerRecorded`; free space before and after; written with `VerdictAfter = NotSafe` when the rescan throws.
+- **Tripwires and entry:** a card delete outside a confirmed plan records a `CardDeleteViolation`; a cleanup run opens no library file (the hydration tripwire); a browsed-folder source can't open an eraser; a write-protected card disables [Clean up card…] (VM test).
+- **Volume check** (`CleanupVolumeCheck`, table-driven): an SD-bus exFAT card with `MISC\FC9113.db` passes; a fixed exFAT USB volume (`RemovableMedia` false) holding a card copy is refused; a non-root folder, NTFS, the system volume, a volume holding the photo root, and a card without a `MISC` index are refused, each with the tooltip.
+
 **Cross-assembly and JSON (`Review.Tests`)**
-- A `switch` without a default arm on Core's `CopyOutcome` (closed) and `GpsProbe` (union) compiles with `TreatWarningsAsErrors`.
+- A `switch` without a default arm on Core's `CopyOutcome` and `CleanupOutcome` (closed) and `GpsProbe` and `EraseResult` (unions) compiles with `TreatWarningsAsErrors`.
 - A closed `PlanEdit` and `TargetChoice` round-trip through source-generated JSON.
 
 **Golden replay**
@@ -2142,7 +2649,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 ```
 
   `relPath` is relative to the video root (the photo root's entries sit under `Picture Offload/`). `clips` has one entry per library MP4: GPS where the research read it; for DJI clips whose `mvhd` wasn't read (Kodiak, cloud-only) `mvhdUtc` = filename stamp + 4 h with `mvhdSimulated: true`, as `replay50.py` does; Anvil 0014 and 0024 have `hasMoov: false`; Makaha's Autel `MAX_####.MP4` clips have no GPS and no `mvhdUtc`.
-- **How items are built.** The replay builds `Item`s directly and never runs `CardClassifier` (on a real card the Autel clips would be Unknown). DJI clips go through `TimeResolver` with the fixture's GPS and `pcZone`; the clock is learned from the clips with a real `mvhd`. Makaha's clips get `TimeSource.Mtime`, no GPS and zone `pcZone`: their mtimes are the Autel wall clock read as AKDT, so their local date is 2022-03-27, the folder's date. Every scenario uses `Tuning(50, 1)` unless stated, `IPlaceIndex` = null, an empty ledger and no edits.
+- **How items are built.** The replay builds `Item`s directly and never runs `CardClassifier` (on a real card the Autel clips would be Unknown). DJI clips go through `TimeResolver` with the fixture's GPS and `pcZone`; the clock is learned from the clips with a real `mvhd` (Zone `America/New_York`: SiteLocal doesn't fit the Alaska clips, so every Alaska DJI clip carries `ClockMismatch` and the Newport clips don't; no scenario expectation below changes). Makaha's clips get `TimeSource.Mtime`, no GPS and zone `pcZone`: their mtimes are the Autel wall clock read as AKDT, so their local date is 2022-03-27, the folder's date. Every scenario uses `Tuning(50, 1)` unless stated, `IPlaceIndex` = null, an empty ledger and no edits.
 - **Scenarios** ("the user's 8 folders": Newport RI, Kodiak, Nome Roads, Safety Roadhouse, Council Road, Anvil Mountain, Zachar Bay, Makaha Valley)
 
 | Scenario | Card | Library listing | Expected |
@@ -2160,6 +2667,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - `moov` first or last; 64-bit `mdat`, `co64`, `stco`; 1, 3 and 5 samples per chunk; `djmd` as the second `stsd` entry.
 - GPS zeroed until sample 7, until sample 32, or everywhere.
 - Degrees versus radians; an unknown protocol (generic search plus the plausibility gate).
+- `mvhd` duration in versions 0 and 1 (timescale 1000 and 90000) → `Mp4Info.Duration`; no `moov` → null.
 - No `moov` (the mdat-head fallback, both the payload-start and the 512 paths).
 - Box sizes 0 and 1, and a truncated box size; `tnal` range.
 - A read-count budget: at most 16 reads for the first fix.
@@ -2176,6 +2684,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - The same run with one cloud-only `ledger-B.jsonl` gives the Blocking `CloudOnly` status and opens none of the ledger files; the offload phase is not reached. The tripwire never fires.
 - The same run with a `.uas-sort\notes.txt` and a `.uas-sort\sub\ledger-C.jsonl` present never touches either.
 - Preflight followed by **Back** deletes nothing, not even a stale temp it listed.
+- **Card-delete tripwire.** Over scan, offload and Card cleanup, any card delete outside a confirmed plan is recorded as a `CardDeleteViolation`, and the fixture asserts none at teardown. Opening the Cleanup page and pressing Back deletes nothing.
 
 **Fault injection** (`CopyEngine` against `FakeFileSystem`)
 Every row of the §10.3 outcome table, including:
@@ -2209,6 +2718,14 @@ Every row of the §10.3 outcome table, including:
 - The named-mutex fallback and the offload lock.
 - XAML lint: no `{Binding}`, `DisplayMemberPath`, `TextMemberPath`, `SelectedValuePath`, or non-`ms-appx` image sources in `src/UasSort.App/**/*.xaml`.
 - `BannedSymbols.txt` contains every required entry (§2.4).
+- **Card eraser** on a `%TEMP%\uas-sort-test-<guid>\card\` fake card (a folder tree with `DCIM\DJI_001`, `DCIM\PANORAMA\001_0087`, `MISC\FC9113.db`), opened through the factory's internal constructor with a test-only `IVolumeFacts` that reports the folder as a removable SD volume (the test assembly only; an optional elevated CI lane can use a mounted VHDX instead):
+  - **the production factory** (real `WindowsVolumeFacts`) refuses the same `%TEMP%` folder, because it is not a volume root and lies on the system volume;
+  - `DeleteFileW` on `\\?\` paths removes exactly the named files, including a Hidden `.trinf`, and leaves siblings;
+  - `RemoveDirectoryW` removes the emptied set folder and fails on a non-empty one, leaving it;
+  - a read-only file fails with access denied and is not changed;
+  - `WindowsCardEraser` consults the policy: a path outside the plan throws `UnsafeIoException` before any Win32 call;
+  - the factory refuses a source marked browsed or write-protected, and a source whose facts fail any cleanup volume check;
+  - `DeleteFileW` and `RemoveDirectoryW` are declared only in `WindowsCardEraser` (source test).
 
 **View-model tests** (`Review.Tests`, no WinUI)
 - Scan → Review; boundary-chip merge; split-here; move to a new group; quick fix as one undo entry.
@@ -2218,12 +2735,14 @@ Every row of the §10.3 outcome table, including:
 - Rename: validation, `Rejected` on Append, suggestion ranking; `SuggestionVm.ToString()` equals the text.
 - Offload enabled or disabled by blocking issues; preflight acknowledgements; **[Accept and continue]** turns a Blocking `LedgerParseIssue` into a RequiresAck Warning for this session, the draft doesn't carry it, and a rescan raises it again.
 - Verdict page: nothing preselected; per-day selection only for photos and sets; unknown files, truncated clips and other videos one at a time; confirmation counts and GB; undo writes `revoke`.
+- Cleanup page: [Clean up card…] disabled during Commit, during a scan, on a write-protected card, for a browsed folder and for a volume that fails the volume check, each with its tooltip; Preparation's Blocking InfoBars (identity mismatch at page open; ledger folder cloud-only or unwritable) disable Delete; Continue disabled until a date is picked; **with the PC zone Alaska and a picked value carrying a late-evening time or a UTC offset, `Request.Before` equals the displayed day**; Free up / Have at least switch the target and the "= free up ≈ Y GB" text; the review list required when the switch is on; "ticked for offload" rows start on Keep and [Delete all] leaves them; rows that join later are undecided and the button reads "Decide N new rows"; Keep/Delete, [Keep all] and [Delete all] recompute the summary; the acknowledgements clear on any fingerprint change; the cutoff line is worded from the plan; the summary shows the evidence split and the "files uas-sort never copies" line; the button reads "Delete 152 files (61.4 GB)" and is disabled until every box is ticked; `CleanupRowVm.ToString()` equals its text.
 - Map/grid selection sync.
 - `MapBridge` JSON golden messages: deserialise the exact objects of §9.6, the ones map.js produces (**`v` before `type`**), including `ping`/`pong`; `[lon,lat]`; miles labels; an unknown type is logged, not thrown.
 - Verdict wording, including the card identity and the name+size split.
+- Clock display: the clock-mismatch InfoBar text (site zones named and joined, offsets, dismissed for the session and shown again on the next scan), the "clock ≠ local" chip on exactly the groups with a `ClockMismatch` member, the side-by-side time tooltip; every `ClockMode` and `TimeSource` value has a banner or tooltip text (the test enumerates each enum, so a new value such as `SiteLocal` / `DroneClockSiteLocal` can't be missed).
 - `CollectionSync` keeps the selection.
 
-**UI smoke test** (`uas-sort.exe --selftest`, run by `deploy.ps1` against the **trimmed** publish)
+**UI smoke test** (`uas-sort.exe --selftest`, run by `deploy.ps1` against the **Native AOT** publish)
 - **Isolation.** It skips single-instance registration and launches off-screen. It uses `%TEMP%\uas-sort-selftest-<guid>` for settings, WebView2 and a temp video root, whose `.uas-sort\` holds the test ledger.
 - **Bindings.** It realises one of each templated element from a built-in fake plan and asserts the rendered text:
   - a group card with a boundary-chip header and thumbnail strip;
@@ -2233,7 +2752,7 @@ Every row of the §10.3 outcome table, including:
   - typing a space in the rename box leaves `Included` unchanged.
 - **Map.** Waits for WebView2 `ready` with MapLibre under the virtual host, sends a ping and waits for the pong.
 - **Probes.** Runs StillProbe on the embedded `selftest.dng`, plus a GeoTimeZone and `TimeZoneInfo` lookup.
-- **JSON under trimming.** Round-trips the embedded `ledger-v1.jsonl` (every record type) and a closed `PlanEdit`/`TargetChoice`.
+- **JSON under trimming.** Round-trips the embedded `ledger-v1.jsonl` (every record type, `cardDelete` included) and a closed `PlanEdit`/`TargetChoice`.
 - **Placeholder visibility.** Lists this PC's configured video root (read from the real `settings.json`; listing only, with `.uas-sort` excluded) and requires at least one entry showing `0x400000` or `0x1000`. If the root has no cloud-only files, the check reports "not applicable" and deploy needs `-AllowNoPlaceholders`.
 - **Result.** Writes `selftest-result.json` (each check's result, plus `firstFrameMs`: process start to the first `CompositionTarget.Rendering` of the main window), then `Environment.Exit(ok ? 0 : 1)`. `deploy.ps1` runs it twice, checks both exit codes and result files, each with a 60 s timeout, and aborts on failure or when the second (warm) run's `firstFrameMs` exceeds 1000.
 - **M0's minimal selftest** is a subset: the probe page renders; WebView2 reaches the virtual host; MetadataExtractor reads the checked-in `SelfTest/m0-exif.jpg` (≤ 2 KB, hand-assembled EXIF with DTO and GPS, no user data) through the Stream API directly; a GeoTimeZone lookup; a closed-record JSON round-trip. The synthetic DNG and StillProbe arrive in M1.
@@ -2250,28 +2769,31 @@ Every row of the §10.3 outcome table, including:
    - [Eject D:].
 5. Point the video root back at the real library. At the ledger prompt, answer **[Start empty]** so rehearsal records never enter the real ledger; confirm its dialog if it appears (the rehearsal's `file` records match videos already in the library by name and size, and the real library's watermark is exactly what a manual history implies). Then check that the pin sticks: [Keep on this device] on `UAS Videos\.uas-sort` must show as "Always keep on this device" in Explorer (UNVERIFIED until then). Do the real offload. Diff the card listing again (excluding `System Volume Information`).
 6. Rescan the same card: everything shows Imported, and the verdict is Safe (or SafeWithAssumptions only for photos the user chose to leave).
+7. **Card cleanup (M7b).** Snapshot the card listing. Run Before date with a cutoff that takes exactly one old eligible clip and its companions, and confirm. Re-list: only that unit's files are gone, each has a `cardDelete` record, and the rescanned verdict is unchanged for everything else. Put the card in the drone and note what its media browser shows (§15 Q8).
 
 ---
 
-## 14. Milestones (command-line first; about 34.5 developer-days plus ~10% contingency, about 38)
+## 14. Milestones (command-line first; about 36.5 developer-days plus ~10% contingency, about 40)
 
 | # | Work | Exit | Days |
 |---|---|---|---|
-| M0 | **Setup and stack proof.** <br>• SDK 11 RC1 and PowerShell 7 (the user installs both via winget). <br>• Repo skeleton: slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, analyzer probe project; build and WSL scripts; first restore. <br>• The probe page uses GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `m0-exif.jpg` (StillProbe and the synthetic DNG are M1 work). <br>• Cross-assembly union/closed exhaustiveness test; closed-record JSON round-trip. <br>• A 1-hour check that the VS Code C# extension handles `union` and `closed` without false errors. <br>• Fallbacks if the exit build fails: toolkit 8.2 with the full package, or fixed panes | The real App project with a 30-line probe page restores, builds and **publishes trimmed + ReadyToRun with `TreatWarningsAsErrors` on**, then passes the **M0 selftest** (§13): probe page renders, WebView2 reaches the virtual host, MetadataExtractor Stream read of the checked-in `m0-exif.jpg`, GeoTimeZone lookup, closed-record JSON round-trip. The cross-assembly exhaustiveness test is green | 1 |
-| M1 | **Card and media.** <br>• Core model, CardDetector, CardSourceValidator (policy), CardClassifier (fail-safe rules). <br>• Mp4Probe: box walker, sample tables, protobuf, model table, generic search, multi-sample search, mdat fallback, `tnal` range. <br>• SyntheticMp4Builder and SyntheticDngBuilder; StillProbe (Stream overloads); MetadataHarvester | Classification, synthetic MP4/DNG (incl. the ≤ 16-read budget) and source-validation policy tests green | 3.5 |
-| M2 | **Time, library and ledger.** <br>• DroneClock zone learner, TimeResolver, GpsPlausibility, GeoTimeZoneResolver. <br>• LibraryIndex (all roots, `previousPhotoRoots`, fixed watermark). <br>• Ledger reader: derived `<videoRoot>\.uas-sort` location (`LedgerPaths`), multi-file union, dedupe, parse issues, `torn` markers, revokes, attribute-first status check (`LedgerFolderStatus`). `IoGuardPolicy` with the guard exemption for `ledger*.jsonl` only; `.uas-sort` excluded from the library listing (`excludeDirNames`). Settings store with recovery and the read-only load. <br>• `WindowsVolumeProvider`, WindowsDirectoryLister (explicit options, error list), `WindowsCardReaderFactory`/WindowsCardReader (identity, read-only), PlaceholderGuard, sync-root detection, canonical paths (`PathFacts`). <br>• FakeFileSystem with the tripwire, calling `IoGuardPolicy` | Time, newness-ledger (incl. `torn` markers), settings and `IoGuardPolicy` tests green; the scan half of the fake-FS tripwire; the Windows lister/reader integration tests | 2 |
-| M3 | **Planning.** <br>• NewnessRules (with `seen`, per-member set records, the no-watermark rule), Clusterer with causes and the structural-edit algorithm (§8.9), DaySplitFinder, FolderDecider (New-subset with `included`, cross-day rules, two-pass UserSplit), naming, SetFolderNamer, Planner (issue catalogue) and PlanSession (threading contract, pins, quick fixes). <br>• The 37 ported tests (§13 table), golden replay from the checked-in fixture, edit invariants and the derive benchmark. <br>• **CLI `plan`** (§4.5) | The 37 ported tests (§13 table), new planning cases, invariants, golden replay (A0, A–E) and the derive benchmark green; `uas-sort-cli plan --json` runs on a copied card folder under `%TEMP%` and writes nothing | 4.5 |
+| M0 | **Setup and stack proof.** &lt;br>• The prerequisites of §2.6, installed by the user: SDK 11 RC1 and PowerShell 7 via winget, and the VS Build Tools C++ workload for Native AOT. &lt;br>• Repo skeleton: slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, analyzer probe project; build and WSL scripts; first restore. &lt;br>• The probe page uses GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `m0-exif.jpg` (StillProbe and the synthetic DNG are M1 work). &lt;br>• Cross-assembly union/closed exhaustiveness test; closed-record JSON round-trip. &lt;br>• A 1-hour check that the VS Code C# extension handles `union` and `closed` without false errors. &lt;br>• Fallbacks if the exit build fails on package compatibility: toolkit 8.2 with the full package, or fixed panes. &lt;br>• If the AOT publish fails a concrete check (a build or AOT warning, a selftest failure, or a warm first frame slower than the 0.37 s ReadyToRun baseline), a ReadyToRun publish of the same commit is used only to diagnose it, and the finding goes to the user before M1 (§1.1) | The real App project with a 30-line probe page restores, builds and **publishes Native AOT (`PublishAot=true`) with `TreatWarningsAsErrors` on**, then passes the **M0 selftest** (`--selftest`, §13): probe page renders, WebView2 reaches the virtual host, MetadataExtractor Stream read of the checked-in `m0-exif.jpg`, GeoTimeZone lookup, closed-record JSON round-trip. The AOT build's size and warm first frame (second of two runs) are recorded against the ReadyToRun baseline (87–97 MB, 0.37 s). The cross-assembly exhaustiveness test is green | 1.5 |
+| M1 | **Card and media.** &lt;br>• Core model, CardDetector, CardSourceValidator (policy), CardClassifier (fail-safe rules). &lt;br>• Mp4Probe: box walker, sample tables, protobuf, model table, generic search, multi-sample search, mdat fallback, `tnal` range, `mvhd` duration (`Mp4Info.Duration`; no extra days). &lt;br>• SyntheticMp4Builder and SyntheticDngBuilder; StillProbe (Stream overloads); MetadataHarvester | Classification, synthetic MP4/DNG (incl. the ≤ 16-read budget) and source-validation policy tests green | 3.5 |
+| M2 | **Time, library and ledger.** &lt;br>• DroneClock learner (SiteLocal, then zones), TimeResolver (incl. `ClockMismatch`), GpsPlausibility, GeoTimeZoneResolver. &lt;br>• LibraryIndex (all roots, `previousPhotoRoots`, fixed watermark). &lt;br>• Ledger reader: derived `<videoRoot>\.uas-sort` location (`LedgerPaths`), multi-file union, dedupe, parse issues, `torn` markers, revokes, attribute-first status check (`LedgerFolderStatus`). `IoGuardPolicy` with the guard exemption for `ledger*.jsonl` only; `.uas-sort` excluded from the library listing (`excludeDirNames`). Settings store with recovery and the read-only load. &lt;br>• `WindowsVolumeProvider`, WindowsDirectoryLister (explicit options, error list), `WindowsCardReaderFactory`/WindowsCardReader (identity, read-only), PlaceholderGuard, sync-root detection, canonical paths (`PathFacts`). &lt;br>• FakeFileSystem with the tripwire, calling `IoGuardPolicy` | Time, newness-ledger (incl. `torn` markers), settings and `IoGuardPolicy` tests green; the scan half of the fake-FS tripwire; the Windows lister/reader integration tests | 2 |
+| M3 | **Planning.** &lt;br>• NewnessRules (with `seen`, per-member set records, the no-watermark rule), Clusterer with causes and the structural-edit algorithm (§8.9), DaySplitFinder, FolderDecider (New-subset with `included`, cross-day rules, two-pass UserSplit), naming, SetFolderNamer, Planner (issue catalogue) and PlanSession (threading contract, pins, quick fixes). &lt;br>• The 37 ported tests (§13 table), golden replay from the checked-in fixture, edit invariants and the derive benchmark. &lt;br>• **CLI `plan`** (§4.5) | The 37 ported tests (§13 table), new planning cases, invariants, golden replay (A0, A–E) and the derive benchmark green; `uas-sort-cli plan --json` runs on a copied card folder under `%TEMP%` and writes nothing | 4.5 |
 | M4 | **Checkpoint:** dry run of the CLI on the first real card; card-listing diff including last-access; fix any classification or time surprises | `plan --expect` ≤ 2 edits from `tests/acceptance/first-card-expected.json`; the before/after card diff shows no app change; scan + plan time recorded | 0.5 |
-| M5 | **Offload engine.** <br>• Compiler, Preflight, CopyEngine (identity per file, confirm, post-run flush), CardAudit (re-list, per-file, worst-of). <br>• GuardedFileOps and WindowsFileOps (`LibraryImport`, `\\?\`, `File.OpenHandle`). <br>• Ledger writer (`OpenOwn` with torn-tail repair, `EnsureFolder`, mirror, `SnapshotToBackup`, `seen`), report store, power request, offload lock, eject. <br>• Fault tests and Windows integration tests | Fault injection (every §10.3 row), the audit table, the offload half of the tripwire, and the Windows integration tests green | 3.5 |
-| M6a | **WinUI shell.** <br>• `Program.Main` single instance; TitleBar, Mica and Frame; stages. <br>• **Setup stage and Settings page**: roots; derived ledger-folder status with [Keep on this device] and [Open]; the video-root change prompt ([Copy] / [Start empty]); clock zone; map URLs; About. <br>• Card and Scan pages. <br>• Timeline ItemsView (cards with chip headers, folds); group card (rename with SuggestionVm, read-only on Append, retarget flyout built on Opening, Browse existing validation) | Named VM tests for Setup, Settings (incl. [Copy]/[Start empty]), Card, Scan, timeline and group card; selftest template checks for the group card | 5 |
-| M6b | **Review lists and quality.** <br>• Clip list (ItemsView, day-split banners, `Thumb.Key` thumbnails); Photos and Other tabs (Dismissed / Confirmed sections). <br>• Undo/redo, drafts, scoped keyboard handling, queued dialogs. <br>• All VMs plus tests; full `--selftest` | All VM tests (incl. the `GatedPlanDeriver` ordering tests) green; the full selftest template checks pass | 4.5 |
+| M5 | **Offload engine.** &lt;br>• Compiler, Preflight, CopyEngine (identity per file, confirm, post-run flush), CardAudit (re-list, per-file, worst-of). &lt;br>• GuardedFileOps and WindowsFileOps (`LibraryImport`, `\\?\`, `File.OpenHandle`). &lt;br>• Ledger writer (`OpenOwn` with torn-tail repair, `EnsureFolder`, mirror, `SnapshotToBackup`, `seen`), report store, power request, offload lock, eject. &lt;br>• Fault tests and Windows integration tests | Fault injection (every §10.3 row), the audit table, the offload half of the tripwire, and the Windows integration tests green | 3.5 |
+| M6a | **WinUI shell.** &lt;br>• `Program.Main` single instance; TitleBar, Mica and Frame; stages. &lt;br>• **Setup stage and Settings page**: roots; derived ledger-folder status with [Keep on this device] and [Open]; the video-root change prompt ([Copy] / [Start empty]); drone clock (site-local or a zone); map URLs; About. &lt;br>• The clock banner and the clock-mismatch InfoBar; the "clock ≠ local" chip. &lt;br>• Card and Scan pages. &lt;br>• Timeline ItemsView (cards with chip headers, folds); group card (rename with SuggestionVm, read-only on Append, retarget flyout built on Opening, Browse existing validation) | Named VM tests for Setup, Settings (incl. [Copy]/[Start empty]), Card, Scan, timeline and group card; selftest template checks for the group card | 5 |
+| M6b | **Review lists and quality.** &lt;br>• Clip list (ItemsView, day-split banners, `Thumb.Key` thumbnails); Photos and Other tabs (Dismissed / Confirmed sections). &lt;br>• Undo/redo, drafts, scoped keyboard handling, queued dialogs. &lt;br>• All VMs plus tests; full `--selftest` | All VM tests (incl. the `GatedPlanDeriver` ordering tests) green; the full selftest template checks pass | 4.5 |
 | M7 | **Commit UI.** Preflight sheet with acknowledgements; Copy page; Verdict page (per-file lines, individual decisions, confirmation, undo, eject); device-arrival refresh (WM_DEVICECHANGE via window subclassing; UNVERIFIED), disabled during Commit. **→ The first real, verified offload with a map-less app, around day 28** | A real offload with 0 failures and a verdict of Safe or SafeWithAssumptions | 3 |
-| M8 | **Map.** <br>• First task: MapLibre ESM and its worker under the WebView2 virtual host (`.mjs` MIME), with the `.js`-rename / WebResourceRequested / Leaflet fallbacks. <br>• Then the bridge and messages (out-of-order metadata, unknown types logged), selection sync, live R/G, base toggle, offline canvas | `MapBridge` golden messages green; selftest `ready` + `ping`/`pong` (skipped if M8 is dropped) | 3 |
+| M7b | **Card cleanup** (§10.6; added 2026-09-27). &lt;br>• Core: the cleanup types, `CleanupVolumeCheck`, CleanupPlanner (eligibility from fresh listings, units and companions, both modes and both free-space readings, cutoff, shortfall, ticked-for-offload and undecided rows, fingerprint, `Confirm` with re-validation), CleanupExecutor (the whole run: lock, keep-awake, thumbnail pause, ledger preparation, per-file checks, evidence re-check, outcomes, `cardDelete` records); the `CardDelete` guard rules 1b and 2 and the fake-FS card-delete tripwire. &lt;br>• Platform: `WindowsCardEraser` and its factory with `WindowsVolumeFacts` (volume root, FS, bus, removable media, system/boot/paging), the `VolumeInfo` bus fields, `ICardReader.Space()`, `CleanupReport` in the report store. &lt;br>• Review and App: `CleanupVm`, `CleanupRowVm`, `CleanupResultVm`, the Cleanup page, [Clean up card…] on the Verdict page and in the title bar | The §13 Card cleanup, guard and tripwire tests, the card-eraser Windows integration tests and the Cleanup VM tests green; acceptance step 7 on the real card: one old eligible clip deleted and the re-list verified | 2 |
+| M8 | **Map.** &lt;br>• First task: MapLibre ESM and its worker under the WebView2 virtual host (`.mjs` MIME), with the `.js`-rename / WebResourceRequested / Leaflet fallbacks. &lt;br>• Then the bridge and messages (out-of-order metadata, unknown types logged), selection sync, live R/G, base toggle, offline canvas | `MapBridge` golden messages green; selftest `ready` + `ping`/`pong` (skipped if M8 is dropped) | 3 |
 | M9 | **GeoNames.** `build-places.cs` extract, PlaceIndex, suggester | PlaceIndex round-trip: "Anvil Mountain" ≤ 0.2 mi, "Zachar Bay" ≤ 0.4 mi | 1.5 |
-| M10 | **Packaging and acceptance.** <br>• Publish for `win-x64` and `win-arm64`; `deploy.ps1` (selftest gate, `.lnk`, keep 2 versions). <br>• Rehearsal and first full-app offload (exFAT flush and eject checks). <br>• **Native AOT attempt behind `-p:UasAot=true`** only if the user has installed the C++ build-tools component; it ships only if `--selftest` passes and startup improves | `deploy.ps1` passes its selftest gate on x64, including the warm first frame ≤ 1 s | 1.5 |
-| SDK | **RC2 bump** (~Oct 13, UNVERIFIED) and **GA bump** (Nov 10), each when it ships. Each re-runs the trimmed publish, `--selftest` and the analyzer check. `AnalysisLevel` stays pinned, so new rules don't appear by surprise | The trimmed publish, `--selftest` and the analyzer check pass | 0.5 + 0.5 |
+| M10 | **Packaging and acceptance.** &lt;br>• Native AOT publish for `win-x64` and `win-arm64`; `deploy.ps1` (AOT publish, selftest gate, `.lnk`, keep 2 versions). &lt;br>• Rehearsal and first full-app offload (exFAT flush and eject checks) | `deploy.ps1` passes its selftest gate on x64, including the warm first frame ≤ 1 s | 1 |
+| SDK | **RC2 bump** (~Oct 13, UNVERIFIED) and **GA bump** (Nov 10), each when it ships. Each re-runs the Native AOT publish, `--selftest` and the analyzer check; the GA bump also moves the development PC to the GA SDK (§2.6). `AnalysisLevel` stays pinned, so new rules don't appear by surprise | The AOT publish, `--selftest` and the analyzer check pass | 0.5 + 0.5 |
 
-- Calendar: RC2 lands around M2–M3, and GA around M7–M8. Neither is tied to M10.
+- Native AOT moved from M10 (the former optional attempt) to M0 on 2026-09-27, with 0.5 day, so the total is unchanged.
+- Calendar: RC2 lands around M2–M3, and GA around M7–M8. Neither is tied to M10. M7b follows the first real offload (M7), so the first real cleanup (acceptance step 7) runs on a card whose files the app has just verified.
 - After M4, grouping and newness are proven on a real card before any UI exists.
 - M8 (map) and M9 (GeoNames) can each be dropped without affecting any other milestone. Without M9, names come from ledger folders only.
 
@@ -2279,8 +2801,9 @@ Every row of the §10.3 outcome table, including:
 
 ## 15. Questions: accepted defaults and what is still open
 
-- **Former Q1 (which synced folder holds the ledger) is resolved and removed.** The user decided the ledger lives in `<videoRoot>\.uas-sort\` (§1.1, §4.3, §11). The remaining questions are renumbered.
-- The user approved the design on 2026-09-27 and accepted every default below without objection. None of them waits on a decision.
+- **Former Q1 (which synced folder holds the ledger) is resolved and removed.** The user decided the ledger lives in `<videoRoot>\.uas-sort\` (§1.1, §4.3, §11).
+- **Former Q5 (packaging and code generation) is resolved and removed** (user decision, 2026-09-27): Native AOT is the primary build from M0, the C++ build tools are a prerequisite (§2.6), and the unpackaged, non-MSIX departure stays for certificate trust (§1.1). VS Code with the C# Dev Kit is the default editor, and Visual Studio 2026 Insiders stays optional (§2.6). The remaining questions are renumbered.
+- The user approved the design on 2026-09-27 and accepted the defaults of items 1–7 without objection. Item 8 was added with Card cleanup the same day; its default is proposed and not yet reviewed by the user. None of them waits on a decision.
 - What is genuinely open is marked **Still open**. Each such item is an UNVERIFIED fact with a planned check or a fallback.
 
 1. **Unfinished (truncated) recordings: ticked or unticked by default?**
@@ -2293,20 +2816,16 @@ Every row of the §10.3 outcome table, including:
    - **Still open:** the Esri terms for use outside ArcGIS apps are UNVERIFIED. If they rule it out, the default switches to the USGS preset with no code change.
 4. **Daily flights chaining together.** With R = 50 mi and G = 1, flights on consecutive days in the same area (for example, a week at home) become one multi-day folder.
    - *Accepted default:* no cap on how many days a group spans. Every day change shows a one-click split suggestion, emphasised at 10 mi or more. Next-day appends at 10 mi or more are Medium. A maximum-span setting stays on the Later list.
-5. **Packaging and code generation (departures from "most modern frameworks").**
-   - **A, approved:** an unpackaged, self-contained, trimmed ReadyToRun folder plus a Start-menu `.lnk`. It starts warm in 0.37 s and needs no certificate or runtime installs.
-   - **B, not chosen:** self-contained MSIX via the winapp CLI, with a self-signed certificate trusted on each PC or a loose Developer Mode registration. It would give package identity and a clean uninstall. Self-contained MSIX is UNVERIFIED. MSIX stays on the Later list (§1.4).
-   - **C, an optional later attempt:** Native AOT.
-     - It needs the "C++ build tools" component added to the existing VS Build Tools 2022. That is a machine-wide install, whenever the user chooses to try it.
-     - M10 tries AOT only if that component is installed. It ships only if it passes `--selftest` and starts faster.
-   - VS 2026 Insiders (XAML designer, Hot Reload) stays optional; the default is the dotnet CLI plus VS Code.
-6. **Are any of the PCs ARM64?**
+5. **Are any of the PCs ARM64?**
    - *Accepted default:* `deploy.ps1` publishes for the RID of the machine it runs on (x64 here). `win-arm64` is built in M10.
    - **Still open:** ARM64 is UNVERIFIED until it runs on an ARM64 PC.
-7. **PowerShell 7.** The scripts use `pwsh`, which isn't installed on this PC.
-   - *Approved:* the user installs it once with `winget install Microsoft.PowerShell` at implementation start, alongside the .NET 11 SDK preview. Every script runs via `pwsh -NoProfile -ExecutionPolicy Bypass -File`.
-8. **Autel cards.**
+6. **PowerShell 7.** The scripts use `pwsh`, which isn't installed on this PC.
+   - *Approved:* the user installs it once with `winget install Microsoft.PowerShell` at implementation start, alongside the .NET 11 SDK preview and the C++ build tools (§2.6 Prerequisites). Every script runs via `pwsh -NoProfile -ExecutionPolicy Bypass -File`.
+7. **Autel cards.**
    - *Accepted default:* Autel cards are not supported; their media shows as Unknown (NotSafe). Legacy Autel folders already in the library still match by name and size, and their members' start times come from mtime (§7.1).
+8. **Does the drone's `MISC` media index cope with PC-side deletions?** (added with Card cleanup, 2026-09-27)
+   - *Proposed default (2026-09-27, not yet reviewed by the user):* Card cleanup deletes only DCIM media and their companions and never touches `MISC\FC*.db`, `IDX` or `THM`. The result page says the drone may show stale thumbnails until it rebuilds its index, and that formatting in the drone remains the clean option.
+   - **Still open:** whether the Air 3S rebuilds its index or shows stale entries after PC-side deletions (UNVERIFIED; observed in acceptance step 7, M7b). Also UNVERIFIED until M4: which `MISC` index files the Air 3S writes and which bus type and `RemovableMedia` value the user's reader reports, both used by the cleanup volume check (§10.6); if either differs, the check is adjusted to what M4 records.
 
 ---
 
@@ -2320,27 +2839,27 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 | 2 | requirements | major | "Personal computers" means several PCs, but the ledger was local to one | **Applied** | §1.1 fact; §11: per-machine files, union read, pinned-folder check without UnsafeIoException, local backups. *Note: superseded by user decision: ledger in `<videoRoot>\.uas-sort` (derived, no `ledgerDir` setting; the guard exemption is in §4.3). The former §15 Q1 was removed.* |
 | 3 | requirements | major | Settings UI and first-run root choice unscheduled; user path hardcoded | **Applied** | §9.1 Setup stage, §9.14 Settings page; defaults derived from KnownFolder Pictures (the video root; the ledger folder follows it); scheduled in M6a (+1 day). *Note: the former synced-folder ledger default is superseded by user decision: ledger in `<videoRoot>\.uas-sort`, and Setup no longer asks for a ledger folder.* |
 | 4 | requirements | minor | 3 R-dependent tests (not 1); Zachar↔Kodiak fixture is 53.4 mi | **Applied** | Re-verified 2026-09-27 (34/37 pass at 50 mi); §13 lists all three with the pin or duplicate plan; §8.4 shows 53.4 mi and a 3.4 mi margin |
-| 5 | requirements | minor | Unpackaged and no-AOT silently deviate from the "most modern frameworks" decision; System.* not on 11.x | **Applied** | §1.1 deviation table; §15 Q5 options A/B/C (A approved 2026-09-27; AOT an optional later attempt in M10); System.IO.Hashing 11.0.0-rc.1. TimeProvider.Testing stays 10.10.0 because no 11.x exists |
+| 5 | requirements | minor | Unpackaged and no-AOT silently deviate from the "most modern frameworks" decision; System.* not on 11.x | **Applied** | §1.1 deviation table; §15 Q5 options A/B/C (A approved 2026-09-27; AOT an optional later attempt in M10); System.IO.Hashing 11.0.0-rc.1. TimeProvider.Testing stays 10.10.0 because no 11.x exists. *Note: superseded by user decision (2026-09-27): Native AOT is the primary build from M0, the C++ build tools are a prerequisite, and only the MSIX departure remains (§1.1, §2.1, §2.6); the former §15 Q5 was removed.* |
 | 6 | requirements | minor | Browse could select a library folder and probe library content | **Applied** | `CardSourceValidator` (§4.3) refuses equal, inside or containing roots, previous roots, ledger and sync roots; tests in §13 |
 | 7 | requirements | minor | Rename meaning on Append/AlreadyImported undefined | **Applied** | §9.4 read-only box with hint; §8.9 `Rejected(RenameExistingFolder)`; VM test |
 | 8 | requirements | minor | Photos in the old Picture Offload are not recognised after the photo root moves | **Applied** | §7.1/§7.3: photos matched against all root listings plus auto-maintained `previousPhotoRoots`; test in §13 |
 | 9 | requirements | minor | Scope creep (Autel, make-fake-card, USGS button, NE outlines, map labels, key forwarding, recent offloads, 960 px previews, flight column, RC2 row, StaleFirstFix, GpsTime) | **Applied** | §1.4 non-goals and Later list; Autel only in LibraryIndex; FakeCardWriter moved to Testing; USGS as a settings preset. The map and GeoNames suggestions stay (they are part of the approved rich review UX and research grafts) |
 | 10 | requirements | minor | Next-day ≥ 10 mi append labelled High | **Applied** | §8.5 uses the 10 mi threshold → Medium with reason and hint; Scenario D now expects Medium (§13) |
-| 11 | requirements | minor | 22-day estimate understated; Settings not scheduled | **Applied** | §14 re-baselined: 34.5 days + contingency ≈ 38; M6 split into M6a/M6b |
-| 12 | requirements | minor | Exact package set never built together; TreatWarningsAsErrors risk | **Applied** | M0 exit criterion: full pinned set incl. Sizers, trimmed + ReadyToRun with warnings as errors, `--selftest`; fallbacks named |
-| 13 | requirements | minor | Nothing checks that the card is left unmodified | **Applied** | Automatic audit re-list diff (§10.5); acceptance before/after snapshots incl. last-access (§13); read-only access ACL test |
+| 11 | requirements | minor | 22-day estimate understated; Settings not scheduled | **Applied** | §14 re-baselined: 34.5 days + contingency ≈ 38; M6 split into M6a/M6b. *Note: Card cleanup (user request, 2026-09-27) adds M7b (2 days): 36.5 days + contingency ≈ 40.* |
+| 12 | requirements | minor | Exact package set never built together; TreatWarningsAsErrors risk | **Applied** | M0 exit criterion: full pinned set incl. Sizers, trimmed + ReadyToRun with warnings as errors, `--selftest`; fallbacks named. *Note: the M0 exit publish is now Native AOT with warnings as errors (user decision, 2026-09-27; §14)* |
+| 13 | requirements | minor | Nothing checks that the card is left unmodified | **Applied** | Automatic audit re-list diff (§10.5); acceptance before/after snapshots incl. last-access (§13); read-only access ACL test. *Note: still true for the offload. Card cleanup (user decision, 2026-09-27; §10.6) is a separate, confirmed action whose deletes are checked by a re-list and recorded in the ledger.* |
 | 14 | requirements | minor | Undefined types, unpinned versions, selftest DNG source, DraftKey hash | **Applied** | §3 supporting types, `TargetChoice` as a closed record with `[JsonPolymorphic]`; versions pinned from the 2026-09-27 NuGet query; SyntheticDngBuilder asset; DraftKey = XxHash64 of the lowercase canonical root |
-| 15 | requirements | minor | x64 hardcoded; a PC may be ARM64 | **Applied** | §1.2 assumption row, §2.5 RIDs `win-x64;win-arm64`, deploy picks the machine's RID; §15 Q6 |
+| 15 | requirements | minor | x64 hardcoded; a PC may be ARM64 | **Applied** | §1.2 assumption row, §2.5 RIDs `win-x64;win-arm64`, deploy picks the machine's RID; §15 Q5 |
 | 16 | safety | blocker | App copies advance the watermark and flip unseen photos to "probably imported" | **Applied** | §7.1 watermark from outside-app imports only; §10.4 `seen` records at every Commit end; §7.3 rule 3; two-run and cancel tests (§13) |
 | 17 | safety | blocker | Classification fall-through to SkippedByRule; Browse anchoring makes everything "outside DCIM" | **Applied** | §5 fail-safe Unknown for unclaimed media, named skips only, cover JPGs Unknown until proven; DCIM anchoring and refusal (§4.3); NotSafe audit test |
 | 18 | safety | major | Default `EnumerationOptions` drop Hidden/System files and swallow errors | **Applied** | §5/§4.1 explicit options, `ContinueOnError` error list → `ForcesNotSafe`; Hidden/System Platform test; enumeration types banned outside Platform |
 | 19 | safety | major | No card identity or contents re-check at Commit or verdict | **Applied** | §4.1 `CurrentIdentity`; §10.2 Blocking; §10.3 step 0 `CardSwapped`; §10.5 re-list diff; identity in the headline; refresh disabled during Commit (§9.1) |
 | 20 | safety | major | Rename durability not guaranteed; exFAT D: at risk | **Applied (partly)** | §10.3 post-rename `ConfirmFinal`, post-run file and directory flush for non-NTFS volumes, safe-removal note + Eject; G1 no longer claims write-through durability. The `MOVEFILE_WRITE_THROUGH` flag itself stays because the approved Safety graft names a write-through rename, and the flag is harmless |
 | 21 | safety | major | Ledger can be silently erased (OneDrive conflicts, bad lines, no backup) | **Applied** | §11 per-machine files and union incl. conflict copies (dedupe by `id`), bad line → Blocking and verdict cap, selftest v1 round-trip, local backups, and the video-root-change prompt with [Copy] / [Start empty]. *Note: superseded by user decision: ledger in `<videoRoot>\.uas-sort` (the `ledgerDir`-change warning became the video-root-change prompt).* |
-| 22 | safety | major | Fixed-offset clock breaks under DST; CheckDate window too small | **Applied** | §6.1 zone learner used for items, library members and the watermark; §7.3 rule 5 near-watermark ±75 min; §6.5 CheckDate 75 min for `Mvhd`/`DroneClock*` |
+| 22 | safety | major | Fixed-offset clock breaks under DST; CheckDate window too small | **Applied** | §6.1 zone learner used for items, library members and the watermark; §7.3 rule 5 near-watermark ±75 min; §6.5 CheckDate 75 min for `Mvhd`/`DroneClock*`. *Note: user decision (2026-09-27) adds the SiteLocal mode and the `ClockMismatch` flag (§6.1, §6.5).* |
 | 23 | safety | major | Scenario D appends next-day footage to yesterday's folder as High, no preflight warning | **Applied** | §8.5 New-subset judgement → Medium + hint; UserSplit rule so a split gives NewFolder; Medium appends and emphasised splits need a preflight acknowledgement; golden test |
 | 24 | safety | major | Rename/Retarget pins silently apply to changed membership; merge drops a pin | **Applied** | §3 `PinnedMembers`; §8.9 membership Warning with [Keep]/[Reset] (preflight acknowledgement) and conflicting pins → Blocking |
-| 25 | safety | major | Bulk "Mark as not needed" can permanently hide footage | **Applied** | §10.5 nothing preselected, confirmation with counts and GB, no bulk for videos, Dismissed section with Un-dismiss (`revoke`), undo on the page |
+| 25 | safety | major | Bulk "Mark as not needed" can permanently hide footage | **Applied** | §10.5 nothing preselected, confirmation with counts and GB, no bulk for videos, Dismissed section with Un-dismiss (`revoke`), undo on the page. *Note: Card cleanup (user decision, 2026-09-27) can delete clips that are not in the library, but only after an opt-in switch, a required per-row review (date, clip length, location), a second acknowledgement, and never for unknown or changed files (§10.6).* |
 | 26 | safety | major | Read APIs not banned (duplicate of #1) | **Applied** | §2.4 (merged with #1 and #41); probes accept Streams only |
 | 27 | safety | major | Browse into library/sync roots; placeholder attribute visibility unproven | **Applied (mechanism adjusted)** | §4.3 sync-root detection plus canonical paths; placeholder compatibility call at startup. `--selftest` requires **any** cloud-only entry in the video root to show 0x400000/0x1000, rather than one named Kodiak file that could get hydrated, with an explicit override |
 | 28 | safety | major | Audit per unit undefined for multi-file units, twins and truncated matches | **Applied** | §10.5 per-file lines, worst-of per unit, twin lines (AssumedByRule or SkippedByRule), truncated name+size cap; table tests |
@@ -2353,7 +2872,7 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 | 35 | safety | minor | P/Invoke paths lack long-path handling; temp path not length-checked | **Applied** | `\\?\` prefix on every P/Invoke path, 400-character check on the temp path, 300-character integration test |
 | 36 | safety | minor | Folding hides Conflict/Truncated members | **Applied** | §8.5 fold rule; §9.3 folds only clean groups; test |
 | 37 | safety | minor | Corrupt settings silently revert the photo root | **Applied** | §11 recovery → Blocking until roots confirmed; roots recorded in `run` records and offered back |
-| 38 | feasibility | major | 22 days unrealistic; first real offload only at the end; SDK bumps mid-build | **Applied** | §14 re-baseline (≈ 38 days), Commit UI (M7) before Map (M8) so a real offload is possible around day 28, SDK bumps scheduled when they ship, VS Code union/closed check in M0 |
+| 38 | feasibility | major | 22 days unrealistic; first real offload only at the end; SDK bumps mid-build | **Applied** | §14 re-baseline (≈ 38 days), Commit UI (M7) before Map (M8) so a real offload is possible around day 28, SDK bumps scheduled when they ship, VS Code union/closed check in M0. *Note: M7b (Card cleanup, 2 days) follows M7, so the first real offload stays around day 28; the total is now ≈ 40 days.* |
 | 39 | feasibility | major | Trimming breaks property-path features (AutoSuggestBox ToString in folder names); ItemsSource types untested | **Applied** | §2.4 XAML lint bans property paths; `SuggestionVm` + `UpdateTextOnSelect=False`; ItemsSource rule (§2.7 #4); selftest realises each template and asserts text |
 | 40 | feasibility | major | ListView can't make chip or split rows non-selectable; Space conflicts | **Applied (different mechanism)** | `ItemContainer.CanUserSelect` is documented only in the 2.0-experimental view (checked 2026-09-27), so chips and day-split banners are embedded in the following item's template instead. Every item is selectable, and buttons stay live (§9.3, §9.5). Space is list-scoped (§9.12) |
 | 41 | feasibility | major | BannedApiAnalyzers can't express "File.* writes"; many write paths are open | **Applied** | §2.4 whole-type bans incl. WinRT storage, VB FileSystem and Process.Start; member list and pragmas in Platform; make-fake-card moved to Testing; `DownloadStarting` cancelled; probe build |
@@ -2368,4 +2887,4 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 | 50 | feasibility | minor | Unmodified-key accelerators collide with list and TextBox input | **Applied** | §9.12 page accelerators use modified keys only; list-scoped keys; TextBox check for undo; smoke test |
 | 51 | feasibility | minor | Thumbnails need images without WinUI types in VMs; recycled containers | **Applied** | §9.5 `ThumbKey` + `Thumb.Key` attached property with key re-check; `IThumbnailSource` returns bytes |
 | 52 | feasibility | minor | TeachingTip hover, ContentDialog settings, nested dialogs, MenuFlyout binding, Browse restriction | **Applied** | Hover preview cut to Later (a ToolTip would be used if restored); Settings as a Page; queued `IDialogService`; flyout built on Opening; Browse result validated with an InfoBar |
-| 53 | feasibility | minor | `pwsh` not installed; execution policy | **Applied** | PowerShell 7 chosen (most modern) as a one-time user install, approved 2026-09-27; all scripts run via `pwsh -NoProfile -ExecutionPolicy Bypass -File` (§2.6, §15 Q7) |
+| 53 | feasibility | minor | `pwsh` not installed; execution policy | **Applied** | PowerShell 7 chosen (most modern) as a one-time user install, approved 2026-09-27; all scripts run via `pwsh -NoProfile -ExecutionPolicy Bypass -File` (§2.6, §15 Q6) |
