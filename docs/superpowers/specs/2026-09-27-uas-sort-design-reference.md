@@ -1886,7 +1886,7 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
  "dest":"C:\\…\\UAS Videos\\2026\\2026-09\\2026-09-27 Zachar Bay\\DJI_20260927140627_0128_D.MP4",
  "xxh128":"5e0c…","verify":"unbuffered","mtime":"2026-09-27T18:08:01Z","captureUtc":"2026-09-27T18:06:27Z","timeSource":"Mvhd",
  "lat":57.5504421,"lon":-153.7389730,"tz":"America/Anchorage","localDate":"2026-09-27",
- "sessionUtc":"2026-09-27T17:59:28Z","serial":"1581F895C261M01705SH","set":null}
+ "sessionUtc":"2026-09-27T17:59:28Z","serial":"<drone-serial>","set":null}
 {"t":"folder","v":1,"id":"…","machine":"DESKTOP-A","run":"8f1c…","path":"C:\\…\\2026-09-27 Zachar Bay","desc":"Zachar Bay",
  "source":"created","lat":57.5415,"lon":-153.7409,"start":"2026-09-27","end":"2026-09-27","tz":"America/Anchorage"}
 {"t":"seen","v":1,"id":"…","machine":"DESKTOP-A","run":"8f1c…","at":"2026-10-04T20:11:00Z","name":"DJI_20261002…_0131_D.DNG",

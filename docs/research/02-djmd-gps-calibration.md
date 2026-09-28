@@ -34,7 +34,7 @@ The sibling field `…-2` is AbsoluteAltitude as a signed 64-bit integer in mill
 **Timestamps and clock on the Air 3S.** The djmd track has no absolute time and no timezone.
 - Fields 3-1-2 and 1-1-9 are a **microsecond counter since the drone was powered on** (ExifTool calls it TimeStamp, divided by 1e6).
 - ExifTool's `GPSDateTime` for the Air 3S is made up (see `QuickTimeStream.pl` around line 1531, `SetGPSDateTime`). It is CreateDate plus the sample time, not a GPS reading.
-- Other fields seen: 1-1-5 is the drone serial (`1581F895C261M01705SH`) and 1-1-10 is `DJI Air3s`. The file's handler names are "HAL meta" for djmd and "HAL dbgi" for dbgi.
+- Other fields seen: 1-1-5 is the drone serial (`<drone-serial>`) and 1-1-10 is `DJI Air3s`. The file's handler names are "HAL meta" for djmd and "HAL dbgi" for dbgi.
 
 ## 2. How the reader works
 
