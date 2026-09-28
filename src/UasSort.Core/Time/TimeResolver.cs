@@ -41,11 +41,16 @@ public static class TimeResolver
                 guessed[i] = true;
             }
 
-        // 2. each GPS item's own land zone (§6.4 step 1)
+        // 2. each GPS item's own land zone (§6.4 step 1), and its lookup for CheckDate (a)
         var own = new string?[n];
+        var ownLookup = new TzLookup?[n];
         for (var i = 0; i < n; i++)
-            if (gps[i] is { } fix && Lookup(fix.Point) is { IsEtc: false } l && Zones.TryFind(l.IanaId, out _))
-                own[i] = l.IanaId;
+            if (gps[i] is { } fix)
+            {
+                var l = Lookup(fix.Point);
+                ownLookup[i] = l;
+                if (!l.IsEtc && Zones.TryFind(l.IanaId, out _)) own[i] = l.IanaId;
+            }
 
         // 3. power-on sessions (§6.3 step 6)
         var sessions = new SessionKey?[n];
@@ -71,7 +76,8 @@ public static class TimeResolver
             }
             var local = TimeZoneInfo.ConvertTimeFromUtc(utc[i], zone);
             var time = new ItemTime(utc[i], src[i], tzId, tzSource, DateOnly.FromDateTime(local), local);
-            var flags = BaseFlags(raw[i], gps[i] is null, guessed[i], fallback);
+            var flags = BaseFlags(raw[i], gps[i] is null, guessed[i], fallback)
+                        | TimeFlags.For(raw[i], time, ownLookup[i], clock, zone, nowUtc);
             result.Add(new ResolvedItem(raw[i], time, flags, gps[i], sessions[i]));
         }
         return result.MoveToImmutable();
