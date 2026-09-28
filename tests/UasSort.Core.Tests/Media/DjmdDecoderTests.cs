@@ -160,6 +160,46 @@ public sealed class DjmdDecoderTests
         Assert.Null(DjmdDecoder.DecodeAt(b.BuildSample(39), "3-3-4-1"));
     }
 
+    private static byte[] Len(int field, params byte[][] content)
+    {
+        byte[] body = [.. content.SelectMany(c => c)];
+        return [(byte)((field << 3) | 2), (byte)body.Length, .. body];
+    }
+
+    private static byte[] Dbl(int field, double v)
+        => [(byte)((field << 3) | 1), .. BitConverter.GetBytes(v)];
+
+    private static DjmdReading DecodeUnknown(params byte[][] subMessages)
+        => DjmdDecoder.Decode(Len(3, subMessages), null)!;
+
+    [Fact]
+    public void Decode_GenericSearch_SkipsADecoyWithOnlyLatitude()
+    {
+        DjmdReading r = DecodeUnknown(Len(1, Dbl(2, 0.5)), Len(2, Dbl(2, 61.2), Dbl(3, -149.9)));
+
+        Assert.Equal("3-2", r.FieldPath);
+        Near(new GeoPoint(61.2, -149.9), r.Point);
+    }
+
+    [Fact]
+    public void Decode_GenericSearch_RejectsALongitudeOnlyMessage()
+    {
+        DjmdReading r = DecodeUnknown(Len(1, Dbl(3, 100.0)));
+
+        Assert.Null(r.Point);
+        Assert.Null(r.FieldPath);
+    }
+
+    [Theory]
+    [InlineData(double.PositiveInfinity, -149.9)]
+    [InlineData(61.2, double.PositiveInfinity)]
+    public void Decode_GenericSearch_RejectsInfiniteCoordinates(double lat, double lon)
+    {
+        DjmdReading r = DecodeUnknown(Len(1, Dbl(2, lat), Dbl(3, lon)));
+
+        Assert.Null(r.Point);
+    }
+
     [Fact]
     public void IsFix_NeedsLatOrLonAtLeast1e6()
     {

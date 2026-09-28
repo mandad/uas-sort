@@ -128,9 +128,8 @@ public static class DjmdDecoder
             else if (f.Number == 2 && f.WireType == 1) lat = BinaryPrimitives.ReadDoubleLittleEndian(f.Raw.Span);
             else if (f.Number == 3 && f.WireType == 1) lon = BinaryPrimitives.ReadDoubleLittleEndian(f.Raw.Span);
         }
-        if (lat is null && lon is null) return null;
-        double la = lat ?? 0, lo = lon ?? 0;
-        if (double.IsNaN(la) || double.IsNaN(lo)) return null;
+        if (lat is not { } la || lon is not { } lo) return null;
+        if (!double.IsFinite(la) || !double.IsFinite(lo)) return null;
         bool radians = mode switch
         {
             Units.Degrees => false,
