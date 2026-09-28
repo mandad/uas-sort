@@ -5,4 +5,8 @@
     <Project Path="src/UasSort.Platform/UasSort.Platform.csproj" />
     <Project Path="src/UasSort.Review/UasSort.Review.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/UasSort.Core.Tests/UasSort.Core.Tests.csproj" />
+    <Project Path="tests/UasSort.Testing/UasSort.Testing.csproj" />
+  </Folder>
 </Solution>
