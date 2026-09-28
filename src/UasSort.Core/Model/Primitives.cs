@@ -1,7 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace UasSort.Core;
 
+[JsonConverter(typeof(ItemIdJsonConverter))]
 public readonly record struct ItemId(string CardRelPath);      // "DCIM/DJI_001/DJI_20260927140627_0128_D.MP4"; a set = "DCIM/PANORAMA/001_0087"
 
+[JsonConverter(typeof(GeoPointJsonConverter))]
 public readonly record struct GeoPoint(double Lat, double Lon); // WGS84 degrees; JSON as [lon,lat] (Task 02.5)
 
 public readonly record struct Distance(double Meters)          // Earth radius 6,371,008.8 m, shared with map.js
