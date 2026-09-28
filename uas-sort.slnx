@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/UasSort.Core.Tests/UasSort.Core.Tests.csproj" />
+    <Project Path="tests/UasSort.Platform.Tests/UasSort.Platform.Tests.csproj" />
     <Project Path="tests/UasSort.Testing/UasSort.Testing.csproj" />
   </Folder>
 </Solution>

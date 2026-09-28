@@ -22,4 +22,20 @@
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
+
+  <!-- Ref §2.4 banned APIs: the whole list for Core, Review, App, Cli (and the probe that proves it);
+       a member-level list for Platform. Nothing else is analysed for bans. -->
+  <PropertyGroup>
+    <UasSortBannedList Condition="'$(MSBuildProjectName)' == 'UasSort.Core' or '$(MSBuildProjectName)' == 'UasSort.Review' or '$(MSBuildProjectName)' == 'UasSort.App' or '$(MSBuildProjectName)' == 'UasSort.Cli' or '$(MSBuildProjectName)' == 'UasSort.BannedApi.Probe'">main</UasSortBannedList>
+    <UasSortBannedList Condition="'$(MSBuildProjectName)' == 'UasSort.Platform'">platform</UasSortBannedList>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(UasSortBannedList)' != ''">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UasSortBannedList)' == 'main'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UasSortBannedList)' == 'platform'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)src\UasSort.Platform\BannedSymbols.Platform.txt" />
+  </ItemGroup>
 </Project>
