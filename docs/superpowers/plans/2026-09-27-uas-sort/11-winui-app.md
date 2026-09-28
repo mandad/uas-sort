@@ -4,9 +4,9 @@
 
 **Ref sections:** §9 in full (§9.1–9.14, §9.6 map pane in full), §10.2 sheet, §10.5 Verdict page, §10.6 Cleanup page and entry points, §2.4 XAML lint, §2.5 App csproj, §2.7 pitfalls 3–7, 10, 11, §4.2 App row, §4.4 Launch, §11 Selftest/WebView2 rows, §12 (UI rows), §13 UI smoke test, §14 step 11. Main spec §6, §7.4, §7.5, §10 (`--selftest` row).
 
-**Depends on:** Parts 01–10 — Part 01 (App project `src/UasSort.App` with `AssemblyName=uas-sort`, `DISABLE_XAML_GENERATED_MAIN`, `MapAssets\**` as Content, `SelfTest\*` embedded as `UasSort.App.SelfTest.<file>`, `Program.Main`, `LaunchOptions`, `SingleInstanceGate`, the probe page, the minimal selftest and its `SelfTestCheck`/`SelfTestResult`/`SelfTestJsonContext`, `tools/fixtures/make-selftest-assets.cs`, and the Platform helpers `NamedMutexLock`, `SingleInstance`, `ForegroundWindow`, `PlaceholderMode`, `SelfTestSandbox`, `tools/r.sh`); Parts 02–08 (Core model, ports, probes, time/geo incl. `src/UasSort.App/places.bin.gz` from Part 04, library, planning, offload, cleanup); Part 09 (every Platform implementation); Part 10 (every Review view model, `MapBridge`, `CollectionSync`). Part 01's types are extended in place here, never redeclared. Part 13 consumes this part's `--selftest --result <path> [--only …]` contract (defined in Part 13; honoured here through Part 01's `LaunchOptions`). Names, namespaces, signatures and owners follow `00-interfaces.md`, which wins over this part's text.
+**Depends on:** Parts 01–10 — Part 01 (App project `src/UasSort.App` with `AssemblyName=uas-sort`, `DISABLE_XAML_GENERATED_MAIN`, `MapAssets\**` as Content, `SelfTest\*` embedded as `UasSort.App.SelfTest.<file>`, `Program.Main`, `LaunchOptions`, `SingleInstanceGate`, the probe page, the minimal selftest and its `SelfTestCheck`/`SelfTestResult`/`SelfTestJsonContext`, `tools/fixtures/make-selftest-assets.cs`, and the Platform helpers `NamedMutexLock`, `SingleInstance`, `ForegroundWindow`, `PlaceholderMode`, `SelfTestSandbox`, the optional WSL wrapper `tools/r.sh`); Parts 02–08 (Core model, ports, probes, time/geo incl. `src/UasSort.App/places.bin.gz` from Part 04, library, planning, offload, cleanup); Part 09 (every Platform implementation); Part 10 (every Review view model, `MapBridge`, `CollectionSync`). Part 01's types are extended in place here, never redeclared. Part 13 consumes this part's `--selftest --result <path> [--only …]` contract (defined in Part 13; honoured here through Part 01's `LaunchOptions`). Names, namespaces, signatures and owners follow `00-interfaces.md`, which wins over this part's text.
 
-**Test commands used in this part** (Windows, repo root `C:\dev\uas-sort`; from WSL prefix with `tools/r.sh` as Part 01 defines, then `dotnet build-server shutdown`):
+**Test commands used in this part** (run natively on Windows from the repo root `C:\dev\uas-sort` in PowerShell 7 or Claude Code's Bash tool (Git Bash); only if driving the build from WSL (optional), prefix with `tools/r.sh` as Part 01 defines, then `dotnet build-server shutdown`):
 
 ```powershell
 dotnet test --project tests\UasSort.Platform.Tests -- --filter-class "*XamlLint*"          # XAML lint
@@ -903,7 +903,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$rid = if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Runtime.InteropServices.Architecture]::Arm64) { 'win-arm64' } else { 'win-x64' }
+$rid = 'win-x64'   # x64 only (user decision 2026-09-28)
 & dotnet build (Join-Path $repo 'src\UasSort.App\UasSort.App.csproj') -c $Configuration -r $rid -tl:off | Out-Host
 if ($LASTEXITCODE -ne 0) { Write-Host "BUILD FAILED"; exit $LASTEXITCODE }
 

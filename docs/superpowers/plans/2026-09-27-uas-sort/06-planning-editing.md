@@ -25,7 +25,7 @@ Every project that references Core carries the fixed `GlobalUsings.Core.cs` (Par
 
 **New namespaces produced here:** `UasSort.Core.Planning` (Planner, NewnessRules, Clusterer, DaySplitFinder, FolderDecider, ScanService, helpers), `UasSort.Core.Naming` (FolderNamer, SetFolderNamer, DescriptionSuggester), `UasSort.Core.Editing` (EditValidator, PlanSession), `UasSort.Testing.Planning` (scenario builders and the replay fixture only). The shared fakes this part creates live in flat `UasSort.Testing`: `FakeLedgerStore` (Task 06.21), `GatedPlanDeriver` and `PlanFingerprint` (Task 06.16).
 
-**Commands.** From Windows: `dotnet test --project tests/UasSort.Core.Tests/UasSort.Core.Tests.csproj -- --filter-method "*Name*"`. From WSL prefix with `tools/r.sh` and run `dotnet build-server shutdown` afterwards (Global Constraints). The whole suite: `dotnet test --solution uas-sort.slnx`.
+**Commands.** From Windows: `dotnet test --project tests/UasSort.Core.Tests/UasSort.Core.Tests.csproj -- --filter-method "*Name*"`. Only if driving the build from WSL (optional): prefix with `tools/r.sh` and run `dotnet build-server shutdown` afterwards (Global Constraints). The whole suite: `dotnet test --solution uas-sort.slnx`.
 
 **Test project references.** `UasSort.Core.Tests` references `UasSort.Testing` (Part 01/02). `UasSort.Testing` and every test project reference `Microsoft.Extensions.TimeProvider.Testing` (Part 01 Task 01.2; central version 10.10.0); tests use its `FakeTimeProvider`.
 
@@ -5135,7 +5135,7 @@ The fixture `tests/UasSort.Testing/Replay/library-listing.json` is produced **on
 
 **Files:**
 - Create: `tools/fixtures/make-replay-fixture.ps1`
-- Create (generated, then checked in): `tests/UasSort.Testing/Replay/library-listing.json`
+- Create (copied from the checked-in `docs/research/fixtures/library-listing.json`; never regenerated during the build): `tests/UasSort.Testing/Replay/library-listing.json`
 - Modify: `tests/UasSort.Testing/UasSort.Testing.csproj` (embed the fixture)
 - Create: `tests/UasSort.Testing/Replay/ReplayFixture.cs`
 - Test: `tests/UasSort.Core.Tests/Planning/ReplayFixtureTests.cs`
@@ -5270,13 +5270,14 @@ $doc | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $Out -Encoding utf8NoB
 Write-Host "Wrote $($entries.Count) entries and $($clips.Count) clips to $Out"
 ```
 
-**Run it once — user go-ahead required.** The script lists (never opens) the user's library under `C:\Users\damia\OneDrive\Pictures\UAS Videos`, which the Global Constraints otherwise put off-limits. Ask the user: "May I run `tools/fixtures/make-replay-fixture.ps1`? It lists `UAS Videos` (names, sizes, times, attributes only; no file is opened or hydrated) to write the golden-replay fixture." If the user agrees, run from the repo root:
+**Do not run the script during the build.** The fixture was already generated on 2026-09-28 (listing only), from a listing of `UAS Videos` (names, sizes, times, attributes only; no file opened) plus the research GPS, and is checked in at `docs/research/fixtures/library-listing.json` (116 entries, 106 clips: 72 with GPS, 30 with simulated `mvhdUtc`, 2 without `moov`). Copy it into place instead — the build never lists the real library:
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File tools\fixtures\make-replay-fixture.ps1
+New-Item -ItemType Directory -Force tests\UasSort.Testing\Replay | Out-Null
+Copy-Item docs\research\fixtures\library-listing.json tests\UasSort.Testing\Replay\library-listing.json
 ```
 
-Expected output: `Wrote N entries and M clips to …\library-listing.json` with M = the library's MP4 count (Council 4, Anvil 21, Zachar 13, …). If the user declines, stop and ask them to run the command themselves; do not hand-write the fixture.
+The script above is kept in the repo only as the record of how the fixture was produced (and to regenerate it by hand if the user ever asks).
 
 - [ ] **Step 4: Implement — embed and load the fixture**
 
@@ -5317,7 +5318,7 @@ public sealed class ReplayFixture
     public static ReplayFixture Load()
     {
         using var s = typeof(ReplayFixture).Assembly.GetManifestResourceStream("UasSort.Testing.Replay.library-listing.json")
-                      ?? throw new InvalidOperationException("Replay fixture not embedded; run tools/fixtures/make-replay-fixture.ps1 once.");
+                      ?? throw new InvalidOperationException("Replay fixture not embedded; copy docs/research/fixtures/library-listing.json to tests/UasSort.Testing/Replay/.");
         using var doc = JsonDocument.Parse(s);
         var root = doc.RootElement;
         static DateTime Utc(string text) =>
@@ -5922,7 +5923,7 @@ Recorded here, not silently resolved; each is covered by a named test so a diffe
 6. **Ref §4.2 marks few members `static`.** Resolved by registry decision 8: `TimeResolver` and `MetadataHarvester` are static classes (`TimeResolver.Resolve(...)`, `MetadataHarvester.HarvestAsync(...)`), `CardClassifier` is an instance built with a `TimeProvider` (`new CardClassifier(clock)`). This part makes its own pure helpers static (`NewnessRules`, `Clusterer`, `DaySplitFinder`, `FolderNamer`, `SetFolderNamer`, `DescriptionSuggester`, `EditValidator`) with `FolderDecider`, `Planner` (`: IPlanDeriver`, static `AppendCandidates`), `PlanSession`, `ScanService` as instances.
 7. **`FolderDecider.AppendCandidates(GroupDraft, int)` has no library parameter** in Ref §4.2, so `FolderDecider` is an instance (lib, drafts, tuning) with the Ref's static `Decide(...)` overload delegating to it; `Planner.AppendCandidates(Plan, GroupId, int)` is added for the Review dropdown (Part 10), since a `Plan` carries no `GroupDraft`s.
 8. **`PlanSession` members beyond Ref §4.2** (the ctor, `PreviewAsync`, `AcceptLedgerIssuesAsync`, `WhenIdleAsync`, `UndoDepth`, `CommittedTuning`, `Edits`, a `Resume` overload with `TimeProvider`). `Current` is the last committed-state plan; previews only raise `Changed`. A committed plan whose revision is not above the last published preview is re-stamped with a fresh revision.
-9. **The golden-replay fixture needs a listing of the user's real library**, which the Global Constraints otherwise forbid touching. Task 06.19 asks the user before running the listing-only script (or has the user run it).
+9. **The golden-replay fixture needs a listing of the user's real library**, which the Global Constraints otherwise forbid touching. **Resolved (2026-09-28):** the fixture was pre-generated once from the listing only (no file opened, no video copies) and is checked in at `docs/research/fixtures/library-listing.json`; Task 06.19 copies it into place and never lists the real library.
 10. **`ScanService` "validates the source"** (Ref §4.2) but receives an already-validated `CardSource` (validation needs the chosen path and the detected volume, which only the Card stage has); it does not re-validate. The draft offer and `Planner.Prepare` are the caller's (Ref §4.2 signature returns `ScanResult`).
 11. **`FakeFileSystem` API** (Part 02) is not spelled out in the Ref — resolved: Task 06.21 uses Part 02's actual members (`GuardLog`, `FakeCardReaderFactory`, `Metadata`, `OpenRead`, `AddCardVolume`) and adds the one fake ledger store, `UasSort.Testing.FakeLedgerStore`, built on Part 05's `LedgerFolderStatusBuilder` and `LedgerLoader` (registry decision 6).
 12. **`ClockSummary` has no named builder in the Ref** — resolved: `Prepare` sets `PlanBase.Clock` from Part 04's `DroneClock.Summarize(scan.Clock, resolved)` (registry decision 45); the Planner has no summary code of its own.

@@ -1,10 +1,10 @@
 # Part 13 — Native AOT publish and deploy
 
-**Goal:** prove that the finished app publishes as Native AOT for `win-x64` and `win-arm64` (the `win-arm64` publish is pending the user's ARM64 answer, see Task 13.6) with warnings as errors, ship `tools/deploy.ps1` (AOT publish for this machine's RID, the `--selftest` gate run twice, install to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, a Start-menu `.lnk`, keep 2 versions, never touch user data), then run the completion criteria of the single-pass build and document build, run and deploy in the README. The deploy logic lives in a small PowerShell module whose functions are tested by a plain `pwsh` test runner (no extra tools).
+**Goal:** prove that the finished app publishes as Native AOT for `win-x64` (x64 only; ARM64 dropped by user decision 2026-09-28) with warnings as errors, ship `tools/deploy.ps1` (AOT publish for `win-x64`, the `--selftest` gate run twice, install to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, a Start-menu `.lnk`, keep 2 versions, never touch user data), then run the completion criteria of the single-pass build and document build, run and deploy in the README. The deploy logic lives in a small PowerShell module whose functions are tested by a plain `pwsh` test runner (no extra tools).
 
-**Ref sections:** Ref §2.1 (Packaging row), §2.2 (Native AOT rather than ReadyToRun), §2.5 (App csproj: `PublishAot`, `TrimmerRootAssembly`, targeted `NoWarn`, ReadyToRun never a configuration), §2.6 (commands), §11 (binaries in `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, Selftest row), §13 (UI smoke test: `--selftest`, `selftest-result.json`, `firstFrameMs`, 60 s timeout, two runs, `-AllowNoPlaceholders`), §14 step 13, Completion criteria, Maintenance after the build, "If Native AOT fails a concrete check"; §15 Q5 (publish for the machine's own RID). Main spec §2.2, §10 (`--selftest` row), §11.
+**Ref sections:** Ref §2.1 (Packaging row), §2.2 (Native AOT rather than ReadyToRun), §2.5 (App csproj: `PublishAot`, `TrimmerRootAssembly`, targeted `NoWarn`, ReadyToRun never a configuration), §2.6 (commands), §11 (binaries in `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, Selftest row), §13 (UI smoke test: `--selftest`, `selftest-result.json`, `firstFrameMs`, 60 s timeout, two runs, `-AllowNoPlaceholders`), §14 step 13, Completion criteria, Maintenance after the build, "If Native AOT fails a concrete check"; §15 Q5 (resolved: x64 only, user decision 2026-09-28). Main spec §2.2, §10 (`--selftest` row), §11.
 
-**Depends on:** Parts 01–12 — Part 01 (solution skeleton, `global.json`, `Directory.Build.props`, the App csproj with Release `PublishAot=true` and `TrimmerRootAssembly`, the stack-proof AOT publish and its stop rule, the stack-proof record `docs/research/10-stack-proof.md`, `tools/build.ps1 -CheckBannedApi`, `tools/r.sh`), Part 11 (the full `--selftest` of `uas-sort.exe`, which honours the `--selftest --result <path>` contract below through Part 01's `LaunchOptions.Parse` (extended by Part 11) and `SelfTestResult(Ok, FirstFrameMs, Checks)`), Part 12 (the CLI and its `%TEMP%` run test `CliPlanRunTests`, part of the completion criteria). Names, signatures and owners follow `00-interfaces.md` (the cross-part registry); it wins over this part's text on those.
+**Depends on:** Parts 01–12 — Part 01 (solution skeleton, `global.json`, `Directory.Build.props`, the App csproj with Release `PublishAot=true` and `TrimmerRootAssembly`, the stack-proof AOT publish and its stop rule, the stack-proof record `docs/research/10-stack-proof.md`, `tools/build.ps1 -CheckBannedApi`, the optional WSL wrapper `tools/r.sh`), Part 11 (the full `--selftest` of `uas-sort.exe`, which honours the `--selftest --result <path>` contract below through Part 01's `LaunchOptions.Parse` (extended by Part 11) and `SelfTestResult(Ok, FirstFrameMs, Checks)`), Part 12 (the CLI and its `%TEMP%` run test `CliPlanRunTests`, part of the completion criteria). Names, signatures and owners follow `00-interfaces.md` (the cross-part registry); it wins over this part's text on those.
 
 **Cross-part contract consumed here (defined here; Part 01's minimal selftest and Part 11's full selftest honour it; registry decision 2):**
 
@@ -28,7 +28,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1            
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1 -Name "Gate:*"      # one group (wildcard on the case name)
 ```
 
-From WSL, run them through `tools/r.sh` (Part 01), then `dotnet build-server shutdown`.
+Run them natively on Windows from the repo root `C:\dev\uas-sort` in PowerShell 7 (or Claude Code's Bash tool, which on Windows is Git Bash). Only when driving the build from WSL (optional): prefix them with `tools/r.sh` (Part 01) and run `dotnet build-server shutdown` afterwards.
 
 ---
 
@@ -40,11 +40,11 @@ From WSL, run them through `tools/r.sh` (Part 01), then `dotnet build-server shu
 - Create: `tools/Deploy.psm1`
 
 **Interfaces:**
-- Consumes (Part 01): `src/UasSort.App/UasSort.App.csproj` with Release `PublishAot=true`, `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`, `AssemblyName=uas-sort`, `RuntimeIdentifiers=win-x64;win-arm64`, `SelfContained=true`, `WindowsAppSDKSelfContained=true`, `WindowsPackageType=None`, `EnableMsixTooling=true`; `TreatWarningsAsErrors=true` from `Directory.Build.props`.
+- Consumes (Part 01): `src/UasSort.App/UasSort.App.csproj` with Release `PublishAot=true`, `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`, `AssemblyName=uas-sort`, `RuntimeIdentifiers=win-x64` (x64 only, user decision 2026-09-28), `SelfContained=true`, `WindowsAppSDKSelfContained=true`, `WindowsPackageType=None`, `EnableMsixTooling=true`; `TreatWarningsAsErrors=true` from `Directory.Build.props`.
 - Produces (defined here):
   - `tools/deploy.tests.ps1 [-Name <wildcard>]` — runs every `Test-Case` registered by `tools/deploy-tests/*.Tests.ps1`; prints `PASS`/`FAIL` per case and `N run, M failed`; exit 0 only if at least one case ran and none failed.
   - Test helpers in the runner's script scope: `Test-Case([string]$CaseName, [scriptblock]$Body)`, `Assert-True([bool]$Condition, [string]$Message)`, `Assert-Equal($Expected, $Actual, [string]$Message)`, `Assert-Throws([scriptblock]$Body, [string]$Like, [string]$Message)`, `New-TestDir` (returns a new `%TEMP%\uas-sort-test-<guid>` path), `$RepoRoot`.
-  - `Get-AppPublishConfig -ProjectPath <string> -Rid <'win-x64'|'win-arm64'>` → `[pscustomobject]` with string properties `PublishAot`, `PublishReadyToRun`, `InvariantGlobalization`, `UseNls`, `SelfContained`, `WindowsAppSDKSelfContained`, `WindowsPackageType`, `EnableMsixTooling`, `TreatWarningsAsErrors`, `AssemblyName`, `RuntimeIdentifiers`, `NoWarn`, plus `TrimmerRootAssemblies` (string[]) and `IlNoWarn` (string[]: the `ILnnnn` codes in `NoWarn`).
+  - `Get-AppPublishConfig -ProjectPath <string> -Rid <'win-x64'>` → `[pscustomobject]` with string properties `PublishAot`, `PublishReadyToRun`, `InvariantGlobalization`, `UseNls`, `SelfContained`, `WindowsAppSDKSelfContained`, `WindowsPackageType`, `EnableMsixTooling`, `TreatWarningsAsErrors`, `AssemblyName`, `RuntimeIdentifiers`, `NoWarn`, plus `TrimmerRootAssemblies` (string[]) and `IlNoWarn` (string[]: the `ILnnnn` codes in `NoWarn`).
 
 - [ ] **Step 1: Write the runner and the failing publish-configuration test**
 
@@ -138,8 +138,7 @@ function Test-AppPublishConfig([string]$Rid) {
     Assert-Equal 'true' $c.EnableMsixTooling 'EnableMsixTooling (else 0xC000027B at startup)'
     Assert-Equal 'true' $c.TreatWarningsAsErrors 'TreatWarningsAsErrors'
     Assert-Equal 'uas-sort' $c.AssemblyName 'AssemblyName'
-    $rids = @($c.RuntimeIdentifiers -split ';' | Where-Object { $_ })
-    Assert-True ($rids -contains 'win-x64' -and $rids -contains 'win-arm64') "RuntimeIdentifiers = '$($c.RuntimeIdentifiers)'"
+    Assert-Equal 'win-x64' $c.RuntimeIdentifiers 'RuntimeIdentifiers (x64 only)'
     Assert-True ($c.TrimmerRootAssemblies -contains 'MetadataExtractor') 'TrimmerRootAssembly MetadataExtractor'
     Assert-True ($c.TrimmerRootAssemblies -contains 'XmpCore') 'TrimmerRootAssembly XmpCore'
     $extra = @($c.IlNoWarn | Where-Object { $_ -notin @('IL2104', 'IL3053') })
@@ -147,7 +146,6 @@ function Test-AppPublishConfig([string]$Rid) {
 }
 
 Test-Case 'PublishConfig: Release win-x64 is Native AOT with the rooted assemblies' { Test-AppPublishConfig 'win-x64' }
-Test-Case 'PublishConfig: Release win-arm64 is Native AOT with the rooted assemblies' { Test-AppPublishConfig 'win-arm64' }
 ```
 
 - [ ] **Step 2: Run it and watch it fail**
@@ -171,7 +169,7 @@ function Get-AppPublishConfig {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$ProjectPath,
-        [Parameter(Mandatory)][ValidateSet('win-x64', 'win-arm64')][string]$Rid
+        [Parameter(Mandatory)][ValidateSet('win-x64')][string]$Rid
     )
     $names = @('PublishAot', 'PublishReadyToRun', 'InvariantGlobalization', 'UseNls', 'SelfContained',
                'WindowsAppSDKSelfContained', 'WindowsPackageType', 'EnableMsixTooling', 'TreatWarningsAsErrors',
@@ -210,12 +208,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1 -Name "Publ
 Expected:
 
 ```text
-PASS PublishConfig: Release win-arm64 is Native AOT with the rooted assemblies
 PASS PublishConfig: Release win-x64 is Native AOT with the rooted assemblies
-2 run, 0 failed
+1 run, 0 failed
 ```
 
-(Cases run in registration order; the two lines may appear in either order.) If an assertion fails, the App csproj from Part 01 is wrong: correct `src/UasSort.App/UasSort.App.csproj` to the values of Ref §2.5 (the assertion message names the property), rebuild with `dotnet build uas-sort.slnx`, and re-run. A failure of the `NoWarn` assertion is an AOT/trim warning being hidden: remove the extra code from `NoWarn`; if that makes the publish fail, follow **If Native AOT fails a concrete check (stop and ask)** at the end of this part.
+If an assertion fails, the App csproj from Part 01 is wrong: correct `src/UasSort.App/UasSort.App.csproj` to the values of Ref §2.5 (the assertion message names the property), rebuild with `dotnet build uas-sort.slnx`, and re-run. A failure of the `NoWarn` assertion is an AOT/trim warning being hidden: remove the extra code from `NoWarn`; if that makes the publish fail, follow **If Native AOT fails a concrete check (stop and ask)** at the end of this part.
 
 - [ ] **Step 5: Commit**
 
@@ -523,10 +520,10 @@ Claude-Session: https://claude.ai/code/session_015Z1pwYTXofSxv2csCcXa4z"
 **Interfaces:**
 - Produces (defined here):
   - `Invoke-SelftestProcess -FilePath <string> -ArgumentList <string[]> -TimeoutSec <int>` → `[pscustomobject]@{ ExitCode [int] or $null; TimedOut [bool]; ProcessId [int] }`. Arguments are passed through `ProcessStartInfo.ArgumentList` (quoted correctly, spaces included); on timeout the whole process tree (WebView2 children included) is killed.
-  - `Get-UasSortRid` → `'win-x64'` or `'win-arm64'` from the OS architecture (throws otherwise).
-  - `Get-PeMachine -Path <string>` → `'x64'`, `'arm64'`, `'x86'` or `'unknown'` from the PE header (reads 4 KB).
+  - `Get-UasSortRid` → `'win-x64'` when the OS architecture is x64; throws otherwise (uas-sort is x64 only, user decision 2026-09-28).
+  - `Get-PeMachine -Path <string>` → `'x64'`, `'x86'` or `'unknown'` (any other machine type) from the PE header (reads 4 KB).
   - `Get-FolderStats -Path <string>` → `[pscustomobject]@{ Files [int]; Bytes [long]; MB [double] }` (recursive, hidden files included).
-  - `Test-AotPublishOutput -PublishDir <string> -Rid <'win-x64'|'win-arm64'>` → `[pscustomobject]@{ Ok; Reasons [string[]]; SizeMB [double] }`: `uas-sort.exe` exists with the RID's PE machine, no managed `UasSort.*.dll` is in the folder (they are compiled into the exe under Native AOT), and at least one `*.pri` exists (Ref §2.5, `EnableMsixTooling`).
+  - `Test-AotPublishOutput -PublishDir <string> -Rid <'win-x64'>` → `[pscustomobject]@{ Ok; Reasons [string[]]; SizeMB [double] }`: `uas-sort.exe` exists with the RID's PE machine, no managed `UasSort.*.dll` is in the folder (they are compiled into the exe under Native AOT), and at least one `*.pri` exists (Ref §2.5, `EnableMsixTooling`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -581,20 +578,18 @@ Test-Case 'Process: a hung process is killed at the timeout' {
     Assert-Equal $null (Get-Process -Id $r.ProcessId -ErrorAction SilentlyContinue) 'the process is gone'
 }
 
-Test-Case 'Rid: follows the OS architecture' {
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-    $expected = if ($arch -eq [System.Runtime.InteropServices.Architecture]::Arm64) { 'win-arm64' } else { 'win-x64' }
-    Assert-Equal $expected (Get-UasSortRid) 'Get-UasSortRid'
+Test-Case 'Rid: this x64 PC is win-x64' {
+    Assert-Equal 'win-x64' (Get-UasSortRid) 'Get-UasSortRid'
 }
 
 Test-Case 'Pe: the machine type comes from the PE header' {
     $dir = New-TestDir
     try {
         New-FakePe (Join-Path $dir 'x.exe') 0x8664
-        New-FakePe (Join-Path $dir 'a.exe') 0xAA64
+        New-FakePe (Join-Path $dir 'i.exe') 0x014C
         Set-Content -LiteralPath (Join-Path $dir 'text.exe') -Value 'not a PE file at all, just some text'
         Assert-Equal 'x64' (Get-PeMachine -Path (Join-Path $dir 'x.exe')) 'x64'
-        Assert-Equal 'arm64' (Get-PeMachine -Path (Join-Path $dir 'a.exe')) 'arm64'
+        Assert-Equal 'x86' (Get-PeMachine -Path (Join-Path $dir 'i.exe')) 'x86'
         Assert-Throws { Get-PeMachine -Path (Join-Path $dir 'text.exe') } '*not a PE file*' 'text file'
     }
     finally { Remove-Item -LiteralPath $dir -Recurse -Force }
@@ -625,10 +620,10 @@ Test-Case 'AotOutput: a managed UasSort assembly means it is not a Native AOT pu
 Test-Case 'AotOutput: the wrong architecture fails' {
     $dir = New-TestDir
     try {
-        New-FakeAotPublish $dir 0x8664
-        $r = Test-AotPublishOutput -PublishDir $dir -Rid win-arm64
-        Assert-True (-not $r.Ok) 'an x64 exe is not a win-arm64 publish'
-        Assert-True (($r.Reasons -join ' ') -like '*is x64, expected arm64*') ($r.Reasons -join '; ')
+        New-FakeAotPublish $dir 0x014C
+        $r = Test-AotPublishOutput -PublishDir $dir -Rid win-x64
+        Assert-True (-not $r.Ok) 'an x86 exe is not a win-x64 publish'
+        Assert-True (($r.Reasons -join ' ') -like '*is x86, expected x64*') ($r.Reasons -join '; ')
     }
     finally { Remove-Item -LiteralPath $dir -Recurse -Force }
 }
@@ -701,8 +696,7 @@ function Get-UasSortRid {
     param()
     $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
     if ($arch -eq [System.Runtime.InteropServices.Architecture]::X64) { return 'win-x64' }
-    if ($arch -eq [System.Runtime.InteropServices.Architecture]::Arm64) { return 'win-arm64' }
-    throw "uas-sort is published for x64 and ARM64 only; this machine is $arch"
+    throw "uas-sort is published for x64 only (user decision 2026-09-28); this machine is $arch"
 }
 
 function Get-PeMachine {
@@ -719,7 +713,6 @@ function Get-PeMachine {
     }
     $machine = [int][System.BitConverter]::ToUInt16($buf, $pe + 4)
     if ($machine -eq 0x8664) { return 'x64' }
-    if ($machine -eq 0xAA64) { return 'arm64' }
     if ($machine -eq 0x014C) { return 'x86' }
     'unknown'
 }
@@ -737,7 +730,7 @@ function Test-AotPublishOutput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$PublishDir,
-        [Parameter(Mandatory)][ValidateSet('win-x64', 'win-arm64')][string]$Rid
+        [Parameter(Mandatory)][ValidateSet('win-x64')][string]$Rid
     )
     $reasons = [System.Collections.Generic.List[string]]::new()
     $sizeMB = 0.0
@@ -748,7 +741,7 @@ function Test-AotPublishOutput {
         $exe = Join-Path $PublishDir 'uas-sort.exe'
         if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { $reasons.Add("uas-sort.exe missing in '$PublishDir'") }
         else {
-            $want = if ($Rid -eq 'win-x64') { 'x64' } else { 'arm64' }
+            $want = 'x64'
             $got = Get-PeMachine -Path $exe
             if ($got -ne $want) { $reasons.Add("uas-sort.exe is $got, expected $want for $Rid") }
         }
@@ -770,7 +763,7 @@ function Test-AotPublishOutput {
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1
 ```
 
-Expected: every case `PASS`, last line `26 run, 0 failed` (2 PublishConfig + 14 Gate + 10 from this task), exit code 0.
+Expected: every case `PASS`, last line `25 run, 0 failed` (1 PublishConfig + 14 Gate + 10 from this task), exit code 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1099,7 +1092,7 @@ function New-UasSortShortcut {
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1
 ```
 
-Expected: every case `PASS`, last line `38 run, 0 failed`, exit code 0.
+Expected: every case `PASS`, last line `37 run, 0 failed`, exit code 0.
 
 - [ ] **Step 5: Commit**
 
@@ -1136,7 +1129,7 @@ Expected: `The argument 'tools\deploy.ps1' is not recognized as the name of a sc
 #Requires -Version 7.4
 <#
 .SYNOPSIS
-  Native AOT publish of uas-sort for this machine's RID, the --selftest gate (two runs), install to
+  Native AOT publish of uas-sort for win-x64 (x64 only), the --selftest gate (two runs), install to
   %LOCALAPPDATA%\Programs\uas-sort\<version>\, a Start-menu shortcut, and keep the 2 newest versions.
 .DESCRIPTION
   Ref §2.6, §13 (UI smoke test), §14 step 13. Never touches user data: settings, drafts, reports, logs and the
@@ -1244,7 +1237,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0
 Expected (numbers vary):
 
 ```text
-38 run, 0 failed
+37 run, 0 failed
 ...
 == 1/5 Native AOT publish (win-x64, version 0.1.0)
   UasSort.App -> C:\dev\uas-sort\artifacts\publish\win-x64\
@@ -1265,7 +1258,7 @@ Exit code 0. Then check the summary:
 Get-Content artifacts\deploy-win-x64.json | ConvertFrom-Json | Format-List version, rid, sizeMB, coldMs, warmMs, slowerThanBaseline
 ```
 
-Expected: `slowerThanBaseline` is `False` or `True`. `True` is not a failure (decision 3): the run printed the `NOTE: warm first frame ...` line, and Task 13.8 reports the warm value and the 370 ms baseline to the user.
+Expected: `slowerThanBaseline` is `False` or `True`. `True` is not a failure (decision 3): the run printed the `NOTE: warm first frame ...` line, and Task 13.7 reports the warm value and the 370 ms baseline to the user.
 
 Handling the outcomes:
 - `run 1 ... no result file at '...selftest-result-1.json'` while the exit code is 0: the App's selftest does not honour `--result <path>`. In `src/UasSort.App` (Part 01's `LaunchOptions.Parse`, extended by Part 11), make `LaunchOptions.ResultPath` take the path given after `--result` (`LaunchOptions.ResultFlag`) and make `SelfTestRunner` write the `SelfTestResult` JSON there through `SelfTestSandbox.WriteResult(path, utf8Json)` (keep the `%TEMP%\uas-sort-selftest-<guid>\` sandbox folder for everything else), keeping the shape at the top of this part, then re-run `tools\deploy.ps1 -Version 0.1.0 -Force`. Commit that App change separately (`fix: selftest writes its result to --result <path>`).
@@ -1297,79 +1290,7 @@ Claude-Session: https://claude.ai/code/session_015Z1pwYTXofSxv2csCcXa4z"
 
 ---
 
-### Task 13.6 — Native AOT publish for `win-arm64`
-
-**Pending the user's answer (`00-interfaces.md`, "Open for user" 1, ARM64):** the user has not yet said whether they have or plan any ARM64 PC. Until they answer, this task stays as written and is executed as written. If the user answers that ARM64 is not needed, the plan change is made then, as one edit set: drop this task, the `win-arm64` case of `PublishConfig.Tests.ps1`, the README's ARM64 cross-linker requirement and the `win-arm64` publish in the maintenance steps, and remove `win-arm64` from `RuntimeIdentifiers`/`Platforms` (Part 01's App csproj and the index's Global Constraints).
-
-ARM64 is built here and stays UNVERIFIED at run time (no ARM64 PC; Ref §15 Q5): the check is that the cross-compiled Native AOT publish succeeds with warnings as errors and produces a native ARM64 `uas-sort.exe`. `deploy.ps1` is not involved (it publishes for the machine's own RID).
-
-**Files:**
-- None created or modified (the output goes to the git-ignored `artifacts\publish\win-arm64\`).
-
-**Interfaces:**
-- Consumes: `Test-AotPublishOutput`, `Get-FolderStats` (Task 13.3); the Release `win-arm64` publish configuration checked in Task 13.1.
-- Produces: `artifacts\publish\win-arm64\` (native ARM64 `uas-sort.exe`), recorded in this task's commit message.
-
-- [ ] **Step 1: Failing check — no ARM64 publish yet**
-
-```powershell
-Import-Module .\tools\Deploy.psm1 -Force
-Test-AotPublishOutput -PublishDir artifacts\publish\win-arm64 -Rid win-arm64 | Format-List
-```
-
-Expected: `Ok : False`, `Reasons : {the publish folder '...\artifacts\publish\win-arm64' does not exist}`.
-
-- [ ] **Step 2: Check the ARM64 cross-linker prerequisite**
-
-Native AOT links with MSVC; a `win-arm64` publish on an x64 PC needs the MSVC ARM64 build tools, which the `VCTools` workload of the prerequisites does not always include.
-
-```powershell
-$vc = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC'
-@(Get-ChildItem -Path "$vc\*\bin\Hostx64\arm64\link.exe" -ErrorAction SilentlyContinue).Count
-```
-
-Expected: `1` or more. If it prints `0`, stop and ask the user to install the component (install rule, Ref §1.1: never design around a missing tool), with this message and command, then wait:
-
-```text
-The win-arm64 Native AOT publish needs the MSVC ARM64 build tools, which are not installed. Please run (elevated):
-
-& "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive
-
-and tell me when it has finished.
-```
-
-- [ ] **Step 3: Publish `win-arm64`**
-
-```powershell
-if (Test-Path artifacts\publish\win-arm64) { Remove-Item artifacts\publish\win-arm64 -Recurse -Force }
-dotnet publish src\UasSort.App\UasSort.App.csproj -c Release -r win-arm64 -o artifacts\publish\win-arm64
-```
-
-Expected: exit code 0, no `warning` and no `error` lines, last line `UasSort.App -> C:\dev\uas-sort\artifacts\publish\win-arm64\`. Any IL/trim/AOT warning (an error under `TreatWarningsAsErrors`) or an ILC/link failure other than the missing prerequisite of Step 2 → **If Native AOT fails a concrete check (stop and ask)** below, with `-r win-arm64` in its commands.
-
-- [ ] **Step 4: The check passes**
-
-```powershell
-Import-Module .\tools\Deploy.psm1 -Force
-Test-AotPublishOutput -PublishDir artifacts\publish\win-arm64 -Rid win-arm64 | Format-List
-Get-PeMachine -Path artifacts\publish\win-arm64\uas-sort.exe
-```
-
-Expected: `Ok : True`, `Reasons : {}`, a `SizeMB` value, then `arm64`.
-
-- [ ] **Step 5: Commit (records the result; no tracked files change)**
-
-```powershell
-$size = (Test-AotPublishOutput -PublishDir artifacts\publish\win-arm64 -Rid win-arm64).SizeMB
-git commit --allow-empty -m "build: verify the win-arm64 Native AOT publish ($size MB, native ARM64; run-time UNVERIFIED)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015Z1pwYTXofSxv2csCcXa4z"
-```
-
----
-
-### Task 13.7 — README: build, test, install, dry run, maintenance
+### Task 13.6 — README: build, test, install, dry run, maintenance
 
 **Files:**
 - Modify: `README.md`
@@ -1400,22 +1321,6 @@ with
 ## Requirements
 ```
 
-In that section, replace the line
-
-```markdown
-  - Optional: VS Code + C# Dev Kit (`winget install Microsoft.VisualStudioCode`), or Visual Studio 2026 Insiders for the XAML designer and Hot Reload
-```
-
-with
-
-```markdown
-  - Only to cross-publish the ARM64 build on an x64 PC: the MSVC ARM64 build tools
-    ```powershell
-    & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive
-    ```
-  - Optional: VS Code + C# Dev Kit (`winget install Microsoft.VisualStudioCode`), or Visual Studio 2026 Insiders for the XAML designer and Hot Reload
-```
-
 Replace the line
 
 ```markdown
@@ -1437,7 +1342,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1 -CheckBannedApi   
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1            # checks for the deploy script
 ```
 
-From WSL, run the same commands through `tools/r.sh` (it calls the Windows `dotnet.exe` and `pwsh.exe` with the working directory set to the repository), then `dotnet build-server shutdown` so the compiler server releases its file locks.
+Optional, only if you drive the build from WSL instead: run the same commands through `tools/r.sh` (it calls the Windows `dotnet.exe` and `pwsh.exe` with the working directory set to the repository), then `dotnet build-server shutdown` so the compiler server releases its file locks.
 
 ## Install
 
@@ -1445,7 +1350,7 @@ From WSL, run the same commands through `tools/r.sh` (it calls the Windows `dotn
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0
 ```
 
-`deploy.ps1` publishes the app as Native AOT for this PC's architecture (`win-x64` or `win-arm64`) and runs the published `uas-sort.exe --selftest` twice: both runs must pass, and the second (warm) run must reach its first frame within 1 s. Only then does it copy the build to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, point the Start-menu shortcut **uas-sort** at it, and delete all but the two newest versions. It never touches settings, drafts, reports, logs or any ledger.
+`deploy.ps1` publishes the app as Native AOT for `win-x64` (uas-sort is built for x64 PCs only) and runs the published `uas-sort.exe --selftest` twice: both runs must pass, and the second (warm) run must reach its first frame within 1 s. Only then does it copy the build to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, point the Start-menu shortcut **uas-sort** at it, and delete all but the two newest versions. It never touches settings, drafts, reports, logs or any ledger.
 
 - Use a higher `-Version` for every install (`-Force` replaces an installed version with the same number).
 - If your video root has no cloud-only files, the selftest's placeholder check reports "not applicable"; add `-AllowNoPlaceholders` only in that case.
@@ -1488,7 +1393,7 @@ src/
   UasSort.App/         WinUI 3 app (uas-sort.exe), map pane, --selftest
   UasSort.Cli/         uas-sort-cli plan (dry run)
 tests/                 unit, integration and view-model tests; acceptance/ holds the first-card expectations
-tools/                 build.ps1, deploy.ps1, r.sh (WSL), place-index and fixture builders
+tools/                 build.ps1, deploy.ps1, r.sh (optional, WSL only), place-index and fixture builders
 docs/
   superpowers/specs/
     2026-09-27-uas-sort-design.md             # main design spec — start here
@@ -1530,7 +1435,7 @@ Claude-Session: https://claude.ai/code/session_015Z1pwYTXofSxv2csCcXa4z"
 
 ---
 
-### Task 13.8 — Completion criteria (Ref §14)
+### Task 13.7 — Completion criteria (Ref §14)
 
 The single-pass build is complete only when every step below passes on the same commit. A failure is fixed in the owning part's code (use superpowers:systematic-debugging), committed, and this task restarts at Step 1. An AOT concrete-check failure is never fixed by changing the build type: follow the stop-and-ask procedure below.
 
@@ -1593,7 +1498,7 @@ Expected: Part 01's summary line `OK: 73 banned entries, 73 probe calls, 73 RS00
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1
 ```
 
-Expected: last line `38 run, 0 failed`, exit code 0.
+Expected: last line `37 run, 0 failed`, exit code 0.
 
 - [ ] **Step 6: The Native AOT publish passes `--selftest` through the deploy gate on x64**
 
@@ -1606,7 +1511,7 @@ Get-Content artifacts\deploy-win-x64.json | ConvertFrom-Json | Format-List versi
 
 Expected: `GATE PASS: warm first frame NNN ms (limit 1000 ms; ReadyToRun baseline 370 ms)` with NNN ≤ 1000, `DEPLOYED uas-sort 0.1.1 (win-x64) ...`, exit code 0; the summary shows the current `git rev-parse HEAD` as `commit`, `dirty : False`, and `slowerThanBaseline` either `False` or `True`. If the gate fails: stop and ask — follow **If Native AOT fails a concrete check (stop and ask)** below; the build is not complete until the user has decided. If `slowerThanBaseline` is `True`, continue, and state the warm value and the 370 ms baseline in the completion commit message and the final summary to the user (Step 8; decision 3).
 
-- [ ] **Step 7: Release the build servers (after WSL-driven builds) and re-check the tree**
+- [ ] **Step 7: Release the build servers and re-check the tree**
 
 ```powershell
 dotnet build-server shutdown
@@ -1648,7 +1553,7 @@ Then tell the user the build is complete, with the warm first frame, the 1000 ms
 
 ## If Native AOT fails a concrete check (stop and ask)
 
-A concrete check is: a Native AOT build or publish error, an IL/trim/AOT warning (an error under `TreatWarningsAsErrors`), a selftest failure or timeout, or a warm first frame over 1 s. A warm first frame slower than the 0.37 s ReadyToRun baseline (`slowerThanBaseline : True`) is not a concrete check: it is reported in the completion summary (Task 13.8, decision 3). Ref §2.2 and §14: ReadyToRun is used **only by hand, only to tell whether the failure is AOT-specific**, and the result is **raised with the user**. Never add `PublishReadyToRun` to a project file, never remove `PublishAot`, never widen `NoWarn`, and never continue to a later task while this is open.
+A concrete check is: a Native AOT build or publish error, an IL/trim/AOT warning (an error under `TreatWarningsAsErrors`), a selftest failure or timeout, or a warm first frame over 1 s. A warm first frame slower than the 0.37 s ReadyToRun baseline (`slowerThanBaseline : True`) is not a concrete check: it is reported in the completion summary (Task 13.7, decision 3). Ref §2.2 and §14: ReadyToRun is used **only by hand, only to tell whether the failure is AOT-specific**, and the result is **raised with the user**. Never add `PublishReadyToRun` to a project file, never remove `PublishAot`, never widen `NoWarn`, and never continue to a later task while this is open.
 
 - [ ] **A. Keep the AOT evidence**
 
@@ -1657,8 +1562,6 @@ New-Item -ItemType Directory -Force artifacts\diag | Out-Null
 git rev-parse HEAD
 dotnet publish src\UasSort.App\UasSort.App.csproj -c Release -r win-x64 -o artifacts\diag\aot-win-x64 2>&1 | Tee-Object artifacts\diag\aot-publish-win-x64.txt
 ```
-
-(Use `win-arm64` in every command of this section when the failure is the ARM64 publish; its selftest can't run on this PC, so skip step C for it.)
 
 - [ ] **B. Hand-run a trimmed ReadyToRun publish of the same commit** (the spike's baseline configuration; overrides on the command line only)
 
@@ -1714,7 +1617,7 @@ Ref §2.2 and §14 "Maintenance after the build". RC1's go-live support ends whe
   2. In `global.json`, set `"version"` to that exact string (keep `"rollForward": "latestFeature"`, `"allowPrerelease": true` and the `test` runner).
   3. In `Directory.Packages.props`, move `System.IO.Hashing` to the RC2 build that shipped with that SDK: `dotnet package search System.IO.Hashing --exact-match --prerelease --format json` lists it (the `11.0.0-rc.2.*` version whose build number matches the SDK's runtime).
   4. In `README.md` (`## Requirements` and `## Maintenance`), replace `11.0.100-rc.1.26425.128` / `rc.1` with the RC2 version.
-  5. Re-run the gates: `dotnet build uas-sort.slnx -tl:off`, `dotnet test --solution uas-sort.slnx`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1 -CheckBannedApi`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version <next patch version>` (the Native AOT publish and `--selftest`), and the `win-arm64` publish of Task 13.6. Any AOT concrete-check failure → the stop-and-ask procedure above.
+  5. Re-run the gates: `dotnet build uas-sort.slnx -tl:off`, `dotnet test --solution uas-sort.slnx`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1 -CheckBannedApi`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.tests.ps1`, `pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version <next patch version>` (the Native AOT publish and `--selftest`), Any AOT concrete-check failure → the stop-and-ask procedure above.
   6. Commit: `build: move to the .NET 11 RC2 SDK` (with the session trailer lines).
 - [ ] **GA (Nov 10)**
   1. Install the GA SDK (`winget install Microsoft.DotNet.SDK.11`; the GA package id is UNVERIFIED until it ships — `winget search Microsoft.DotNet.SDK` shows it), and confirm `11.0.100` in `dotnet --list-sdks`.
@@ -1730,9 +1633,9 @@ Ref §2.2 and §14 "Maintenance after the build". RC1's go-live support ends whe
 ## Part 13 — Produces (summary)
 
 - `tools/Deploy.psm1` — `Get-AppPublishConfig`, `Test-SelftestRun`, `Test-SelftestGate`, `Invoke-SelftestProcess`, `Get-UasSortRid`, `Get-PeMachine`, `Get-FolderStats`, `Test-AotPublishOutput`, `Test-PathUnder`, `Assert-DeployTargetSafe`, `Copy-UasSortBuild`, `Get-VersionsToPrune`, `Remove-OldVersions`, `New-UasSortShortcut`.
-- `tools/deploy.tests.ps1` (runner, `-Name` filter) and `tools/deploy-tests/{PublishConfig,Gate,Process,Install}.Tests.ps1` — 38 cases, incl. the Release AOT configuration for both RIDs (never ReadyToRun, rooted `MetadataExtractor;XmpCore`, only IL2104/IL3053 silenceable).
-- `tools/deploy.ps1 -Version x.y.z [-AllowNoPlaceholders] [-Force] [-TimeoutSec 60]` — Native AOT publish for the machine's RID, output check, `--selftest --result <path>` twice (60 s each; both exit 0; warm ≤ 1000 ms is the hard gate; slower than the 370 ms ReadyToRun baseline is recorded as `slowerThanBaseline` and reported, not a failure), install to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, Start-menu `uas-sort.lnk`, keep 2 versions, summary `artifacts\deploy-<rid>.json`; never writes user data.
+- `tools/deploy.tests.ps1` (runner, `-Name` filter) and `tools/deploy-tests/{PublishConfig,Gate,Process,Install}.Tests.ps1` — 37 cases, incl. the Release AOT configuration for `win-x64` (never ReadyToRun, rooted `MetadataExtractor;XmpCore`, only IL2104/IL3053 silenceable).
+- `tools/deploy.ps1 -Version x.y.z [-AllowNoPlaceholders] [-Force] [-TimeoutSec 60]` — Native AOT publish for `win-x64`, output check, `--selftest --result <path>` twice (60 s each; both exit 0; warm ≤ 1000 ms is the hard gate; slower than the 370 ms ReadyToRun baseline is recorded as `slowerThanBaseline` and reported, not a failure), install to `%LOCALAPPDATA%\Programs\uas-sort\<version>\`, Start-menu `uas-sort.lnk`, keep 2 versions, summary `artifacts\deploy-<rid>.json`; never writes user data.
 - The selftest result contract `--selftest --result <path> [--only <check>[,<check>…]]` → `{ ok, firstFrameMs, checks[{name,status,detail}] }` (defined here; honoured by Part 01's `LaunchOptions`/`SelfTestResult` as extended by Part 11's selftest; only `placeholderVisibility` may be `notApplicable`).
-- Verified `win-x64` (gated, installed) and `win-arm64` (built, native ARM64, run-time UNVERIFIED; pending the user's ARM64 answer) Native AOT publishes.
-- README: requirements (incl. the ARM64 cross-linker), build and test, install, dry run (CLI), maintenance, source layout, and the final status line.
-- The completion record (Task 13.8), the stop-and-ask procedure for AOT concrete-check failures, and the RC2/GA maintenance steps.
+- Verified `win-x64` (gated, installed) Native AOT publish (x64 only, user decision 2026-09-28).
+- README: requirements, build and test, install, dry run (CLI), maintenance, source layout, and the final status line.
+- The completion record (Task 13.7), the stop-and-ask procedure for AOT concrete-check failures, and the RC2/GA maintenance steps.

@@ -7,9 +7,191 @@ Cross-part names, namespaces and signatures follow `00-interfaces.md` (the regis
 Depends on: none (first part).
 
 **Execution notes for every task in this part**
-- Commands are written for a Windows shell at `C:\dev\uas-sort`. From WSL, prefix each `dotnet …` with `tools/r.sh` and each `pwsh …` with `tools/r.sh pwsh` (Task 01.1 creates the wrapper), and run `tools/r.sh dotnet build-server shutdown` after a WSL-driven build.
-- Prerequisites (Global Constraints) must already be installed. If `dotnet --version` is not `11.0.100-rc.1.26425.128`, `pwsh` is missing, or (Task 01.12) the AOT publish reports that `vswhere.exe` cannot find `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, stop and ask the user to install it.
+- Commands run natively on Windows from the repo root `C:\dev\uas-sort`, in PowerShell 7 or in Claude Code's Bash tool (on Windows that is Git Bash; the `git commit -F - <<'EOF'` heredocs below work there). Optional, only for someone driving the build from WSL: prefix each `dotnet …` with `tools/r.sh` and each `pwsh …` with `tools/r.sh pwsh` (Task 01.1 creates the wrapper), and run `tools/r.sh dotnet build-server shutdown` after a WSL-driven build.
+- Prerequisites (Global Constraints) are installed and verified by Task 01.0. If `dotnet --version` is not `11.0.100-rc.1.26425.128` (or the later 11.0.1xx that Task 01.0 recorded), `pwsh` is missing, or (Task 01.12) the AOT publish reports that `vswhere.exe` cannot find `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, stop and re-run Task 01.0 (it asks the user before any install).
 - Never use the `dotnet new winui` or `dotnet new xunit3` templates (Ref §2.7 #1, #8): every file below is written by hand.
+
+---
+
+### Task 01.0: Install development prerequisites
+
+Run this task when the user tells Claude to start development, before Task 01.1. It installs and verifies every tool the build needs, on this Windows PC, from a PowerShell session that can elevate. **Tell the user before Step 2:** "winget and the Visual Studio installer will show Windows UAC prompts; please approve them when they appear (the C++ tools install can take 10–20 min)." Every step checks first and installs only what is missing, so the task can be re-run safely.
+
+**Install-over-fallback rule (Ref §1.1):** if any install fails, or the user declines a UAC prompt, stop and ask the user (quote the failing command and its output). Never proceed with a missing tool and never design around one.
+
+**Shell:** run the blocks in PowerShell (Windows PowerShell 5.1 is fine until Step 3 has installed PowerShell 7; Step 9 needs `pwsh`). From Claude Code's Bash tool (Git Bash on Windows), save a block to a `.ps1` file under `%TEMP%` and run it with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <file>` (Steps 1–8) or `pwsh -NoProfile -ExecutionPolicy Bypass -File <file>` (Step 9). The winget commands add `--accept-package-agreements --accept-source-agreements` so they never wait on an agreement prompt; Windows' own UAC prompt still appears.
+
+**Files:**
+- Create or update: `docs/research/10-stack-proof.md` (the `## Toolchain (Task 01.0)` section; Task 01.12 appends the stack-proof results to the same file)
+
+**Interfaces:**
+- Consumes: the prerequisites bullet of the index Global Constraints; `global.json` values (Task 01.1 writes it: `11.0.100-rc.1.26425.128`, `rollForward` `latestFeature`, `allowPrerelease` true, so a later 11.0.1xx RC or the GA SDK is also accepted).
+- Produces: winget, Git for Windows, PowerShell 7.4+, the .NET 11 SDK (11.0.100-rc.1.26425.128 or a later 11.0.1xx), the Visual Studio Build Tools 2022 C++ workload (MSVC `cl.exe`/`link.exe` for Native AOT), Windows SDK 10.0.26100, the WebView2 runtime (reported); `docs/research/10-stack-proof.md` with the recorded versions.
+
+- [ ] **Step 1: winget is present**
+
+```powershell
+winget --version
+```
+
+Expected: a version such as `v1.11.430`. If PowerShell reports `winget` is not recognized: stop and tell the user "winget is missing. Please install **App Installer** from the Microsoft Store (search for App Installer, publisher Microsoft Corporation), then tell me to continue." Nothing below can be installed without it.
+
+- [ ] **Step 2: Git for Windows**
+
+```powershell
+if (Get-Command git -ErrorAction SilentlyContinue) { git --version }
+else {
+    winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements
+    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+    git --version
+}
+```
+
+Expected: `git version 2.x.y.windows.n` (after an install, winget first prints `Successfully installed`).
+
+- [ ] **Step 3: PowerShell 7 (7.4 or later)**
+
+```powershell
+$v = $null
+if (Get-Command pwsh -ErrorAction SilentlyContinue) { $v = [version](((pwsh --version) -replace '^PowerShell\s+', '') -replace '-.*$', '') }
+if ($v -and $v -ge [version]'7.4') { "PowerShell $v" }
+else {
+    winget install --id Microsoft.PowerShell -e --source winget --accept-package-agreements --accept-source-agreements
+    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+    pwsh --version
+}
+```
+
+Expected: `PowerShell 7.4.x` or later (for example `PowerShell 7.5.2`). An older `pwsh` is upgraded by the same `winget install` line.
+
+- [ ] **Step 4: .NET 11 SDK**
+
+```powershell
+$sdks = @()
+if (Get-Command dotnet -ErrorAction SilentlyContinue) { $sdks = @(dotnet --list-sdks) }
+if (-not ($sdks -match '^11\.0\.1\d\d')) {
+    winget install --id Microsoft.DotNet.SDK.Preview -e --source winget --accept-package-agreements --accept-source-agreements
+    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+}
+dotnet --list-sdks
+```
+
+Expected: a line `11.0.100-rc.1.26425.128 [C:\Program Files\dotnet\sdk]`, or a later 11.0.1xx (for example `11.0.100-rc.2.…` or `11.0.100`); `global.json`'s `rollForward: latestFeature` with `allowPrerelease: true` accepts a later RC or the GA SDK. If no `11.0.1xx` line appears, stop and ask the user.
+
+- [ ] **Step 5: C++ build tools for Native AOT (Build Tools 2022, VCTools workload)**
+
+Check:
+
+```powershell
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$vc = if (Test-Path $vswhere) { & $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath } else { $null }
+if ($vc) {
+    "C++ tools: $vc"
+    Get-ChildItem -Path "$vc\VC\Tools\MSVC\*\bin\Hostx64\x64\" -Include cl.exe, link.exe -Recurse | Select-Object -ExpandProperty FullName
+}
+else { 'C++ tools missing' }
+```
+
+Expected when present: `C++ tools: C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` (or another Visual Studio 2022 installation path) followed by the `cl.exe` and `link.exe` paths under `VC\Tools\MSVC\<version>\bin\Hostx64\x64\`. Then go to Step 6.
+
+If it prints `C++ tools missing`, install. When Build Tools 2022 is already installed (the folder `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` exists), add the workload:
+
+```powershell
+& "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart
+```
+
+When Build Tools 2022 is not installed at all:
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --source winget --accept-package-agreements --accept-source-agreements --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart"
+```
+
+Either install takes 10–20 minutes and shows a progress window. From Claude Code, run it in the background and wait until it has finished (re-run the check above every few minutes; do not start Task 01.1 meanwhile). Then re-run the check.
+
+Expected: the `C++ tools: …` line and both `cl.exe` and `link.exe` paths. If the check still prints `C++ tools missing` after the installer has closed, stop and ask the user.
+
+- [ ] **Step 6: Windows SDK 10.0.26100**
+
+```powershell
+Test-Path 'C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0'
+```
+
+Expected: `True` (already present on this PC; otherwise it comes with the C++ workload's recommended components of Step 5). If `False`, stop and ask the user to add it with `& "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.Windows11SDK.26100 --passive --norestart`.
+
+- [ ] **Step 7: WebView2 Evergreen runtime (report only)**
+
+```powershell
+(Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -Name pv -ErrorAction SilentlyContinue).pv
+```
+
+Expected: a version such as `140.0.3485.54`. WebView2 ships with Windows 11, so nothing is installed here; report the value. If it prints nothing, tell the user that the WebView2 runtime was not found and ask before continuing (the probe page of Task 01.10 and the map pane need it).
+
+- [ ] **Step 8: Use a fresh session when PATH changed**
+
+If Steps 2–5 installed anything, the new tools are on the machine PATH but an already-running shell (and the Claude CLI session) may still resolve old versions. Check:
+
+```powershell
+(Get-Command dotnet).Source; dotnet --version
+(Get-Command pwsh).Source; pwsh --version
+```
+
+Expected: `C:\Program Files\dotnet\dotnet.exe` with an `11.0.1xx` version, and `C:\Program Files\PowerShell\7\pwsh.exe` with 7.4 or later. If either is missing or older, tell the user: "Please close and restart the Claude CLI session (a new PowerShell window) so the updated PATH is picked up, then tell me to continue." After the restart, re-run this task from Step 1; every step is a no-op for what is already installed.
+
+- [ ] **Step 9: Record the toolchain versions**
+
+Run in `pwsh` from the repo root `C:\dev\uas-sort`:
+
+```powershell
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$vc   = & $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+$msvc = (Get-ChildItem -Path "$vc\VC\Tools\MSVC" -Directory | Sort-Object Name | Select-Object -Last 1).Name
+$wv2  = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -Name pv -ErrorAction SilentlyContinue).pv
+$rows = [ordered]@{
+    'winget'                  = (winget --version)
+    'Git'                     = (git --version)
+    'PowerShell 7'            = (pwsh --version)
+    '.NET SDKs'               = ((dotnet --list-sdks | ForEach-Object { ($_ -split ' ')[0] }) -join ', ')
+    'C++ build tools'         = "$vc (MSVC $msvc)"
+    'Windows SDK 10.0.26100'  = $(if (Test-Path 'C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0') { 'present' } else { 'missing' })
+    'WebView2 runtime'        = $(if ($wv2) { $wv2 } else { 'not found' })
+}
+$section = (@('## Toolchain (Task 01.0)', '', "Recorded $(Get-Date -Format 'yyyy-MM-dd') on the development PC (win-x64).", '',
+              '| Tool | Version |', '|---|---|') +
+            @($rows.GetEnumerator() | ForEach-Object { "| $($_.Key) | $($_.Value) |" })) -join "`n"
+$path = 'docs\research\10-stack-proof.md'
+if (-not (Test-Path $path)) {
+    $new = "# Stack proof (Part 01, Ref §14 step 1): measured results`n`n$section`n"
+}
+else {
+    $text = Get-Content -Raw -LiteralPath $path
+    if ($text -match '(?m)^## Toolchain \(Task 01\.0\)') {
+        $new = [regex]::Replace($text, '(?ms)^## Toolchain \(Task 01\.0\)\r?\n.*?(?=^## |\z)', { param($m) "$section`n`n" })
+    }
+    else { $new = $text.TrimEnd() + "`n`n$section`n" }
+}
+Set-Content -LiteralPath $path -Value $new.TrimEnd() -Encoding utf8NoBOM
+Get-Content -LiteralPath $path
+```
+
+Expected: the file starts with `# Stack proof (Part 01, Ref §14 step 1): measured results` and holds a `## Toolchain (Task 01.0)` table with one row per tool, every value filled in (no `missing` or `not found`, unless the user has already been asked about it). Re-running the block only replaces the Toolchain section, so the date changes but nothing else.
+
+- [ ] **Step 10: Commit if the record changed**
+
+```bash
+git status --porcelain docs/research/10-stack-proof.md
+```
+
+Expected: no output when the recorded versions did not change; then there is nothing to commit. If a line is printed (`??` or ` M`), commit it:
+
+```bash
+git add docs/research/10-stack-proof.md
+git commit -F - <<'EOF'
+chore: record development toolchain versions
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_015Z1pwYTXofSxv2csCcXa4z
+EOF
+```
 
 ---
 
@@ -21,7 +203,7 @@ Depends on: none (first part).
 
 **Interfaces:**
 - Consumes: Ref §2.1 versions, §2.3 layout, §2.5 build essentials, §2.6 WSL wrapper, §4.5 CLI usage line.
-- Produces (files later parts rely on): the four `src` projects (target frameworks per Global Constraints; `IsTrimmable`/`IsAotCompatible` on Core, Review, Platform); `UasSort.Cli` with `AssemblyName=uas-sort-cli` and `public static int Main(string[] args)` in `UasSort.Cli.Program` (Part 12 Task 12.6 replaces the body; its `Main` first calls Part 01's `PlaceholderMode.ExposePlaceholders()` from Task 01.8); MSBuild property `RepoRoot` (defined here); `tools/r.sh dotnet|pwsh <args…>` (defined here); `nuget.config` with source mapping (defined here; not in the Ref layout, added so NU1507 can never fail a warnings-as-errors build).
+- Produces (files later parts rely on): the four `src` projects (target frameworks per Global Constraints; `IsTrimmable`/`IsAotCompatible` on Core, Review, Platform); `UasSort.Cli` with `AssemblyName=uas-sort-cli` and `public static int Main(string[] args)` in `UasSort.Cli.Program` (Part 12 Task 12.6 replaces the body; its `Main` first calls Part 01's `PlaceholderMode.ExposePlaceholders()` from Task 01.8); MSBuild property `RepoRoot` (defined here); `tools/r.sh dotnet|pwsh <args…>` (defined here; optional, only for driving the build from WSL); `nuget.config` with source mapping (defined here; not in the Ref layout, added so NU1507 can never fail a warnings-as-errors build).
 
 This is a config task: the checks are build and property queries.
 
@@ -37,7 +219,7 @@ dotnet msbuild src/UasSort.Core/UasSort.Core.csproj -getProperty:EffectiveAnalys
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `dotnet build uas-sort.slnx -tl:off`
-Expected: `MSBUILD : error MSB1009: Project file does not exist.` (nothing is scaffolded yet). `dotnet --version` must already print `11.0.100-rc.1.26425.128`; if it does not, stop (prerequisites).
+Expected: `MSBUILD : error MSB1009: Project file does not exist.` (nothing is scaffolded yet). `dotnet --version` must already print `11.0.100-rc.1.26425.128` (or the later 11.0.1xx that Task 01.0 recorded); if it does not, stop and re-run Task 01.0.
 
 - [ ] **Step 3: Implement**
 
@@ -253,7 +435,7 @@ public static class Program
 }
 ```
 
-`tools/r.sh` (Ref §2.6 WSL wrapper):
+`tools/r.sh` (Ref §2.6 WSL wrapper; **optional** — the build runs natively on Windows, and this wrapper is only for someone driving it from WSL):
 
 ```bash
 #!/usr/bin/env bash
@@ -275,7 +457,7 @@ esac
 exit "${PIPESTATUS[0]}"
 ```
 
-Then: `chmod +x tools/r.sh`.
+Its executable bit is recorded in git by `git update-index --chmod=+x tools/r.sh` in Step 5 (in a WSL checkout, `chmod +x tools/r.sh` also works).
 
 - [ ] **Step 4: Run the checks to verify they pass**
 
@@ -290,8 +472,8 @@ Expected: `11.0`.
 
 If the item list has no `analysislevel_11_*` file, RC1 rejects `11.0` (the UNVERIFIED case): set `<AnalysisLevel>10.0-recommended</AnalysisLevel>` in `Directory.Build.props`, re-run both commands (expected `analysislevel_10_recommended.globalconfig` and `10.0`), change the expected value in `DirectoryBuildProps_EnforcesAnalysisAndWarnings` (Task 01.2) to `10.0-recommended`, and record the fallback for Task 01.12.
 
-Run: `tools/r.sh dotnet --version` (from WSL)
-Expected: `11.0.100-rc.1.26425.128`.
+Run: `dotnet --version`
+Expected: `11.0.100-rc.1.26425.128` (or the later 11.0.1xx that Task 01.0 recorded). Optional, from WSL only: `tools/r.sh dotnet --version` prints the same.
 
 - [ ] **Step 5: Commit**
 
@@ -1214,7 +1396,7 @@ finally {
     <RootNamespace>UasSort.BannedApi.Probe</RootNamespace>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <Platforms>x64;ARM64</Platforms>
+    <Platforms>x64</Platforms>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</RuntimeIdentifier>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <IsPackable>false</IsPackable>
@@ -2338,8 +2520,8 @@ Add to `tests/UasSort.Core.Tests/Build/BuildConfigTests.cs` (inside the class):
         Assert.Equal("10.0.26100.0", Prop("TargetPlatformMinVersion"));
         Assert.Equal("true", Prop("UseWinUI"));
         Assert.Equal("false", Prop("WinUISDKReferences"));
-        Assert.Equal("x64;ARM64", Prop("Platforms"));
-        Assert.Equal("win-x64;win-arm64", Prop("RuntimeIdentifiers"));
+        Assert.Equal("x64", Prop("Platforms"));                  // x64 only (user decision 2026-09-28)
+        Assert.Equal("win-x64", Prop("RuntimeIdentifiers"));
         Assert.Equal("None", Prop("WindowsPackageType"));
         Assert.Equal("true", Prop("WindowsAppSDKSelfContained"));
         Assert.Equal("true", Prop("SelfContained"));
@@ -2465,9 +2647,10 @@ Expected: FAIL — build error `CS2001: Source file '…\src\UasSort.App\LaunchO
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <Platforms>x64;ARM64</Platforms>
-    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
-    <!-- dotnet build of the solution: this machine's own RID. Publishes pass -r explicitly. -->
+    <Platforms>x64</Platforms>
+    <!-- x64 only (user decision 2026-09-28). -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- dotnet build of the solution: the SDK's own RID (win-x64 on the x64 PCs). Publishes pass -r win-x64 explicitly. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</RuntimeIdentifier>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
@@ -3725,12 +3908,12 @@ EOF
 ### Task 01.12: Native AOT publish, measured against the ReadyToRun baseline
 
 **Files:**
-- Create: `docs/research/10-stack-proof.md`
+- Modify: `docs/research/10-stack-proof.md` (Task 01.0 created it with the `## Toolchain (Task 01.0)` section; this task appends below it)
 - Modify (only if Step 3 finds IL2104/IL3053 raised solely by the rooted `MetadataExtractor`/`XmpCore`): `src/UasSort.App/UasSort.App.csproj`
 
 **Interfaces:**
 - Consumes: everything above; `tools/run-selftest.ps1`; Ref §2.1 Packaging row, §2.2 "Native AOT rather than trimmed + ReadyToRun", §2.5 Release rules, §14 step 1 and "If Native AOT fails a concrete check".
-- Produces: `docs/research/10-stack-proof.md` (defined here): the measured record every later part and the user can rely on — SDK, first restore, effective `AnalysisLevel`, package status, analyzer probe, exhaustiveness, AppInstance/mutex, AOT publish warnings, size and file count, cold and warm `firstFrameMs` (gate ≤ 1000 ms; ReadyToRun baseline 370 ms; `slowerThanBaseline`), WebView2 runtime, the VS Code check. A green gate here is the precondition for Part 02.
+- Produces: the `## Native AOT stack proof (Task 01.12)` section of `docs/research/10-stack-proof.md` (the file is created by Task 01.0): the measured record every later part and the user can rely on — SDK, first restore, effective `AnalysisLevel`, package status, analyzer probe, exhaustiveness, AppInstance/mutex, AOT publish warnings, size and file count, cold and warm `firstFrameMs` (gate ≤ 1000 ms; ReadyToRun baseline 370 ms; `slowerThanBaseline`), WebView2 runtime, the VS Code check. A green gate here is the precondition for Part 02.
 
 **Stop rule (Ref §1.1, §14):** a build or AOT warning, a selftest failure (non-zero exit, `ok` false or any check with `status` `fail`), or a warm first frame over 1000 ms is a failed concrete check. A warm first frame slower than the 370 ms ReadyToRun baseline but ≤ 1000 ms is **not** a failure: `run-selftest.ps1` prints `slowerThanBaseline: True`; record it in `docs/research/10-stack-proof.md`, report it to the user in the completion summary, and continue with Part 02. On a failed concrete check: do not change `PublishAot`, do not add `PublishReadyToRun`, and do not start Part 02. Diagnose only by hand with `dotnet publish src/UasSort.App/UasSort.App.csproj -c Release -r win-x64 -p:PublishAot=false -p:PublishTrimmed=true -p:PublishReadyToRun=true -o artifacts/stack-proof/r2r-diagnosis` and the same selftest, to tell whether the failure is AOT-specific; write both results into `docs/research/10-stack-proof.md`, commit it, and raise it with the user, waiting for their decision.
 
@@ -3752,7 +3935,7 @@ Expected: FAIL — `Resolve-Path: Cannot find path '…\artifacts\stack-proof\wi
 Run: `dotnet publish src/UasSort.App/UasSort.App.csproj -c Release -r win-x64 -o artifacts/stack-proof/win-x64 -tl:off`
 Expected: exit 0, `0 Warning(s)`, `0 Error(s)` with `TreatWarningsAsErrors` on (from `Directory.Build.props`), and an ILC/link step in the log.
 
-- If it fails with `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64`: the C++ workload prerequisite is missing — stop and ask the user to run the Global Constraints install command.
+- If it fails with `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64`: the C++ workload prerequisite is missing — stop and re-run Task 01.0 Step 5 (it asks the user to approve the install).
 - If the only warnings are IL2104 and/or IL3053 **and each names `MetadataExtractor` or `XmpCore`**, add to the App csproj's first `PropertyGroup`, then publish again:
 
 ```xml
@@ -3787,10 +3970,10 @@ Expected: PASS — `failed: 0, succeeded: 44`.
 
 Ask the user (it needs a person at the editor, Ref §14 step 1): "Open `C:\dev\uas-sort` in VS Code with the C# Dev Kit, open `src/UasSort.Core/StackProof/StackProofTypes.cs` and `tests/UasSort.Review.Tests/StackProof/CrossAssemblyExhaustivenessTests.cs`: does the Problems panel show any error for `union` or `closed`?" Record the answer; false editor errors do not block the build.
 
-Write `docs/research/10-stack-proof.md` with the measured values:
+Append to `docs/research/10-stack-proof.md`, below Task 01.0's `## Toolchain (Task 01.0)` section, with the measured values:
 
 ```markdown
-# Stack proof (Part 01, Ref §14 step 1): measured results
+## Native AOT stack proof (Task 01.12)
 
 Date: (the day of the run). Machine: the development PC, win-x64.
 
@@ -3833,7 +4016,7 @@ EOF
 
 - **Repo files:** `uas-sort.slnx` (src: App, Cli, Core, Platform, Review; tests: Core.Tests, Platform.Tests, Review.Tests, Testing; never the probe), `global.json`, `nuget.config`, `Directory.Build.props` (props of Ref §2.5; `RepoRoot`; `UasSortBannedList` = `main`/`platform`; transitive pinning), `Directory.Packages.props` (the 14 exact pins), `.editorconfig`, `BannedSymbols.txt` (exactly the 73 Ref §2.4 IDs), `src/UasSort.Platform/BannedSymbols.Platform.txt` (member-level list; allowed calls need `#pragma warning disable RS0030 // IO layer: <why>`).
 - **Projects:** `UasSort.Core` (net11.0; MetadataExtractor, GeoTimeZone, System.IO.Hashing; no project refs), `UasSort.Review` (net11.0; Mvvm; → Core), `UasSort.Platform` (windows TFM; `AllowUnsafeBlocks`; → Core), `UasSort.App` (`uas-sort.exe`, WinUI, Native AOT in Release; → Review, Platform), `UasSort.Cli` (`uas-sort-cli`, `UasSort.Cli.Program.Main` stub returning 2; → Core, Platform), `UasSort.Testing`, `UasSort.Core.Tests`, `UasSort.Review.Tests`, `UasSort.Platform.Tests`, `UasSort.BannedApi.Probe` (outside the solution).
-- **Tools:** `tools/r.sh dotnet|pwsh …`; `tools/build.ps1 [-CheckBannedApi]` (probe markers `// probe: <id>`); `tools/run-selftest.ps1 -Exe <path> [-Runs 2] [-MaxWarmFirstFrameMs 1000] [-BaselineMs 370]` (runs `--selftest --result <tmp>`; fails on a non-zero exit, `ok` false or any check `status` `fail`, or a warm first frame over the gate; prints `slowerThanBaseline: True|False` without failing); `tools/fixtures/make-selftest-assets.cs` (`SelfTestAssets.All()` = `stack-exif.jpg`; Part 11 Task 11.9 adds `selftest.dng`, `ledger-v1.jsonl`, `selftest-0001.mp4`, `selftest-0002.mp4`, `selftest-0003.mp4` in place).
+- **Tools:** `tools/r.sh dotnet|pwsh …` (optional, WSL only); `tools/build.ps1 [-CheckBannedApi]` (probe markers `// probe: <id>`); `tools/run-selftest.ps1 -Exe <path> [-Runs 2] [-MaxWarmFirstFrameMs 1000] [-BaselineMs 370]` (runs `--selftest --result <tmp>`; fails on a non-zero exit, `ok` false or any check `status` `fail`, or a warm first frame over the gate; prints `slowerThanBaseline: True|False` without failing); `tools/fixtures/make-selftest-assets.cs` (`SelfTestAssets.All()` = `stack-exif.jpg`; Part 11 Task 11.9 adds `selftest.dng`, `ledger-v1.jsonl`, `selftest-0001.mp4`, `selftest-0002.mp4`, `selftest-0003.mp4` in place).
 - **Testing:** `UasSort.Testing.RepoPaths` (`Root`, `Of`, `EnumerateFiles`, `Relative`); `UasSort.Testing.TestTempDir` (`FullPath`, `Combine`, `Dispose`). `UasSort.Testing` and every test csproj reference `Microsoft.Extensions.TimeProvider.Testing`; test csprojs carry `<Using Include="Xunit" />`. Platform.Tests links `src/UasSort.App/LaunchOptions.cs` (`LaunchOptionsTests`).
 - **Core:** `UasSort.Core.StackProof.ProbeOutcome` (closed; `ProbeCopied`, `ProbeSkipped`, `ProbeConflict`; discriminator `t`), `ProbeFix`, `ProbeNoFix`, `union ProbeGps`; `UasSort.Core.Json.StackProofJsonContext` (`Default.ProbeOutcome`, `Default.ListProbeOutcome`).
 - **Platform:** `UasSort.Platform.Win32.NamedMutexLock` (`TryAcquire(string)`, `Name`, `Dispose`), `SingleInstance.AppInstanceKey`/`MutexName`, `ForegroundWindow.AllowSetForeground(uint)`/`BringToFront(nint)`, `PlaceholderMode.ExposePlaceholders()`/`PhcmExposePlaceholders`, internal `NativeMethods` — the only definitions of these helpers (Parts 09, 11, 12 reuse them); `UasSort.Platform.Stores.SelfTestSandbox`, a `public sealed partial class` (`Create(string tempRoot)`, `Root`, `WebView2Folder`, `WriteResult(string, ReadOnlySpan<byte>)`, `TryDelete`, `Dispose`, `FolderPrefix`).
@@ -3841,4 +4024,5 @@ EOF
 - **Selftest contract (Part 13):** `uas-sort.exe --selftest --result <path> [--only <check>[,<check>…]]` → exit 0/1 and `{"ok":true,"firstFrameMs":312,"checks":[{"name":"probePage","status":"pass","detail":"…"},…]}` (no `v`, no `kind`; `status` ∈ `pass`, `fail`, `notApplicable`). There is no `--selftest-result`.
 - **Extended in place later (never redeclared):** Part 11 extends `SelfTestSandbox`, `LaunchOptions`, `SingleInstanceGate`, `SelfTestCheck`/`SelfTestResult`/`SelfTestJsonContext` and `tools/fixtures/make-selftest-assets.cs` in place.
 - **Gate:** warm first frame ≤ 1000 ms is the hard gate; slower than the 370 ms ReadyToRun baseline sets `slowerThanBaseline` (recorded and reported to the user, never a failure).
+- **Prerequisites (Task 01.0):** winget, Git, PowerShell 7.4+, the .NET 11 SDK, the Build Tools 2022 C++ workload, Windows SDK 10.0.26100 and the WebView2 runtime installed or verified; versions in the `## Toolchain (Task 01.0)` section of `docs/research/10-stack-proof.md`.
 - **Record:** `docs/research/10-stack-proof.md` with the AOT size, cold/warm first frame (warm row: gate ≤ 1000 ms; ReadyToRun baseline 370 ms; slowerThanBaseline) and every settled UNVERIFIED item.

@@ -13,7 +13,7 @@
 - State properties are MVVM Toolkit 8.4.2 partial properties (`[ObservableProperty] public partial T Name { get; private set; }`); commands are created explicitly (`RelayCommand`/`AsyncRelayCommand`) so `CanExecute` wiring is visible.
 - If a recommended analyzer rule not anticipated here fires, fix the code the way the rule asks; never add a project-wide `NoWarn`.
 - Non-nullable `[ObservableProperty]` partial properties carry an initializer (C# 14+ allows initializers on field-backed partial properties). Constructors assign observable properties only after every command the change handlers touch has been created.
-- Test command for one test: `dotnet test --project tests/UasSort.Review.Tests/UasSort.Review.Tests.csproj -- --filter-method "*<Name>*"` (from WSL: `tools/r.sh dotnet test …`, then `dotnet build-server shutdown`).
+- Test command for one test: `dotnet test --project tests/UasSort.Review.Tests/UasSort.Review.Tests.csproj -- --filter-method "*<Name>*"` (run natively on Windows from the repo root; only if driving the build from WSL (optional): `tools/r.sh dotnet test …`, then `dotnet build-server shutdown`).
 
 ---
 
@@ -189,10 +189,9 @@ global using UasSort.Review;
 global using UasSort.Testing;
 ```
 
-Check that the Core file is there in both projects:
+Check that the Core file is there in both projects (from the repo root `C:\dev\uas-sort`, in Claude Code's Bash tool):
 
 ```bash
-cd /mnt/c/dev/uas-sort
 head -3 src/UasSort.Review/GlobalUsings.Core.cs tests/UasSort.Review.Tests/GlobalUsings.Core.cs
 ```
 Expected: both files start with `// GlobalUsings.Core.cs — fixed content, see docs/superpowers/plans/2026-09-27-uas-sort/00-interfaces.md` followed by `global using System.Collections.Immutable;`. If either is missing, Part 02 Task 02.1 was not completed: stop and finish it (copy the registry content verbatim), do not generate a list.
@@ -8930,7 +8929,7 @@ Expected: PASS — every test of Tasks 10.1–10.23 (about 150 including theory 
 Run: `dotnet test --solution uas-sort.slnx`
 Expected: PASS for every test project (Core, Review, Platform, and the rest already present); nothing earlier regresses.
 
-From WSL: `tools/r.sh dotnet test --solution uas-sort.slnx`, then `tools/r.sh dotnet build-server shutdown`.
+Optional, only if driving the build from WSL: `tools/r.sh dotnet test --solution uas-sort.slnx`, then `tools/r.sh dotnet build-server shutdown`.
 
 - [ ] **Step 3: Check the Review assembly stays WinUI-free and file-system-free**
 

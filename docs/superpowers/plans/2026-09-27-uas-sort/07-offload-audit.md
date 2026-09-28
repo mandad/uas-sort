@@ -11,7 +11,7 @@
 - Card-relative paths use `/` (Part 02 convention); full paths are Windows paths. Path text is handled by `OffloadPaths` (Task 07.1), which delegates to Part 02's `PathRules` and `FileKey.NormalizeName` wherever they cover the case.
 - Every place that catches IO failures uses `Failures.IsIo` (Task 07.1). `UnsafeIoException` is not an `IOException` (Part 02), so it is always caught in its own clause and becomes `InternalSafetyStop`.
 - Fault injection uses the shared fakes: `FakeFileSystem` (tree, guard tripwire, `FakeFaults`), `FakeCardReader` (card faults: `TransientCardReadError`, `PersistentCardReadError`, `CardVanishesAfterBytes`, `CardRemoved`, `IdentityOnCall`) and `FakeLayout` as Part 02 wrote them; Part 02's `FakeFileOps` (the fake `IFileOps` that honours `FakeFaults.DiskFullAfterBytes`, `CorruptVerify`, `UnbufferedUnsupported`, `TargetAppearsBeforeRename`, `SizeAfterRename` and `LostRoots`) gains the offload hooks in Task 07.4; Part 06's `FakeLedgerStore` (the one fake `ILedgerStore`: in memory, or backed by the fake FS where `FakeFaults.AppendFails` applies) gains its write half and `FakeLedgerWriter` (records kept as objects, and as `LedgerCodec` lines when on the fake FS) in Task 07.4. No second fake of either kind exists (registry decision 6).
-- Commands run on Windows (`dotnet.exe`); from WSL use `tools/r.sh` with the same arguments.
+- Commands run natively on Windows (`dotnet.exe`) from the repo root `C:\dev\uas-sort`, in PowerShell 7 or Claude Code's Bash tool (Git Bash); only if driving the build from WSL (optional), use `tools/r.sh` with the same arguments.
 
 ---
 

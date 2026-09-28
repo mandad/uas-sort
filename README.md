@@ -54,7 +54,7 @@ A few things the design had to get right:
 
 ## Requirements (planned)
 
-- Windows 11 (24H2 or later), x64 (ARM64 builds are produced but untested)
+- Windows 11 (24H2 or later), x64 only
 - To build (install once):
   - .NET 11 SDK: `winget install Microsoft.DotNet.SDK.Preview` (11.0.100-rc.1 for now; the GA SDK from Nov 10)
   - PowerShell 7: `winget install Microsoft.PowerShell`

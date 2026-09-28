@@ -81,8 +81,8 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
   - WinUI 3 on Windows App SDK 2.5.1, lean component packages;
   - WebView2 with vendored MapLibre: OpenFreeMap streets, Esri World Imagery satellite, and a USGS preset;
   - offline GeoNames suggestions;
-  - an unpackaged, self-contained **Native AOT** folder (`PublishAot=true`, trimmed; `win-x64`, ARM64 built but UNVERIFIED) plus a Start-menu `.lnk`. No MSIX. *(Changed 2026-09-27 from "trimmed ReadyToRun, no Native AOT (an optional later attempt)"; see below.)*
-- The user installs the prerequisites once when implementation starts (§2.6): the .NET 11 SDK preview, PowerShell 7, and the C++ build tools for Native AOT.
+  - an unpackaged, self-contained **Native AOT** folder (`PublishAot=true`, trimmed; `win-x64` only — x64 only, user decision 2026-09-28) plus a Start-menu `.lnk`. No MSIX. *(Changed 2026-09-27 from "trimmed ReadyToRun, no Native AOT (an optional later attempt)"; see below.)*
+- The prerequisites are installed once when implementation starts (§2.6): the .NET 11 SDK preview, PowerShell 7, and the C++ build tools for Native AOT. The plan's Task 01.0 installs and verifies them (idempotent; the user approves the UAC prompts). Development runs from a Claude Code CLI session in PowerShell on Windows, not WSL (user decision, 2026-09-28).
 - **Native AOT is the primary build** (user decision, 2026-09-27). It is built from the start: the stack-proof step at the start of the build (§14 step 1) is an AOT publish that passes `--selftest` with `TreatWarningsAsErrors`, and `deploy.ps1` publishes AOT (§14 step 13). Trimmed + ReadyToRun is no longer the plan: its measured numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline AOT must meet or beat (AOT startup UNVERIFIED until the stack-proof step). It remains only as the diagnosis path if AOT fails a concrete check, and that situation is raised with the user, never silently accepted.
 - **Installs over fallbacks** (user decision, 2026-09-27; verbatim: "If a framework needed to build this is not on my computer, just ask or give me the information on how to install it… I just want to maintain the best version for the app if that takes me installing something."): when the best option needs a tool that isn't installed, the plan asks the user to install it rather than designing a weaker fallback. Fallbacks remain only for runtime/behaviour risks (e.g. MapLibre-in-WebView2 MIME, unbuffered verify on exFAT, AppInstance, the preview toolkit line's compatibility).
 
@@ -109,7 +109,7 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 
 | Assumption | If wrong |
 |---|---|
-| Every PC runs Windows 11 24H2+ (build ≥ 26100), **x64 or ARM64** | Lower `TargetPlatformMinVersion`. The modern-stack spike also ran with 10.0.22621.0 (`docs/research/spikes/modern-stack/winui-src/Spike.App/Spike.App.csproj`). `deploy.ps1` already publishes for the machine's own architecture; ARM64 is UNVERIFIED (§15 Q5). |
+| Every PC runs Windows 11 24H2+ (build ≥ 26100), **x64** (x64 only, user decision 2026-09-28: "Both of my personal laptops are regular x86 Intel") | Lower `TargetPlatformMinVersion`. The modern-stack spike also ran with 10.0.22621.0 (`docs/research/spikes/modern-stack/winui-src/Spike.App/Spike.App.csproj`). An ARM64 PC would need `win-arm64` added back to `RuntimeIdentifiers`/`Platforms` and the MSVC ARM64 build tools (§15 Q5, resolved). |
 | One card, or one drone volume, per run; ≤ ~1,000 files; ≤ 256 GB | Offload the second volume in a second run |
 | The Air 3S layout matches the research: `DCIM\DJI_###[_x]`, `DCIM\PANORAMA\<set>`, `DCIM\HYPERLAPSE\<set>`, `MISC` | Anything else falls to **Unknown**, which is Unaccounted and therefore NotSafe (§5). Add a rule after the first-card acceptance. |
 | The RC 2 clock follows one IANA zone **including DST**, or local time at each site. (Which zone it is set to is not an assumption: it is whatever the RC 2 is set to, observed US Eastern and never reset, and the learner finds it; §1.1, §6.1) | The learner (§6.1) finds no fit on the first card with MP4s and falls back to the nearest sample. Video dates are unaffected, because they come from `mvhd` UTC and the GPS site zone |
@@ -212,7 +212,7 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 | Tests | `xunit.v3.mtp-v2` on Microsoft.Testing.Platform 2.4.1 | 4.0.1 | Passed 5/5 in the spike |
 | Place names | GeoNames extract (CC-BY 4.0), built by `tools/places/build-places.cs` (a .NET file-based app) | Dump of 2026-09-27 | The Python spike (`docs/research/spikes/dotnet-stack/geonames/rg.py`; `docs/research/03-dotnet-libraries.md`) found "Zachar Bay" 0.4 mi and "Anvil Mountain" 0.2 mi from the clips |
 | Scripts | PowerShell 7 (`pwsh`) | Latest from winget `Microsoft.PowerShell` (version UNVERIFIED). **Not installed on this PC** (only Windows PowerShell 5.1, which the scripts don't target) | Approved: the user installs it once with winget at implementation start, next to the SDK (§2.6 Prerequisites) |
-| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, **Native AOT** (`PublishAot=true`, which trims); a folder plus a Start-menu `.lnk`; `win-x64` and `win-arm64` | — | Built and gated from the stack-proof step at the start of the build (§14 step 1). Baseline to meet or beat: the spike's trimmed ReadyToRun x64 build, 87–97 MB with a warm first frame of about 0.37 s. AOT size and startup are UNVERIFIED until the stack-proof step; ARM64 is UNVERIFIED |
+| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, **Native AOT** (`PublishAot=true`, which trims); a folder plus a Start-menu `.lnk`; `win-x64` only (user decision 2026-09-28) | — | Built and gated from the stack-proof step at the start of the build (§14 step 1). Baseline to meet or beat: the spike's trimmed ReadyToRun x64 build, 87–97 MB with a warm first frame of about 0.37 s. AOT size and startup are UNVERIFIED until the stack-proof step |
 | Dependency injection | None: a hand-written composition root | — | YAGNI |
 
 ### 2.2 Why these, and what they replace
@@ -270,8 +270,8 @@ tests/
   UasSort.Platform.Tests/   net11.0-windows…  Windows integration in %TEMP%, XAML lint, BannedSymbols content test
   UasSort.BannedApi.Probe/  net11.0-windows…  NOT in the solution build: one call per banned kind; built by tools/build.ps1
 tools/
-  build.ps1  r.sh (WSL wrapper)  deploy.ps1  vendor-maplibre.ps1  places/build-places.cs
-  fixtures/make-replay-fixture.ps1  fixtures/make-selftest-assets.cs (writes App/SelfTest/* from the synthetic builders)
+  build.ps1  r.sh (optional WSL wrapper)  deploy.ps1  vendor-maplibre.ps1  places/build-places.cs
+  fixtures/make-replay-fixture.ps1 (record only; not run during the build)  fixtures/make-selftest-assets.cs (writes App/SelfTest/* from the synthetic builders)
 ```
 
 ### 2.4 Dependency direction and banned APIs
@@ -330,7 +330,7 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 - `AllowUnsafeBlocks=true`, which `LibraryImport` needs (without it the build fails with SYSLIB1062).
 
 **`UasSort.App.csproj`**
-- `OutputType=WinExe`, `UseWinUI=true`, `WinUISDKReferences=false`, `Platforms=x64;ARM64`, `RuntimeIdentifiers=win-x64;win-arm64`.
+- `OutputType=WinExe`, `UseWinUI=true`, `WinUISDKReferences=false`, `Platforms=x64`, `RuntimeIdentifiers=win-x64` (x64 only, user decision 2026-09-28).
 - `WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`, `SelfContained=true`.
 - **`EnableMsixTooling=true`**. It is still required when unpackaged, or the `.pri`/`.xbf` files are missing and startup crashes with 0xC000027B.
 - `TargetPlatformMinVersion=10.0.26100.0`.
@@ -342,7 +342,7 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 
 ### 2.6 Commands
 
-**Prerequisites (install once).** Machine-wide, on the development PC (approved 2026-09-27). The build (§14) starts only once they are installed. Under the install rule (§1.1), a missing tool is installed, never designed around.
+**Prerequisites (install once).** Machine-wide, on the development PC (approved 2026-09-27). The build (§14) starts only once they are installed; the plan's Task 01.0 installs and verifies them (winget, Git for Windows, the rows below, Windows SDK 10.0.26100 and the WebView2 runtime) when the user says to start development. Under the install rule (§1.1), a missing tool is installed, never designed around.
 
 | What | Command | Notes |
 |---|---|---|
@@ -363,11 +363,11 @@ dotnet test --solution uas-sort.slnx                        # MTP runner via glo
 pwsh -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1 -CheckBannedApi
 dotnet run --project src/UasSort.Cli -- plan --card E:\ --json     # = uas-sort-cli plan … (§4.5)
 dotnet publish src/UasSort.App -c Release -r win-x64         # Native AOT (PublishAot in the csproj); needs the C++ build tools
-pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0   # AOT publish for this machine's RID, selftest gate, copy, .lnk, keep 2 versions
-dotnet build-server shutdown                                # after WSL-driven builds (compiler server locks files)
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Version 0.1.0   # AOT publish for win-x64, selftest gate, copy, .lnk, keep 2 versions
+dotnet build-server shutdown                                # optional: releases the compiler server's file locks
 ```
 
-From WSL, `tools/r.sh` wraps `"/mnt/c/Program Files/dotnet/dotnet.exe"` and `pwsh.exe`, with the working directory set to `/mnt/c/dev/uas-sort`. Incremental builds take about 15 s. Pass environment variables through `WSLENV`.
+These commands run natively on Windows from the repo root `C:\dev\uas-sort`, in PowerShell 7 or Claude Code's Bash tool (Git Bash on Windows); that is how development runs (user decision, 2026-09-28). Optional, only for someone driving the build from WSL: `tools/r.sh` wraps `"/mnt/c/Program Files/dotnet/dotnet.exe"` and `pwsh.exe`, with the working directory set to `/mnt/c/dev/uas-sort`. Incremental builds take about 15 s. Pass environment variables through `WSLENV`.
 
 ### 2.7 Pitfalls from the spikes and the review, as implementation rules
 
@@ -2421,7 +2421,7 @@ A failed file always stops the rest of its unit. The unit's remaining files stay
 
 ## 13. Testing strategy
 
-Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microsoft.Testing.Platform). From WSL, the same command runs through `dotnet.exe`. `tools/build.ps1 -CheckBannedApi` runs the analyzer probe.
+Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microsoft.Testing.Platform). It runs natively on Windows (optionally from WSL through `tools/r.sh`, which calls `dotnet.exe`). `tools/build.ps1 -CheckBannedApi` runs the analyzer probe.
 
 **Unit tests: Core**
 
@@ -2648,7 +2648,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - A closed `PlanEdit` and `TargetChoice` round-trip through source-generated JSON.
 
 **Golden replay**
-- **Fixture.** `tests/UasSort.Testing/Replay/library-listing.json` is generated **once**, on 2026-09-27, by `tools/fixtures/make-replay-fixture.ps1` from the library **listing** (names, sizes, mtimes, attributes; no file is opened) plus the GPS already extracted in `docs/research/spikes/djmd/calibration.json` and `docs/research/spikes/grouping/more_gps.json`: the same inputs as `docs/research/spikes/grouping/replay50.py`. It is checked in and **never regenerated by tests**, so later imports can't change the expectations. The repo is private, and no file content is included. Schema:
+- **Fixture.** `tests/UasSort.Testing/Replay/library-listing.json` was generated **once**, on 2026-09-28 (listing only; resolved with the user), and is checked in at `docs/research/fixtures/library-listing.json`, which the build copies into place; `tools/fixtures/make-replay-fixture.ps1` is the record of how it was produced and is not run during the build. It came from the library **listing** (names, sizes, mtimes, attributes; no file is opened) plus the GPS already extracted in `docs/research/spikes/djmd/calibration.json` and `docs/research/spikes/grouping/more_gps.json`: the same inputs as `docs/research/spikes/grouping/replay50.py`. It is checked in and **never regenerated by tests**, so later imports can't change the expectations. The repo is private, and no file content is included. Schema:
 
 ```json
 { "v": 1, "snapshotUtc": "2026-09-27T20:00:00Z", "pcZone": "America/Anchorage",
@@ -2794,7 +2794,7 @@ Every row of the §10.3 outcome table, including:
 **Build sequence.** The parts are built in this order because each uses only the parts before it. The tests of each part are written with it, test-first (§13), in the same pass; there are no separate test batches, and the whole suite stays green as later parts land.
 
 1. **Stack proof.**
-   - Builds: the repo skeleton (slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, the analyzer probe project; build and WSL scripts; first restore). The real App project with a 30-line probe page: GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `stack-exif.jpg` (StillProbe and the synthetic DNG come in step 3). A check that the VS Code C# extension handles `union` and `closed` without false errors.
+   - Builds: the repo skeleton (slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, the analyzer probe project; build scripts and the optional WSL wrapper; first restore). The real App project with a 30-line probe page: GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `stack-exif.jpg` (StillProbe and the synthetic DNG come in step 3). A check that the VS Code C# extension handles `union` and `closed` without false errors.
    - Verified here: the App restores, builds and **publishes Native AOT (`PublishAot=true`) with `TreatWarningsAsErrors` on**, then passes the minimal selftest (`--selftest`, §13): probe page renders, WebView2 reaches the virtual host, MetadataExtractor Stream read of the checked-in `stack-exif.jpg`, GeoTimeZone lookup, closed-record JSON round-trip. The AOT build's size and warm first frame (second of two runs) are recorded against the ReadyToRun baseline (87–97 MB, 0.37 s). The cross-assembly union/closed exhaustiveness test is green. This settles the UNVERIFIED `AnalysisLevel` 11.0, MetadataExtractor under trimming, AppInstance and Sizers.
    - Fallbacks if the build fails on package compatibility: toolkit 8.2 with the full package, or fixed panes.
    - It comes first so that no later part is built on a package set or publish mode that doesn't work.
@@ -2832,7 +2832,7 @@ Every row of the §10.3 outcome table, including:
     - Builds: `uas-sort-cli plan` (§4.5), incl. `--expect`.
     - Tests: `uas-sort-cli plan --json` runs on a copied card folder under `%TEMP%` and writes nothing.
 13. **Native AOT publish and deploy.**
-    - Builds: the Native AOT publish for `win-x64` and `win-arm64`; `deploy.ps1` (AOT publish, selftest gate, `.lnk`, keep 2 versions).
+    - Builds: the Native AOT publish for `win-x64` (x64 only, user decision 2026-09-28); `deploy.ps1` (AOT publish, selftest gate, `.lnk`, keep 2 versions).
     - Tests: `deploy.ps1` passes its selftest gate on x64, including the warm first frame ≤ 1 s.
 
 **Completion criteria.** The one-pass build is complete when all of these hold:
@@ -2867,8 +2867,7 @@ Every row of the §10.3 outcome table, including:
 4. **Daily flights chaining together.** With R = 50 mi and G = 1, flights on consecutive days in the same area (for example, a week at home) become one multi-day folder.
    - *Accepted default:* no cap on how many days a group spans. Every day change shows a one-click split suggestion, emphasised at 10 mi or more. Next-day appends at 10 mi or more are Medium. A maximum-span setting stays on the Later list.
 5. **Are any of the PCs ARM64?**
-   - *Accepted default:* `deploy.ps1` publishes for the RID of the machine it runs on (x64 here). `win-arm64` is built by the publish step (§14 step 13).
-   - **Still open:** ARM64 is UNVERIFIED until it runs on an ARM64 PC.
+   - **Resolved: x64 only (user, 2026-09-28)** — "I'm not expecting to run on any ARM64 computers. Both of my personal laptops are regular x86 Intel." `RuntimeIdentifiers=win-x64`, `Platforms=x64`; `deploy.ps1` publishes `win-x64`; there is no ARM64 publish step.
 6. **PowerShell 7.** The scripts use `pwsh`, which isn't installed on this PC.
    - *Approved:* the user installs it once with `winget install Microsoft.PowerShell` at implementation start, alongside the .NET 11 SDK preview and the C++ build tools (§2.6 Prerequisites). Every script runs via `pwsh -NoProfile -ExecutionPolicy Bypass -File`.
 7. **Autel cards.**
@@ -2899,7 +2898,7 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 | 12 | requirements | minor | Exact package set never built together; TreatWarningsAsErrors risk | **Applied** | M0 exit criterion: full pinned set incl. Sizers, trimmed + ReadyToRun with warnings as errors, `--selftest`; fallbacks named. *Note: the M0 exit publish is now Native AOT with warnings as errors (user decision, 2026-09-27; §14)* *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 13 | requirements | minor | Nothing checks that the card is left unmodified | **Applied** | Automatic audit re-list diff (§10.5); acceptance before/after snapshots incl. last-access (§13); read-only access ACL test. *Note: still true for the offload. Card cleanup (user decision, 2026-09-27; §10.6) is a separate, confirmed action whose deletes are checked by a re-list and recorded in the ledger.* |
 | 14 | requirements | minor | Undefined types, unpinned versions, selftest DNG source, DraftKey hash | **Applied** | §3 supporting types, `TargetChoice` as a closed record with `[JsonPolymorphic]`; versions pinned from the 2026-09-27 NuGet query; SyntheticDngBuilder asset; DraftKey = XxHash64 of the lowercase canonical root |
-| 15 | requirements | minor | x64 hardcoded; a PC may be ARM64 | **Applied** | §1.2 assumption row, §2.5 RIDs `win-x64;win-arm64`, deploy picks the machine's RID; §15 Q5 |
+| 15 | requirements | minor | x64 hardcoded; a PC may be ARM64 | **Applied** | §1.2 assumption row; §15 Q5. *Note: superseded: x64 only (user decision 2026-09-28); §2.5 RIDs `win-x64`, deploy publishes `win-x64`.* |
 | 16 | safety | blocker | App copies advance the watermark and flip unseen photos to "probably imported" | **Applied** | §7.1 watermark from outside-app imports only; §10.4 `seen` records at every Commit end; §7.3 rule 3; two-run and cancel tests (§13) |
 | 17 | safety | blocker | Classification fall-through to SkippedByRule; Browse anchoring makes everything "outside DCIM" | **Applied** | §5 fail-safe Unknown for unclaimed media, named skips only, cover JPGs Unknown until proven; DCIM anchoring and refusal (§4.3); NotSafe audit test |
 | 18 | safety | major | Default `EnumerationOptions` drop Hidden/System files and swallow errors | **Applied** | §5/§4.1 explicit options, `ContinueOnError` error list → `ForcesNotSafe`; Hidden/System Platform test; enumeration types banned outside Platform |

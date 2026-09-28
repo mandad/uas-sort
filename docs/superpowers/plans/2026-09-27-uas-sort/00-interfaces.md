@@ -20,7 +20,7 @@ Binding decisions (from the user; apply, don't re-litigate):
 12. Ledger: Platform loads through Part 05 `LedgerLoader`/`LedgerReader`; `CopyInto` never copies `torn` records; JSON contexts are only `LedgerJsonContext` and `CoreJsonContext` (no `UasSortJsonContext`, no `CoreJson`); settings code in `UasSort.Core.Config` (`SettingsDefaults`, `SettingsCodec`, `SettingsLoadPolicy`, `SettingsRecovery`).
 13. `CardAudit.Audit(CardInventory, ListingResult, CardIdentity? now, Plan, OffloadResult?, LedgerSnapshot, CardIdentity? pinned = null)`; every changed/added/removed audit detail starts with exactly `changed since scan`.
 14. `IssueCode.NothingNew` (Part 06, Blocking). Index Review Focus #1: "every AlreadyImported group folded; NothingToCopy groups follow the spec's fold rule (never folded)".
-15. ARM64 and the replay-fixture listing wait for the user (see Open for user); no part changes for them.
+15. Resolved by the user on 2026-09-28 (see "Resolved user decisions" at the end): **x64 only** — `Platforms=x64`, `RuntimeIdentifiers=win-x64`, no ARM64 build, the former ARM64 publish task of Part 13 is deleted (the README task is now 13.6, the completion criteria 13.7); the **replay fixture** is pre-generated and checked in at `docs/research/fixtures/library-listing.json` (listing-only metadata; no video copies), and Task 06.19 copies it into place; execution is **subagent-driven**; development runs from a **PowerShell Claude CLI session on Windows** (not WSL), with Task 01.0 installing the prerequisites first.
 
 Further decisions made for this registry:
 
@@ -607,14 +607,15 @@ Owner = the part/task that declares the symbol (later parts that extend it are n
 
 | Symbol | Kind | Exact signature | Namespace | Owner | Consumers |
 |---|---|---|---|---|---|
-| `tools/r.sh` | bash wrapper | `tools/r.sh dotnet\|pwsh <args…>` | — | 01.1 | all |
+| Development prerequisites | installed toolchain | winget, Git for Windows, PowerShell 7.4+, .NET 11 SDK (11.0.100-rc.1.26425.128 or a later 11.0.1xx), Build Tools 2022 C++ workload (`Microsoft.VisualStudio.Workload.VCTools`), Windows SDK 10.0.26100, WebView2 runtime (reported); versions recorded in `docs/research/10-stack-proof.md` | — | 01.0 | all |
+| `tools/r.sh` | bash wrapper (optional) | `tools/r.sh dotnet\|pwsh <args…>`; only for someone driving the build from WSL — the primary commands run natively on Windows | — | 01.1 | optional (WSL only) |
 | `tools/build.ps1` | pwsh | `-File tools\build.ps1 [-CheckBannedApi]`; probe marker `// probe: <documentation id>` | — | 01.4 | 13 |
 | `tools/run-selftest.ps1` | pwsh | `-Exe <path> [-Runs 2] [-MaxWarmFirstFrameMs 1000] [-BaselineMs 370]`; runs `--selftest --result <tmp>`; fails on any `status: fail`; prints `slowerThanBaseline` | — | 01.11 | 01 |
 | `tools/selftest.ps1` | pwsh | `[-Only a,b] [-Configuration Debug] [-TimeoutSec 60]`; builds the App, runs `uas-sort.exe --selftest --result <tmp> [--only …]` | — | 11.4 | 11 |
 | `tools/vendor-maplibre.ps1` | pwsh | `[-RenameToJs] [-Leaflet]` | — | 11.7 | 11 |
 | `tools/places/build-places.cs` | file-based app | `dotnet run --file tools/places/build-places.cs -- --us <US.zip> --cities <cities5000.zip> --out <places.bin.gz>` | — | 04.11 | 04 |
 | `tools/fixtures/make-selftest-assets.cs` | file-based app | `dotnet run tools/fixtures/make-selftest-assets.cs -- .`; `SelfTestAssets.All()` = `stack-exif.jpg` (01.7) + `selftest.dng`, `ledger-v1.jsonl`, `selftest-0001.mp4`, `selftest-0002.mp4`, `selftest-0003.mp4` (11.9) | — | 01.7 (+11.9) | 01, 11 |
-| `tools/fixtures/make-replay-fixture.ps1` | pwsh | writes `tests/UasSort.Testing/Replay/library-listing.json` (pending user, Open for user) | — | 06.19 | 06 |
+| `tools/fixtures/make-replay-fixture.ps1` | pwsh | writes `tests/UasSort.Testing/Replay/library-listing.json`; record of how the fixture was produced; not run during the build | — | 06.19 | 06 |
 | `tools/Deploy.psm1` | module | `Get-AppPublishConfig`, `Test-SelftestRun`, `Test-SelftestGate -Runs <object[]> [-MaxWarmMs 1000] [-BaselineMs 370]` (`SlowerThanBaseline` never changes `Ok`), `Invoke-SelftestProcess`, `Get-UasSortRid`, `Get-PeMachine`, `Get-FolderStats`, `Test-AotPublishOutput`, `Test-PathUnder`, `Assert-DeployTargetSafe`, `Copy-UasSortBuild`, `Get-VersionsToPrune`, `Remove-OldVersions`, `New-UasSortShortcut` | — | 13.1–13.4 | 13 |
 | `tools/deploy.tests.ps1` | pwsh | `[-Name <wildcard>]`; cases in `tools/deploy-tests/*.Tests.ps1` | — | 13.1 | 13 |
 | `tools/deploy.ps1` | pwsh | `-Version <x.y.z> [-AllowNoPlaceholders] [-Force] [-TimeoutSec 60]` | — | 13.5 | 13 |
@@ -633,9 +634,9 @@ Owner = the part/task that declares the symbol (later parts that extend it are n
 | `<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl` | JSONL | one `LedgerRecord` per line (`LedgerCodec`) | — | 05 (format), 09 (store) | 06–12 |
 | `%LOCALAPPDATA%\uas-sort\settings.json` | JSON | `CoreJsonContext.Default.Settings` via `SettingsCodec`; corrupt copy `settings.json.corrupt-yyyyMMdd-HHmmss` | — | 05, 09 | 10–12 |
 | `%LOCALAPPDATA%\uas-sort\ledger-backup\…`, `drafts\{cardKey}.json`, `reports\yyyyMMdd-HHmmss-run8[-cleanup].json`, `logs\uas-sort-yyyyMMdd.log`, `WebView2\` | app data | per Part 09 Tasks 09.9–09.12, Part 11 map pane | — | 09, 11 | 10–12 |
-| `tests/UasSort.Testing/Replay/library-listing.json` | embedded JSON | `UasSort.Testing.Replay.library-listing.json` (pending user) | — | 06.19 | 06 |
+| `tests/UasSort.Testing/Replay/library-listing.json` | embedded JSON | `UasSort.Testing.Replay.library-listing.json`; copied from the checked-in `docs/research/fixtures/library-listing.json` (pre-generated 2026-09-28, listing only) | — | 06.19 | 06 |
 | `tests/acceptance/first-card-expected.schema.json`, `.example.json`, `README.md` | acceptance template | per Part 12 Task 12.4 | — | 12.4 | user |
-| `docs/research/10-stack-proof.md` | record | stack-proof measurements; warm row "gate ≤ 1000 ms; baseline 370 ms; slowerThanBaseline: …" | — | 01.12 | 13 |
+| `docs/research/10-stack-proof.md` | record | `## Toolchain (Task 01.0)` section (installed tool versions), then the stack-proof measurements appended by 01.12; warm row "gate ≤ 1000 ms; baseline 370 ms; slowerThanBaseline: …" | — | 01.0 (creates), 01.12 (appends) | 13 |
 
 ## Required edits per part
 
@@ -657,6 +658,7 @@ Owner = the part/task that declares the symbol (later parts that extend it are n
 7. Task 01.12 Stop rule and the part intro: a warm first frame over 1000 ms is a failed concrete check; slower than 370 ms (but ≤ 1000 ms) is recorded as `slowerThanBaseline` in `docs/research/10-stack-proof.md` and reported to the user in the completion summary; it does not stop Part 02.
 8. Produces summary: update the `LaunchOptions`, selftest contract and `run-selftest.ps1` lines to items 2–6; note "Part 11 extends `SelfTestSandbox`, `LaunchOptions`, `SingleInstanceGate`, `SelfTestCheck`/`SelfTestResult`/`SelfTestJsonContext` and `tools/fixtures/make-selftest-assets.cs` in place".
 9. Task 01.2: `UasSort.Testing.csproj` and every test csproj reference `Microsoft.Extensions.TimeProvider.Testing`; test csprojs carry `<Using Include="Xunit" />`.
+10. (Applied 2026-09-28.) Task 01.0 (install development prerequisites) precedes Task 01.1; Task 01.12 appends to the `docs/research/10-stack-proof.md` that Task 01.0 creates; the App and BannedApi.Probe csprojs use `Platforms=x64` and the App `RuntimeIdentifiers=win-x64`; `tools/r.sh` is optional (WSL only) and every primary command runs natively on Windows.
 
 ### Part 02 — Core model and guard
 
@@ -704,7 +706,7 @@ Owner = the part/task that declares the symbol (later parts that extend it are n
 7. Task 06.21: create `tests/UasSort.Testing/FakeLedgerStore.cs` with the registry signature: `Check()` = `StatusOverride ?? LedgerFolderStatusBuilder.Build(videoRoot, machine, facts from fs listings/attributes)` (throws `IOException` when `CheckThrows`), `Load()` = `LedgerLoader.Load(Check(), p => fs.OpenRead(p))` (or the in-memory snapshot when `fs` is null); `EnsureFolder`, `OpenOwn`, `SnapshotToBackup`, `KeepOnDevice`, `CopyInto` throw `NotSupportedException` until Part 07; each call appends its name to `Calls`.
 8. Summary table: `UasSort.Testing.Planning` loses `FakePlaceIndex` and `GatedPlanDeriver`; add `UasSort.Testing.FakeLedgerStore`, `UasSort.Testing.GatedPlanDeriver`, `UasSort.Testing.PlanFingerprint`; gaps list items about instances/`FakeFileSystem` guesses marked resolved.
 9. Review Focus #1 text in Tasks 06.12/06.14 and the summary: "every AlreadyImported group folded; NothingToCopy groups never fold".
-10. Task 06.19: no change (replay listing pending user).
+10. Task 06.19: copies the pre-generated `docs/research/fixtures/library-listing.json` (resolved 2026-09-28; applied in the part file); the script is not run during the build.
 
 ### Part 07 — Offload and audit
 
@@ -915,11 +917,15 @@ Owner = the part/task that declares the symbol (later parts that extend it are n
 1. Header "Depends on": "through `SelfTestOptions.Parse` and writes `SelfTestResult(Ok, FirstFrameMs, Checks)`" → "through Part 01's `LaunchOptions.Parse` (extended by Part 11) and `SelfTestResult(Ok, FirstFrameMs, Checks)`".
 2. Task 13.2: `SlowerThanBaseline` sentence → "does not change `Ok`; it is recorded in the summary file and reported to the user in the completion summary (decision 3); it is not an AOT concrete-check failure".
 3. Task 13.5 `deploy.ps1`: replace the yellow warning text by "NOTE: warm first frame N ms is slower than the 0.37 s ReadyToRun baseline; recorded as slowerThanBaseline and reported in the completion summary."; in the troubleshooting list remove "or `slowerThanBaseline : True`" from the stop-and-ask bullet.
-4. Task 13.8 Step: "If `slowerThanBaseline` is `True`, or the gate fails: stop and ask" → "If the gate fails: stop and ask. If `slowerThanBaseline` is `True`, continue, and state the warm value and the 370 ms baseline in the completion commit message and the final summary to the user"; expected `slowerThanBaseline` may be either value.
+4. Task 13.7 (completion criteria; was 13.8) Step: "If `slowerThanBaseline` is `True`, or the gate fails: stop and ask" → "If the gate fails: stop and ask. If `slowerThanBaseline` is `True`, continue, and state the warm value and the 370 ms baseline in the completion commit message and the final summary to the user"; expected `slowerThanBaseline` may be either value.
 5. "If Native AOT fails a concrete check": remove "or a warm first frame slower than the 0.37 s ReadyToRun baseline (`slowerThanBaseline : True`)" from the definition.
-6. Task 13.6 (ARM64): no change until the user answers (Open for user).
+6. The ARM64 publish task (formerly 13.6) is deleted (x64 only, user decision 2026-09-28; applied in the part file): the README task is 13.6 and the completion criteria 13.7; `win-arm64` is gone from `Get-AppPublishConfig`, `Get-UasSortRid`, `Test-AotPublishOutput` and the tests (37 deploy cases).
 
-## Open for user
+## Resolved user decisions (2026-09-28)
 
-1. **ARM64.** Part 13 Task 13.6 cross-publishes `win-arm64` and needs the MSVC ARM64 build tools (`Microsoft.VisualStudio.Component.VC.Tools.ARM64`). Does the user have (or plan) any ARM64 PC? If not, the plan may drop the ARM64 publish (and `win-arm64` from `RuntimeIdentifiers`/`Platforms`); until answered, Part 13 stays as written.
-2. **Replay fixture listing.** Part 06 Task 06.19 (`tools/fixtures/make-replay-fixture.ps1` → `tests/UasSort.Testing/Replay/library-listing.json`) lists the user's real library (names, sizes, mtimes, attributes; no content) to build the golden replay. The user must approve that listing before it is generated and checked in; until then Parts 06.19–06.20 are blocked.
+Nothing is open for the user. Formerly open, now decided:
+
+1. **x64 only.** The user has no ARM64 PC ("Both of my personal laptops are regular x86 Intel"). No `win-arm64` publish, no MSVC ARM64 build tools; `Platforms=x64`, `RuntimeIdentifiers=win-x64`; `deploy.ps1` publishes `win-x64`.
+2. **Replay fixture pre-generated.** `docs/research/fixtures/library-listing.json` (listing-only metadata; no video copies) is checked in; Task 06.19 copies it; `tools/fixtures/make-replay-fixture.ps1` is the record of how it was produced and is not run during the build.
+3. **Execution = subagent-driven** (superpowers:subagent-driven-development; a fresh implementer and reviewer per task, whole-branch review at the end).
+4. **Development runs from a PowerShell Claude CLI session on Windows** (not WSL); Task 01.0 installs and verifies the prerequisites when the user says to start development.

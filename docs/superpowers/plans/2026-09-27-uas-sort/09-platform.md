@@ -30,7 +30,7 @@ Platform code sees every Core namespace through Part 02's fixed `GlobalUsings.Co
 
 `FsEntry.RelPath` produced here uses the Windows separator (`DCIM\DJI_001\x.MP4`), exactly as `Path.GetRelativePath` returns it; Core converts to the `/` form of `ItemId` where it builds ids.
 
-**Test commands used in this part** (from WSL through `tools/r.sh`, then `dotnet build-server shutdown`):
+**Test commands used in this part** (run natively on Windows from the repo root `C:\dev\uas-sort` in PowerShell 7 or Claude Code's Bash tool; only if driving the build from WSL (optional), run them through `tools/r.sh`, then `dotnet build-server shutdown`):
 
 ```powershell
 dotnet test --project tests/UasSort.Platform.Tests/UasSort.Platform.Tests.csproj -- --filter-method "*Name*"
