@@ -13,7 +13,6 @@ public static class Mp4Probe
 
     private static readonly DateTime QtEpoch = new(1904, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly ulong MaxQtSeconds = (ulong)((DateTime.MaxValue - QtEpoch).Ticks / TimeSpan.TicksPerSecond);
-    private static readonly int[] FirstSampleOnly = [0];   // sample 0 only; Task 03.10 widens this to ProbeIndices
     private static readonly ulong MaxUptimeMicroseconds = (ulong)(TimeSpan.FromDays(3650).Ticks / 10);
 
     public static Mp4Info Read(Stream s)
@@ -31,6 +30,16 @@ public static class Mp4Probe
             if (b.Type == "mdat") mdat ??= b;
         }
         return moov is { } m ? ReadMoov(cache, m) : ReadWithoutMoov(cache, mdat);
+    }
+
+    /// <summary>0-based samples probed for the first fix: 0–9, then 16, 32, 64, … below n, then n − 1 (Ref §6.3 step 5).</summary>
+    public static IReadOnlyList<int> ProbeIndices(int sampleCount)
+    {
+        var indices = new List<int>();
+        for (int i = 0; i < Math.Min(10, sampleCount); i++) indices.Add(i);
+        for (long k = 16; k < sampleCount; k *= 2) indices.Add((int)k);
+        if (sampleCount > 0 && !indices.Contains(sampleCount - 1)) indices.Add(sampleCount - 1);
+        return indices;
     }
 
     private static Mp4Info ReadWithoutMoov(BlockCache cache, Mp4Box? mdat)
@@ -122,7 +131,7 @@ public static class Mp4Probe
         string? protocol = null, serial = null;
         ulong? uptime = null;
         bool anyDecoded = false;
-        foreach (int k in FirstSampleOnly)
+        foreach (int k in ProbeIndices(table.SampleCount))
         {
             if (ReadSample(cache, table, k) is not { } bytes) continue;
             if (DjmdDecoder.Decode(bytes, protocol) is not { } r) continue;
