@@ -1502,7 +1502,7 @@ Each suggestion is computed at **each local day's centroid**, in day order. That
   - **Kept records:** class P (populated places; population from the dump) and these feature codes, mapping the words of rule 3: mountain `MT`, peak `PK`, hill `HLL`, valley `VAL`, pass `PASS`, cape `CAPE`, island `ISL`, peninsula `PEN`, point `PT`, bay `BAY`, lake `LK`, glacier `GLCR`, fjord `FJD`, cove `COVE`, lagoon `LGN`, inlet `INLT`, sound `SD`, strait `STRT`, harbor `HBR`, falls `FLLS`, park `PRK`.
   - **Layout** (little-endian, then gzip): header `"UPLC"`, `u16 version = 1`, `u32 recordCount`, `u16 tzCount`, then `tzCount` zone names (`u8 length` + UTF-8), then per record: `u8 nameLength` + UTF-8 name, `i32 lat × 1e6`, `i32 lon × 1e6`, `u8 class` (0 = populated, 1 = feature), `u8 featureCodeIndex` (into the list above, in that order; 255 for populated), `u32 population`, `u16 tzIndex`. `PlaceIndex` builds its 0.1° grid at load time.
   - Credit "GeoNames CC-BY 4.0" appears in About.
-  - **Round-trip test (§14 step 4):** `build-places` → `PlaceIndex.Load` → the nearest feature to the Anvil Mountain clips is "Anvil Mountain" at ≤ 0.2 mi, and to the Zachar Bay clips "Zachar Bay" at ≤ 0.4 mi (the distances the Python spike found).
+  - **Round-trip test (§14 step 4):** `build-places` → `PlaceIndex.Load` → the nearest feature to the Anvil Mountain clips is "Anvil Mountain" at ≤ 0.2 mi, and to the Zachar Bay clips "Zachar Bay" at ≤ 1.5 mi (rule 3's feature radius; user decision 2026-09-28 — GeoNames places the bay point ~1.0 mi from the flights; the spike's 0.4 mi was the populated village).
 
 ### 8.8 Set folders (the user's set-clash rule, §1.1)
 
