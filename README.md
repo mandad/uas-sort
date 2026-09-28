@@ -5,7 +5,7 @@ A small Windows desktop app that offloads a drone's SD card into an organised li
 Built for the DJI Air 3S workflow, but the rules are general enough for other DJI Fly-era drones.
 
 > **Status: design complete, implementation not started.**
-> The approved design spec lives in [`docs/superpowers/specs/`](docs/superpowers/specs/). Code arrives milestone by milestone (see [Roadmap](#roadmap)).
+> The approved design spec lives in [`docs/superpowers/specs/`](docs/superpowers/specs/). The initial, feature-complete version is built in one pass (see [Build approach](#build-approach)).
 
 ## What it does
 
@@ -65,7 +65,7 @@ A few things the design had to get right:
   - Optional: VS Code + C# Dev Kit (`winget install Microsoft.VisualStudioCode`), or Visual Studio 2026 Insiders for the XAML designer and Hot Reload
 - To run: nothing extra — the published app is self-contained (native code plus its own Windows App SDK runtime), and WebView2 ships with Windows 11
 
-Build and run instructions will be added with the first code milestone (M0).
+Build and run instructions will be added with the code.
 
 ## Repository layout
 
@@ -91,21 +91,25 @@ The research uses real flights from the author's library (Alaska and Rhode Islan
 
 Planned source layout (from the spec): `src/UasSort.Core` (UI-free logic), `src/UasSort.Platform` (the only code that touches disk/Win32), `src/UasSort.Review` (view models), `src/UasSort.App` (WinUI shell), `src/UasSort.Cli` (dry-run planner), plus matching test projects.
 
-## Roadmap
+## Build approach
 
-| Milestone | Scope |
-|---|---|
-| M0 | Solution skeleton; prove the exact package set publishes as Native AOT and runs |
-| M1 | Card detection, file classification, MP4/DNG metadata probes |
-| M2 | Drone-clock learning, time zones, library index, ledger |
-| M3 | Newness, grouping, folder decisions, edit model; `uas-sort-cli plan` dry run |
-| M4 | Checkpoint: dry run against a real card |
-| M5 | Offload engine: copy/verify/rename, audit, verdict |
-| M6–M7 | WinUI review screens and commit flow — first real offload from the app |
-| M7b | Card cleanup: delete offloaded files by date or to reach a free-space target; optionally weed out clips not in the library after a listing |
-| M8 | Map pane |
-| M9 | Offline place-name suggestions |
-| M10 | Packaging and acceptance |
+The initial version is built complete, in one pass, by an AI coding agent — not progressively or in milestones. Once the prerequisites above are installed, the parts are built in dependency order, with each part's tests written alongside it:
+
+1. Stack proof: solution skeleton, pinned packages, banned-API analyzer; a probe app that publishes as Native AOT and passes its selftest
+2. Core model, I/O ports and the guard policy (plus a fake file system with tripwires)
+3. Media probes: MP4 time/GPS/clip length, DNG metadata, thumbnails
+4. Time and place: drone-clock learning, site time zones, clock-mismatch flag, offline GeoNames place index
+5. Library index, ledger and settings
+6. Planning and editing: newness, grouping, day splits, folder decisions, naming, sets, undo-able edits
+7. Offload engine: copy/verify/rename, audit, verdict
+8. Card cleanup: planner and executor (delete by date or to reach a free-space target; weed out clips not in the library after a listing)
+9. Windows platform layer: listing, card reader, card eraser, guarded file ops, ledger store
+10. View models
+11. WinUI app: setup, review screens, map pane, commit flow, cleanup, settings
+12. `uas-sort-cli plan` dry run
+13. Native AOT publish, `deploy.ps1` and the `--selftest` gate
+
+It is complete when the whole solution builds with warnings as errors, the full test suite passes (unit, golden replay, synthetic media, fake-file-system tripwire, fault injection, Windows integration, view models), the banned-API probe trips every expected analyzer error, and the Native AOT build passes `--selftest`. A dry run, rehearsal, real offload and card cleanup on a real card are then the user's acceptance of the finished app.
 
 ## Non-goals
 

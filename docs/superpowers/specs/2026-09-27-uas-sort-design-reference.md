@@ -5,7 +5,8 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
 - **Approved:** 2026-09-27. The user reviewed and approved every design section: approach, stack, rules, Review UI and offload safety. The user also chose the ledger location (`<videoRoot>\.uas-sort\`, §11) and accepted the remaining defaults (§15).
 - **Changed 2026-09-27: Card cleanup.** The user added an explicit action that deletes card files (§1.1, §10.6). This replaces the earlier requirement "copy only, never delete from card" as follows: the offload and copy path still never writes the card, and the card reader stays read-only; only `ICardEraser`, during Card cleanup, deletes, and only files in a confirmed `CleanupPlan`.
 - **Changed 2026-09-27: drone clock and packaging.** The user confirmed that the RC 2 clock was simply never switched from US Eastern (it is not set from GPS) and asked for dates built from UTC with the site's real zone plus a flag when the drone clock doesn't match (§1.1, §6.1, §6.5). The user also made Native AOT the primary build and asked to be told what to install rather than get a weaker fallback (§1.1, §2.1, §2.6).
-- **Still marked UNVERIFIED:** facts nobody has proven on this hardware yet. Each is scheduled for a milestone check (§14) or has a named fallback. None of them waits on a user decision, except that a Native AOT build failing a concrete M0 check is raised with the user rather than accepted (§1.1).
+- **Changed 2026-09-27: single-pass build.** The user asked for the initial, feature-complete version to be built in one pass by an AI coding agent, not progressively or in milestones (§1.1). §14 is now a dependency-ordered build plan with completion criteria; the first-real-card steps (§13) are the user's acceptance of the finished product.
+- **Still marked UNVERIFIED:** facts nobody has proven on this hardware yet. Each has a check in a named build step (§14) or acceptance step (§13), or a named fallback. None of them waits on a user decision, except that a Native AOT build failing a concrete check in the stack-proof step at the start of the build is raised with the user rather than accepted (§1.1).
 
 **Evidence.** "The spike" and "the replay" in this document refer to these research reports and spike files in the repo:
 
@@ -82,8 +83,13 @@ This is the detailed companion to the main spec, [`2026-09-27-uas-sort-design.md
   - offline GeoNames suggestions;
   - an unpackaged, self-contained **Native AOT** folder (`PublishAot=true`, trimmed; `win-x64`, ARM64 built but UNVERIFIED) plus a Start-menu `.lnk`. No MSIX. *(Changed 2026-09-27 from "trimmed ReadyToRun, no Native AOT (an optional later attempt)"; see below.)*
 - The user installs the prerequisites once when implementation starts (§2.6): the .NET 11 SDK preview, PowerShell 7, and the C++ build tools for Native AOT.
-- **Native AOT is the primary build** (user decision, 2026-09-27). It is built from M0 on: M0's exit check is an AOT publish that passes `--selftest` with `TreatWarningsAsErrors`, and `deploy.ps1` publishes AOT (§14). Trimmed + ReadyToRun is no longer the plan: its measured numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline AOT must meet or beat (AOT startup UNVERIFIED until M0). It remains only as the diagnosis path if AOT fails a concrete M0 check, and that situation is raised with the user, never silently accepted.
+- **Native AOT is the primary build** (user decision, 2026-09-27). It is built from the start: the stack-proof step at the start of the build (§14 step 1) is an AOT publish that passes `--selftest` with `TreatWarningsAsErrors`, and `deploy.ps1` publishes AOT (§14 step 13). Trimmed + ReadyToRun is no longer the plan: its measured numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline AOT must meet or beat (AOT startup UNVERIFIED until the stack-proof step). It remains only as the diagnosis path if AOT fails a concrete check, and that situation is raised with the user, never silently accepted.
 - **Installs over fallbacks** (user decision, 2026-09-27; verbatim: "If a framework needed to build this is not on my computer, just ask or give me the information on how to install it… I just want to maintain the best version for the app if that takes me installing something."): when the best option needs a tool that isn't installed, the plan asks the user to install it rather than designing a weaker fallback. Fallbacks remain only for runtime/behaviour risks (e.g. MapLibre-in-WebView2 MIME, unbuffered verify on exFAT, AppInstance, the preview toolkit line's compatibility).
+
+**How the initial version is built** (user decision, 2026-09-27; verbatim: "I want this to be implemented for the initial version in one shot via the AI agent development. So revise anything that's necessary to build it in one go. Doesn't need to be built progressively or tested in batches or milestones, just the initial full feature-complete version.")
+- The initial version is built complete, in one pass, by an AI coding agent, in the dependency order of §14. There are no milestones, effort estimates, checkpoints or staged deliveries; every feature in this document is in it, and only the Later list (§1.4) is deferred.
+- The tests of each part are written with it (test-first), in the same pass, not as separate batches.
+- The first-real-card steps (§13) are the user's acceptance of the finished product, not build stages.
 
 **Grafts to include**
 - From Safety: re-check card files before copying, a write-through rename that never replaces, hidden temp files, keep the PC awake, single instance, audit categories behind the "safe to format?" verdict, a banned-API analyzer, and a dry-run CLI.
@@ -136,7 +142,7 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 - Parallel copies, pausing, resuming a half-copied file, or a crash journal. Temp-then-rename plus a safe re-run covers these cases.
 - Editable photo groups or photo folders. Photos always land flat, except sets.
 
-**Later (explicitly deferred, not in the milestones)**
+**Later (explicitly deferred, not in the initial version)**
 - Map: GeoNames place labels (and the `viewport`/`places` messages), Natural Earth outlines, keyboard forwarding from the map, Shift-drag box select, and a Protomaps offline street map.
 - Review: 960 px hover previews (MP4 `covr` / DNG preview ranges), a flight-number column, and a "Recent offloads" list.
 - Media: a stale-first-fix check (last-sample comparison for known models), GPS-time capture sources for other DJI models, a USGS toolbar button (USGS stays available as a settings URL), and a maximum group span.
@@ -165,9 +171,9 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
    - The offload ends with 0 failures and a verdict of Safe or SafeWithAssumptions.
    - A before/after card listing shows no change made by the offload.
 4. **The app is responsive.**
-   - Each edit or slider step derives in under 50 ms for 500 items, on a background thread, with the UI never blocked. Measured by the M3 Release benchmark: a synthetic 500-item `PlanBase`, median of 20 derives.
-   - Warm start to first frame is ≤ 1 s (0.37 s measured in the spike's trimmed ReadyToRun build, the baseline the Native AOT build must meet or beat; AOT startup is UNVERIFIED until M0). Measured by `--selftest`, which writes the first-frame time to `selftest-result.json`; `deploy.ps1` runs it twice and checks the second (warm) run (M10).
-   - Scanning and planning a 300-file card on a USB 3 reader takes ≤ 20 s (UNVERIFIED; recorded on the real card at M4).
+   - Each edit or slider step derives in under 50 ms for 500 items, on a background thread, with the UI never blocked. Measured by the Release benchmark in the test suite (§13): a synthetic 500-item `PlanBase`, median of 20 derives.
+   - Warm start to first frame is ≤ 1 s (0.37 s measured in the spike's trimmed ReadyToRun build, the baseline the Native AOT build must meet or beat; AOT startup is UNVERIFIED until the stack-proof step, §14 step 1). Measured by `--selftest`, which writes the first-frame time to `selftest-result.json`; `deploy.ps1` runs it twice and checks the second (warm) run (§14 step 13).
+   - Scanning and planning a 300-file card on a USB 3 reader takes ≤ 20 s (UNVERIFIED; recorded on the real card in first-card acceptance, §13).
 5. **The verdict never overstates safety.** "Safe to format" appears only when:
    - no card file is Unaccounted or AssumedByRule;
    - the card identity is unchanged;
@@ -175,7 +181,7 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 
    A table-driven test covers every outcome and newness combination, including multi-file units, `seen` records and a card swap.
 6. **Card cleanup deletes exactly what was confirmed** (§10.6).
-   - On a `%TEMP%` fake card (Windows integration) and, at M7b, on the real card (acceptance step 7, §13: one old eligible clip), the card re-listed after cleanup differs from the one re-listed before it by exactly the files reported deleted, and every one of them is named in the confirmed plan.
+   - On a `%TEMP%` fake card (Windows integration) and, after the build, on the real card (acceptance step 7, §13: one old eligible clip), the card re-listed after cleanup differs from the one re-listed before it by exactly the files reported deleted, and every one of them is named in the confirmed plan.
    - Every deleted file has a `cardDelete` ledger record.
    - Nothing is deleted without a `ConfirmedCleanupPlan`, and never on a browsed folder, a volume that fails the cleanup volume check, or a write-protected card.
 
@@ -188,16 +194,16 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 | Layer | Choice | Version | Status |
 |---|---|---|---|
 | SDK / runtime | .NET 11 | SDK `11.0.100-rc.1.26425.128` (go-live), then RC2 (~Oct 13; date UNVERIFIED), then `11.0.100` GA (Nov 10) | Built, tested and published in two spikes (`docs/research/06-modern-stack.md`, `docs/research/08-winui-spike.md`) |
-| Language | C# 15, the default for `net11.0` | Unions, `closed` hierarchies, collection-expression arguments; C# 14 `field` keyword and extension members | Compiled in the spike. **Exhaustiveness across assemblies is UNVERIFIED** and gets an M0 test |
+| Language | C# 15, the default for `net11.0` | Unions, `closed` hierarchies, collection-expression arguments; C# 14 `field` keyword and extension members | Compiled in the spike. **Exhaustiveness across assemblies is UNVERIFIED** and gets a test in the stack-proof step (§14 step 1) |
 | UI | WinUI 3 from the Windows App SDK 2.5.1 component packages | `Microsoft.WindowsAppSDK.WinUI` 2.3.9, `.Foundation` 2.3.12, `.InteractiveExperiences` 2.1.9 (pinned to avoid NU1603) | Spike: built, ran and published |
 | Build tools | `Microsoft.Windows.SDK.BuildTools`; for Native AOT, the MSVC linker from the VS Build Tools 2022 C++ workload (§2.6) | 10.0.28000.2705 | No Visual Studio IDE needed. The C++ workload is a one-time prerequisite: the installed Build Tools have an MSVC 14.44 folder but no `cl.exe`/`link.exe` |
 | Web host | `Microsoft.Web.WebView2` | 1.0.4191.47 (Evergreen runtime 153.x already present) | Spike: virtual host, messaging and clicks worked |
-| Map | MapLibre GL JS, vendored in the repo | 6.11.2. Streets from OpenFreeMap; satellite from Esri World Imagery; USGS as an alternate URL in settings | Verified in Chromium. **ESM `.mjs` under the WebView2 virtual host is UNVERIFIED** (M8's first task; §9.6). Leaflet 1.9.4 is proven in WebView2 and is the last-resort fallback |
+| Map | MapLibre GL JS, vendored in the repo | 6.11.2. Streets from OpenFreeMap; satellite from Esri World Imagery; USGS as an alternate URL in settings | Verified in Chromium. **ESM `.mjs` under the WebView2 virtual host is UNVERIFIED** (checked first when the map pane is built, §14 step 11; §9.6). Leaflet 1.9.4 is proven in WebView2 and is the last-resort fallback |
 | First-party controls | TitleBar, SelectorBar, **ItemsView** (+ LinedFlowLayout), AutoSuggestBox, DropDownButton + MenuFlyout, InfoBar, Slider, ContentDialog (queued), Expander, ToolTip | Part of WinUI 2.3.9 | TitleBar, ItemsView and Mica verified |
-| Toolkit controls | `CommunityToolkit.WinUI.Controls.Sizers` and `.SettingsControls` | 8.3.260402-preview2 (the latest; the only line that works with the lean package set) | Preview. Sizers was never restored in a spike, so it is part of M0's exit build. Fallback: 8.2.251219 with the full `Microsoft.WindowsAppSDK` package, or fixed-ratio panes |
+| Toolkit controls | `CommunityToolkit.WinUI.Controls.Sizers` and `.SettingsControls` | 8.3.260402-preview2 (the latest; the only line that works with the lean package set) | Preview. Sizers was never restored in a spike, so it is part of the stack-proof build (§14 step 1). Fallback: 8.2.251219 with the full `Microsoft.WindowsAppSDK` package, or fixed-ratio panes |
 | Grid | **No DataGrid.** ItemsView with x:Bind templates | — | §9.3. WinUI.TableView 1.5.0 works on 2.5.1 but isn't used |
 | MVVM | CommunityToolkit.Mvvm | 8.4.2 (partial `[ObservableProperty]`) | Verified on C# 15 |
-| Still-photo metadata | MetadataExtractor | 2.9.3, **Stream overloads only** (path overloads banned) | Trim behaviour UNVERIFIED, so rooted with `TrimmerRootAssembly`; M0 publishes a StillProbe call |
+| Still-photo metadata | MetadataExtractor | 2.9.3, **Stream overloads only** (path overloads banned) | Trim behaviour UNVERIFIED, so rooted with `TrimmerRootAssembly`; the stack-proof publish (§14 step 1) makes a MetadataExtractor Stream call, and the full `--selftest` a StillProbe call |
 | Time zones | GeoTimeZone + built-in `TimeZoneInfo` (ICU) | 6.1.0 | Verified on Windows 11. Never set `InvariantGlobalization` or `UseNls` |
 | Hash | System.IO.Hashing `XxHash128` (copies), `XxHash64` (keys) | **11.0.0-rc.1.26425.128**, then 11.0.0 at GA | 9.2 GB/s |
 | JSON | System.Text.Json, source-generated contexts only | Built in | Safe under trimming |
@@ -206,7 +212,7 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 | Tests | `xunit.v3.mtp-v2` on Microsoft.Testing.Platform 2.4.1 | 4.0.1 | Passed 5/5 in the spike |
 | Place names | GeoNames extract (CC-BY 4.0), built by `tools/places/build-places.cs` (a .NET file-based app) | Dump of 2026-09-27 | The Python spike (`docs/research/spikes/dotnet-stack/geonames/rg.py`; `docs/research/03-dotnet-libraries.md`) found "Zachar Bay" 0.4 mi and "Anvil Mountain" 0.2 mi from the clips |
 | Scripts | PowerShell 7 (`pwsh`) | Latest from winget `Microsoft.PowerShell` (version UNVERIFIED). **Not installed on this PC** (only Windows PowerShell 5.1, which the scripts don't target) | Approved: the user installs it once with winget at implementation start, next to the SDK (§2.6 Prerequisites) |
-| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, **Native AOT** (`PublishAot=true`, which trims); a folder plus a Start-menu `.lnk`; `win-x64` and `win-arm64` | — | Built and gated from M0 (§14). Baseline to meet or beat: the spike's trimmed ReadyToRun x64 build, 87–97 MB with a warm first frame of about 0.37 s. AOT size and startup are UNVERIFIED until M0; ARM64 is UNVERIFIED |
+| Packaging | Unpackaged, self-contained (.NET and Windows App SDK), lean, **Native AOT** (`PublishAot=true`, which trims); a folder plus a Start-menu `.lnk`; `win-x64` and `win-arm64` | — | Built and gated from the stack-proof step at the start of the build (§14 step 1). Baseline to meet or beat: the spike's trimmed ReadyToRun x64 build, 87–97 MB with a warm first frame of about 0.37 s. AOT size and startup are UNVERIFIED until the stack-proof step; ARM64 is UNVERIFIED |
 | Dependency injection | None: a hand-written composition root | — | YAGNI |
 
 ### 2.2 Why these, and what they replace
@@ -215,10 +221,10 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 - RC1 is go-live, so production use is allowed.
 - Short-term releases now get 24 months, so .NET 11 ends around November 2028 (exact date UNVERIFIED), about when .NET 10 LTS ends (2028-11-14).
 - It brings C# 15, and the self-contained app needs no runtime on the PCs.
-- Required upgrades, each scheduled as a 0.5-day item when it ships (§14):
+- Required upgrades, each applied when it ships (§14, Maintenance after the build):
   1. RC2, around Oct 13, because RC1's go-live support ends Oct 13.
   2. GA on Nov 10, which also sets `allowPrerelease:false`.
-- Fallback: retarget to `net10.0` and replace `union` and `closed` with abstract records. This takes about half a day.
+- Fallback: retarget to `net10.0` and replace `union` and `closed` with abstract records.
 
 **WinUI 3**
 - Neither spike found a showstopper; both built, ran and published from the command line.
@@ -235,8 +241,8 @@ Native AOT (code generation) was a departure until 2026-09-27: the plan was trim
 **Native AOT rather than trimmed + ReadyToRun** (user decision, 2026-09-27)
 - It is the best-performing build the stack offers: native code with no JIT at startup, and Core and Review are already `IsAotCompatible`.
 - Its only missing piece on this PC was an install (the C++ build tools), and the install rule (§1.1) says to install it rather than design around it.
-- The spike's ReadyToRun numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline; AOT must meet or beat the warm start. That, and whether the WinUI/WebView2/CsWinRT stack publishes under AOT with warnings as errors, is UNVERIFIED until M0.
-- If AOT fails a concrete M0 check, a ReadyToRun publish of the same commit is used only to tell whether the failure is AOT-specific, and the result is taken to the user; it is never adopted silently.
+- The spike's ReadyToRun numbers (x64 87–97 MB, 0.37 s warm first frame) are the baseline; AOT must meet or beat the warm start. That, and whether the WinUI/WebView2/CsWinRT stack publishes under AOT with warnings as errors, is UNVERIFIED until the stack-proof step (§14 step 1).
+- If AOT fails a concrete check, a ReadyToRun publish of the same commit is used only to tell whether the failure is AOT-specific, and the result is taken to the user; it is never adopted silently.
 
 ### 2.3 Solution layout (in `C:\dev\uas-sort`; not scaffolded yet)
 
@@ -251,14 +257,14 @@ src/
                                                    and offload locks, shell launcher, logging
   UasSort.Review/     net11.0                      view models (MVVM Toolkit), map bridge, collection sync; no WinUI types
   UasSort.App/        net11.0-windows10.0.26100.0  Program.Main, WinUI shell, pages, MapPane (WebView2), MapAssets/,
-                                                   places.bin.gz, SelfTest/ (m0-exif.jpg, selftest.dng, ledger-v1.jsonl), composition root
-  UasSort.Cli/        net11.0-windows10.0.26100.0  developer harness, AssemblyName=uas-sort-cli: `plan` (dry run; writes nothing,
+                                                   places.bin.gz, SelfTest/ (stack-exif.jpg, selftest.dng, ledger-v1.jsonl), composition root
+  UasSort.Cli/        net11.0-windows10.0.26100.0  dry-run planner, AssemblyName=uas-sort-cli: `plan` (dry run; writes nothing,
                                                    ever; contract in §4.5)
 tests/
   UasSort.Testing/          net11.0  FakeFileSystem (tripwire, faults; asks Core's IoGuardPolicy), SyntheticMp4Builder,
                                      SyntheticDngBuilder, FakeCardWriter (materialises scenarios under %TEMP%\uas-sort-test-*
                                      only), Replay/library-listing.json (checked-in golden fixture, §13), GatedPlanDeriver
-  acceptance/first-card-expected.json   the user's expected folder list for the first real card, written before M4 (§4.5)
+  acceptance/first-card-expected.json   the user's expected folder list for the first real card, written before acceptance (§4.5, §13)
   UasSort.Core.Tests/       net11.0
   UasSort.Review.Tests/     net11.0  includes cross-assembly exhaustive-switch tests on Core's closed/union types
   UasSort.Platform.Tests/   net11.0-windows…  Windows integration in %TEMP%, XAML lint, BannedSymbols content test
@@ -329,18 +335,18 @@ Cli ──► Platform, Core          (Cli never references Review or App)
 - **`EnableMsixTooling=true`**. It is still required when unpackaged, or the `.pri`/`.xbf` files are missing and startup crashes with 0xC000027B.
 - `TargetPlatformMinVersion=10.0.26100.0`.
 - `DefineConstants` gets `DISABLE_XAML_GENERATED_MAIN` (custom `Program.Main`, §4.4).
-- Release builds: **`PublishAot=true`** (Native AOT; it implies trimming, so there is no separate `PublishTrimmed` and no `PublishReadyToRun`), `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`. There is no opt-in flag: every Release publish, M0's exit check and `deploy.ps1` included, is AOT.
-  - If M0's publish shows IL2104/IL3053-class warnings **only** from those rooted assemblies, add a targeted `<NoWarn>` for exactly those codes with a comment. Any other trim or AOT warning stays an error.
-  - ReadyToRun (`PublishReadyToRun=true` without `PublishAot`) is not a build configuration of the app. It is used only by hand, to diagnose an AOT failure at M0, and that failure is raised with the user (§1.1).
+- Release builds: **`PublishAot=true`** (Native AOT; it implies trimming, so there is no separate `PublishTrimmed` and no `PublishReadyToRun`), `<TrimmerRootAssembly Include="MetadataExtractor;XmpCore"/>`. There is no opt-in flag: every Release publish, the stack-proof publish (§14 step 1) and `deploy.ps1` included, is AOT.
+  - If the stack-proof publish shows IL2104/IL3053-class warnings **only** from those rooted assemblies, add a targeted `<NoWarn>` for exactly those codes with a comment. Any other trim or AOT warning stays an error.
+  - ReadyToRun (`PublishReadyToRun=true` without `PublishAot`) is not a build configuration of the app. It is used only by hand, to diagnose an AOT failure, and that failure is raised with the user (§1.1).
 - Content with `CopyToOutputDirectory=PreserveNewest`: `MapAssets\**` and `places.bin.gz`. `SelfTest\*` are embedded resources.
 
 ### 2.6 Commands
 
-**Prerequisites (install once).** Machine-wide, on the development PC, before M0 (approved 2026-09-27). Under the install rule (§1.1), a missing tool is installed, never designed around.
+**Prerequisites (install once).** Machine-wide, on the development PC (approved 2026-09-27). The build (§14) starts only once they are installed. Under the install rule (§1.1), a missing tool is installed, never designed around.
 
 | What | Command | Notes |
 |---|---|---|
-| .NET 11 SDK | `winget install Microsoft.DotNet.SDK.Preview` | 11.0.100-rc.1 now; switch to the GA SDK on Nov 10 (§14 SDK row) |
+| .NET 11 SDK | `winget install Microsoft.DotNet.SDK.Preview` | 11.0.100-rc.1 now; switch to the GA SDK on Nov 10 (§14, Maintenance after the build) |
 | PowerShell 7 | `winget install Microsoft.PowerShell` | Every script runs via `pwsh` (§15 Q6) |
 | C++ build tools for Native AOT | see below | The installed VS Build Tools 2022 has an MSVC 14.44 folder but no `cl.exe`/`link.exe`; Windows SDK 10.0.26100 is present |
 | Optional editor | `winget install Microsoft.VisualStudioCode` plus the C# Dev Kit extension; or Visual Studio 2026 Insiders for the XAML designer and Hot Reload | The default is the dotnet CLI plus VS Code |
@@ -813,7 +819,7 @@ public interface IDialogService { Task<DialogResult> ShowAsync(DialogRequest r);
 - **JSON.**
   - Unions stay in memory only.
   - Everything serialised (`PlanEdit`, `TargetChoice`, `LedgerRecord`, map messages) is a `closed` record with `[JsonPolymorphic]` in a source-generated context. Reports serialise flattened `ReportLine`s and `CleanupReportLine`s, not `CopyOutcome` or `CleanupOutcome`. `CleanupPlan` and `ConfirmedCleanupPlan` are never serialised (a confirmation can't outlive the page that made it).
-  - M0 proves that closed records round-trip, both in unit tests and in the Native AOT `--selftest`.
+  - The stack-proof step (§14 step 1) proves that closed records round-trip, both in unit tests and in the Native AOT `--selftest`.
 
 ---
 
@@ -1062,7 +1068,7 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
       - `AppInstance.FindOrRegisterForKey("uas-sort")`.
       - If another instance owns the key: `AllowSetForegroundWindow(existing.ProcessId)`, then `RedirectActivationToAsync(args)` **on a worker thread**, while Main waits on an event. Then exit.
       - In the main instance, `Activated` brings the window forward with `SetForegroundWindow(hwnd)` through the dispatcher.
-      - Fallback if AppInstance misbehaves in the lean self-contained build (UNVERIFIED): the named mutex `Local\uas-sort` (tested in M0).
+      - Fallback if AppInstance misbehaves in the lean self-contained build (UNVERIFIED): the named mutex `Local\uas-sort` (tested in the stack-proof step, §14 step 1).
    3. `Application.Start(...)`.
    4. Independently, Commit holds `Local\uas-sort-offload`, and the own ledger file (`<videoRoot>\.uas-sort\ledger-<MACHINE>.jsonl`) is opened for appending with `FileShare.Read`. Two offloads can never run at once.
 2. **Setup.** Shown on first run, and after a settings recovery (§11). The user chooses the video root and the photo root. The ledger folder is **not asked for**: it is derived as `<videoRoot>\.uas-sort`, and Setup only shows its status (§9.14).
@@ -1083,14 +1089,14 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
    - The confirmation turns the plan into a `ConfirmedCleanupPlan`. `CleanupExecutor.RunAsync` then owns the run: it takes the offload lock, keeps the PC awake, pauses thumbnails, runs `EnsureFolder()`, `SnapshotToBackup(runId)` and `OpenOwn()`, opens the eraser (which re-verifies the volume), deletes oldest first with per-file re-checks, appends a `cardDelete` record after each delete, and re-lists the card.
    - The caller, `CleanupVm`, then has the card rescanned (the verdict is recomputed), saves the cleanup report and shows the result page.
 
-### 4.5 CLI contract (`UasSort.Cli`, `AssemblyName=uas-sort-cli`; M3's deliverable, M4's gate)
+### 4.5 CLI contract (`UasSort.Cli`, `AssemblyName=uas-sort-cli`)
 
 ```
 uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--radius-mi <5..100>] [--gap-days <0..7>]
                   [--settings <path>] [--json] [--expect <expected.json>]
 ```
 
-- **Roots and tuning.** Command-line values win. Otherwise they come from `ISettingsStore.Load(readOnly: true)` of `%LOCALAPPDATA%\uas-sort\settings.json` (or `--settings`). A missing or unreadable file gives the derived defaults (video root `KnownFolder(Pictures)\UAS Videos`, photo root `<videoRoot>\Picture Offload`, R 50 mi, G 1, stored clock mode `Zone` with `America/New_York`, `copyJpgTwin` on) and **nothing is renamed, created or written**; that is how the CLI runs before the Setup UI exists (M3–M6a). `previousPhotoRoots` come only from settings.
+- **Roots and tuning.** Command-line values win. Otherwise they come from `ISettingsStore.Load(readOnly: true)` of `%LOCALAPPDATA%\uas-sort\settings.json` (or `--settings`). A missing or unreadable file gives the derived defaults (video root `KnownFolder(Pictures)\UAS Videos`, photo root `<videoRoot>\Picture Offload`, R 50 mi, G 1, stored clock mode `Zone` with `America/New_York`, `copyJpgTwin` on) and **nothing is renamed, created or written**; that is how the CLI runs on a PC where the app's Setup has never been completed. `previousPhotoRoots` come only from settings.
 - **What it runs.** `CardSourceValidator` → `ScanService.ScanAsync` (the ledger is read through `Check()` + `Load()`; never `OpenOwn`, `EnsureFolder` or `SnapshotToBackup`) → `Planner.Prepare` → `Derive` with no edits. The guard is the same as the app's.
 - **Output.** Logs and progress go to stderr; the plan goes to stdout. Without `--json`: one block per group, `NEW FOLDER 2026\2026-09\2026-09-27 · 13 clips · Sep 27 · issues: EmptyFolderName`, then photo days, sets, other files and issues. With `--json`, this schema (`v:1`, camelCase, enums as names):
 
@@ -1120,7 +1126,7 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
 
 - **No cleanup.** The CLI has no Card cleanup command and never deletes anything, on the card or elsewhere.
 - **Exit codes.** 0 = plan printed (even with Blocking issues); 1 = source refused by the validator (reason on stderr); 2 = any other error (bad arguments, IO, unhandled exception).
-- **Expected folder list.** Before M4 the user writes `tests/acceptance/first-card-expected.json`: `{ "folders": [ { "relPath": "2026\\2026-10\\2026-10-04 Nome Roads", "clips": ["DJI_…_0151_D.MP4", …] } ] }`. `--expect <file>` prints the differences and the **edit count**: for each expected folder whose clips span k > 1 CLI groups, k − 1 (merges); for each CLI group whose clips span k > 1 expected folders, k − 1 (splits or moves); plus 1 per matched folder whose description or target kind differs (a `Rename` or `Retarget`). One edit is one `PlanEdit`; M4 passes at ≤ 2.
+- **Expected folder list.** Before the first-card acceptance (§13) the user writes `tests/acceptance/first-card-expected.json`: `{ "folders": [ { "relPath": "2026\\2026-10\\2026-10-04 Nome Roads", "clips": ["DJI_…_0151_D.MP4", …] } ] }`. `--expect <file>` prints the differences and the **edit count**: for each expected folder whose clips span k > 1 CLI groups, k − 1 (merges); for each CLI group whose clips span k > 1 expected folders, k − 1 (splits or moves); plus 1 per matched folder whose description or target kind differs (a `Rename` or `Retarget`). One edit is one `PlanEdit`; acceptance step 2 passes at ≤ 2.
 
 ---
 
@@ -1149,7 +1155,7 @@ uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--r
 | `DCIM\<media>\*.MP4` | Video | `<videoRoot>\<group folder>\name` | Includes QuickShots, MasterShots clips and hyperlapse composites. Flag Truncated if it has no `moov` or a `.<name>.MP4.trinf` sibling exists |
 | `DCIM\<media>\*.DNG` | Photo | `<photoRoot>\name` | Burst, AEB and timed shots too; flat |
 | `DCIM\<media>\*.JPG` with the same base name as a DNG | PhotoTwin, part of the Photo unit | `<photoRoot>\name` | Copied when `copyJpgTwin` is on (default, accepted by the user; §15 Q2) |
-| `DCIM\<media>\*.JPG` with the same base name as an MP4 | **Unknown** ("possible video cover") | — | Stays Unknown until the first-card acceptance (M4) confirms these are covers. After that, a named Skip rule "video cover" is switched on |
+| `DCIM\<media>\*.JPG` with the same base name as an MP4 | **Unknown** ("possible video cover") | — | Stays Unknown until the first-card acceptance (§13) confirms these are covers. After that, a named Skip rule "video cover" is switched on |
 | `DCIM\<media>\*.JPG` otherwise | Photo | `<photoRoot>\name` | Includes in-drone stitched panos |
 | `DCIM\PANORAMA\<set>\*.(DNG\|JPG)` | SetMember → one Set unit | `<photoRoot>\<set folder>\member` | Set folder rule in §8.8 |
 | `DCIM\HYPERLAPSE\<set>\*.(DNG\|JPG)` | SetMember → one Set unit | same | Can hold hundreds of frames; the thumbnail comes from the first frame |
@@ -1496,7 +1502,7 @@ Each suggestion is computed at **each local day's centroid**, in day order. That
   - **Kept records:** class P (populated places; population from the dump) and these feature codes, mapping the words of rule 3: mountain `MT`, peak `PK`, hill `HLL`, valley `VAL`, pass `PASS`, cape `CAPE`, island `ISL`, peninsula `PEN`, point `PT`, bay `BAY`, lake `LK`, glacier `GLCR`, fjord `FJD`, cove `COVE`, lagoon `LGN`, inlet `INLT`, sound `SD`, strait `STRT`, harbor `HBR`, falls `FLLS`, park `PRK`.
   - **Layout** (little-endian, then gzip): header `"UPLC"`, `u16 version = 1`, `u32 recordCount`, `u16 tzCount`, then `tzCount` zone names (`u8 length` + UTF-8), then per record: `u8 nameLength` + UTF-8 name, `i32 lat × 1e6`, `i32 lon × 1e6`, `u8 class` (0 = populated, 1 = feature), `u8 featureCodeIndex` (into the list above, in that order; 255 for populated), `u32 population`, `u16 tzIndex`. `PlaceIndex` builds its 0.1° grid at load time.
   - Credit "GeoNames CC-BY 4.0" appears in About.
-  - **Round-trip test (M9):** `build-places` → `PlaceIndex.Load` → the nearest feature to the Anvil Mountain clips is "Anvil Mountain" at ≤ 0.2 mi, and to the Zachar Bay clips "Zachar Bay" at ≤ 0.4 mi (the distances the Python spike found).
+  - **Round-trip test (§14 step 4):** `build-places` → `PlaceIndex.Load` → the nearest feature to the Anvil Mountain clips is "Anvil Mountain" at ≤ 0.2 mi, and to the Zachar Bay clips "Zachar Bay" at ≤ 0.4 mi (the distances the Python spike found).
 
 ### 8.8 Set folders (the user's set-clash rule, §1.1)
 
@@ -1676,7 +1682,7 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
 - `index.html`, `map.js` (our code), `lib/maplibre-gl*` (6.11.2, about 1.2 MB, pinned and vendored by `tools/vendor-maplibre.ps1`).
 - `fonts/Noto Sans {Regular,Bold}/{0-255,256-511}.pbf` (about 420 KB).
 
-**MapLibre is ESM-only, and modules load only when served with a JavaScript MIME type.** M8's first task checks that the virtual host serves `.mjs` as `text/javascript` (UNVERIFIED). If it doesn't, the fallbacks in order are:
+**MapLibre is ESM-only, and modules load only when served with a JavaScript MIME type.** The first task when the map pane is built (§14 step 11) checks that the virtual host serves `.mjs` as `text/javascript` (UNVERIFIED). If it doesn't, the fallbacks in order are:
 1. The vendoring script renames the files to `.js`, rewrites their relative import specifiers, and `map.js` calls `maplibregl.setWorkerUrl('lib/maplibre-gl-worker.js')`.
 2. Serve `lib/*` through `AddWebResourceRequestedFilter("https://map.uas-sort.example/lib/*")` with an explicit `Content-Type: text/javascript`, streamed via `IAppAssets`.
 3. Leaflet 1.9.4.
@@ -1850,7 +1856,7 @@ Scan warnings (`ScanWarning`, e.g. enumeration errors with `ForcesNotSafe`) are 
 | ↑ / ↓ | Timeline, clip list | Native ItemsView navigation (items only; chips are not items) |
 | Tab | Timeline | Move into the clip list |
 | F2 | Timeline | Focus the rename box |
-| Space | Clip list, photo wall | Include/exclude, marked Handled so the container doesn't also toggle selection. If M6 shows the container still toggles, Space is left to the row's focused CheckBox |
+| Space | Clip list, photo wall | Include/exclude, marked Handled so the container doesn't also toggle selection. If the built clip list shows the container still toggles, Space is left to the row's focused CheckBox |
 | Ctrl+Shift+S | Clip list | Split before the focused clip |
 | Esc | Flyouts | Native close |
 
@@ -1987,7 +1993,7 @@ The Setup stage shows the first three cards: video root, photo root, and the rea
 In every case the `seen` records (§10.4) and the `run` record are still written if the ledger is writable, and the report says what finished.
 
 **After the loop**, including after Cancel or a stop:
-- For every destination volume that is not NTFS on a fixed disk (e.g. exFAT D:), `FlushDestination` runs FlushFileBuffers on each renamed file (re-opened with write access, never read; tracked as created this run) and on each destination directory handle (`FILE_FLAG_BACKUP_SEMANTICS`). Both are UNVERIFIED on exFAT; M10 acceptance tests them on a scratch folder on D:.
+- For every destination volume that is not NTFS on a fixed disk (e.g. exFAT D:), `FlushDestination` runs FlushFileBuffers on each renamed file (re-opened with write access, never read; tracked as created this run) and on each destination directory handle (`FILE_FLAG_BACKUP_SEMANTICS`). Both are UNVERIFIED on exFAT; the rehearsal offload (acceptance step 4, §13) tests them on a scratch folder on D:.
 - Those volumes are listed in `VolumesNeedingSafeRemoval`.
 
 **Invariants**
@@ -2014,7 +2020,7 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 1. Re-check `CurrentIdentity()`. A mismatch makes the verdict **NotSafe**: "The card in E: is not the one that was offloaded".
 2. Re-list the card (listing only, under 1 s) and diff it against the inventory on `(RelPath, Size, MtimeUtc, CreationUtc, Attributes)`, excluding `System Volume Information`.
    - Any added, removed or changed entry is **Unaccounted**, "changed since scan".
-   - Differences only in LastAccessTimeUtc are listed as "OS updated last-access times" and don't count against the verdict (§13, M4).
+   - Differences only in LastAccessTimeUtc are listed as "OS updated last-access times" and don't count against the verdict (§13, acceptance step 3).
 
 **Per-file categories.** Every card file gets exactly one category:
 
@@ -2075,9 +2081,9 @@ The user asked for this on 2026-09-27 (§1.1). It is the only code path that del
 1. The source is not a Browse result (`CardSource.IsBrowsedFolder` false; the factory ignores this flag and relies on 2–6).
 2. The root is a volume root: `GetVolumePathNameW(root) == root`.
 3. The file system is exFAT or FAT32 (`GetVolumeInformationW`), and the volume identity equals the pinned one.
-4. The bus: `IOCTL_STORAGE_QUERY_PROPERTY` (`StorageDeviceProperty`) reports `BusTypeSd` or `BusTypeMmc`, or `BusTypeUsb` with `RemovableMedia` true. A fixed USB SSD or hard disk fails. (The values a given reader and the drone over USB report are UNVERIFIED; recorded at M4.)
+4. The bus: `IOCTL_STORAGE_QUERY_PROPERTY` (`StorageDeviceProperty`) reports `BusTypeSd` or `BusTypeMmc`, or `BusTypeUsb` with `RemovableMedia` true. A fixed USB SSD or hard disk fails. (The values a given reader and the drone over USB report are UNVERIFIED; recorded in first-card acceptance, §13.)
 5. The volume is not the system, boot or paging volume, and no configured root, previous photo root or `%LOCALAPPDATA%\uas-sort` lies on it.
-6. The drone-written index is present: `MISC\FC*.db` or a `MISC\IDX\` folder (both seen on the Air 3 in the research; which the Air 3S writes is confirmed at M4, UNVERIFIED).
+6. The drone-written index is present: `MISC\FC*.db` or a `MISC\IDX\` folder (both seen on the Air 3 in the research; which the Air 3S writes is confirmed in first-card acceptance, §13; UNVERIFIED).
 
 A thumb drive holding a full clone of a card, `MISC` included, can still pass; the summary names the volume ("E: · SD card · exFAT · 256 GB · serial 1A2B-3C4D") so the user can see what is about to be changed.
 
@@ -2164,7 +2170,7 @@ A thumb drive holding a full clone of a card, `MISC` included, can still pass; t
   - a thumbnail (`Thumb.Key`, the same `IThumbnailSource` as the clip list);
   - the capture's local date, time and zone ("Jul 26 20:20 AKDT"; "~" for drone-clock times);
   - the clip length: `Mp4Info.Duration` as "3:42"; a truncated clip "unfinished · ~7 MB"; photos "photo"; sets "panorama · 33 frames" or "hyperlapse · 240 frames";
-  - the location: `PlaceLabel` from the PlaceIndex, in the §8.7 order (a feature ≤ 1.5 mi, a populated place ≤ 3 mi, "near &lt;town>" ≤ 30 mi), as "near Anvil Mountain · 0.2 mi"; else the coordinates to 4 decimals, "64.5627, -165.3709"; else "no GPS". Without M9, coordinates only;
+  - the location: `PlaceLabel` from the PlaceIndex, in the §8.7 order (a feature ≤ 1.5 mi, a populated place ≤ 3 mi, "near &lt;town>" ≤ 30 mi), as "near Anvil Mountain · 0.2 mi"; else the coordinates to 4 decimals, "64.5627, -165.3709"; else "no GPS";
   - the size, and the reason (the row 9–19 text: new, probably imported, conflict, unfinished, not needed, recorded as imported, no longer in your library), plus the "ticked for offload" badge where it applies;
   - a **Keep/Delete** toggle, with [Keep all] and [Delete all] above the list.
 - **Initial state.** When the list is first shown, every row starts on **Delete** because the user opted in, except "ticked for offload" rows, which start on Keep.
@@ -2485,7 +2491,7 @@ Everything runs with `dotnet test --solution uas-sort.slnx` (xUnit v3 on Microso
 - The 400-character limit on the **temp** path; suggestions ranked per day.
 - **Issue catalogue:** each `IssueCode` of §9.10 is raised by the component, with the severity, `RequiresAckAtPreflight` flag and quick-fix edits the table gives.
 
-*Performance* (Release build, M3)
+*Performance* (Release build)
 - A synthetic 500-item `PlanBase` (one card of 400 videos in 12 groups plus 100 photos): the median of 20 `Derive` calls is under 50 ms.
 
 *Edit invariants* (seeded random sequences of merge, split, move, rename, retarget, include, tuning, quick fixes, undo and redo):
@@ -2759,12 +2765,12 @@ Every row of the §10.3 outcome table, including:
 - **JSON under trimming.** Round-trips the embedded `ledger-v1.jsonl` (every record type, `cardDelete` included) and a closed `PlanEdit`/`TargetChoice`.
 - **Placeholder visibility.** Lists this PC's configured video root (read from the real `settings.json`; listing only, with `.uas-sort` excluded) and requires at least one entry showing `0x400000` or `0x1000`. If the root has no cloud-only files, the check reports "not applicable" and deploy needs `-AllowNoPlaceholders`.
 - **Result.** Writes `selftest-result.json` (each check's result, plus `firstFrameMs`: process start to the first `CompositionTarget.Rendering` of the main window), then `Environment.Exit(ok ? 0 : 1)`. `deploy.ps1` runs it twice, checks both exit codes and result files, each with a 60 s timeout, and aborts on failure or when the second (warm) run's `firstFrameMs` exceeds 1000.
-- **M0's minimal selftest** is a subset: the probe page renders; WebView2 reaches the virtual host; MetadataExtractor reads the checked-in `SelfTest/m0-exif.jpg` (≤ 2 KB, hand-assembled EXIF with DTO and GPS, no user data) through the Stream API directly; a GeoTimeZone lookup; a closed-record JSON round-trip. The synthetic DNG and StillProbe arrive in M1.
+- **The stack-proof step's minimal selftest** (§14 step 1) is a subset: the probe page renders; WebView2 reaches the virtual host; MetadataExtractor reads the checked-in `SelfTest/stack-exif.jpg` (≤ 2 KB, hand-assembled EXIF with DTO and GPS, no user data) through the Stream API directly; a GeoTimeZone lookup; a closed-record JSON round-trip. The synthetic DNG and StillProbe arrive with the media probes (§14 step 3).
 - FlaUI, `winapp ui` and WinAppDriver are **not** used: WinAppDriver is unmaintained, and the others are unverified on WinUI.
 
-**Acceptance on the first real card**
+**Acceptance on the first real card** (by the user, after the build is complete; §14)
 1. **Before anything else,** save a listing snapshot of the card (relative path, size, mtime, creation, **last-access**, attributes).
-2. Run `uas-sort-cli plan --card E:\ --json --expect tests/acceptance/first-card-expected.json` (§4.5; the user writes that file before M4). It passes at ≤ 2 edits. Record the scan + plan time for success criterion 4. Fix classification surprises: LRF presence, cover JPGs (enable the "video cover" rule only if confirmed), the tele-camera suffix, hyperlapse frame names, folder rollover.
+2. Run `uas-sort-cli plan --card E:\ --json --expect tests/acceptance/first-card-expected.json` (§4.5; the user writes that file before this acceptance run). It passes at ≤ 2 edits. Record the scan + plan time for success criterion 4. Fix classification surprises: LRF presence, cover JPGs (enable the "video cover" rule only if confirmed), the tele-camera suffix, hyperlapse frame names, folder rollover.
 3. Re-list the card and diff against step 1. **If LastAccessTimeUtc changed** on exFAT, document it in the verdict text ("Windows updated last-access dates; uas-sort wrote nothing") and suggest the SD lock switch, which shows as the write-protected badge. The app never tries to suppress it: `SetFileTime(-1)` needs a write handle on the card.
 4. Do a rehearsal offload in the app with the roots pointed at `%TEMP%\uas-sort-rehearsal\{video,photo}`. Its ledger then lands in `%TEMP%\uas-sort-rehearsal\video\.uas-sort\`. Check:
    - the verdict and the report;
@@ -2773,40 +2779,80 @@ Every row of the §10.3 outcome table, including:
    - [Eject D:].
 5. Point the video root back at the real library. At the ledger prompt, answer **[Start empty]** so rehearsal records never enter the real ledger; confirm its dialog if it appears (the rehearsal's `file` records match videos already in the library by name and size, and the real library's watermark is exactly what a manual history implies). Then check that the pin sticks: [Keep on this device] on `UAS Videos\.uas-sort` must show as "Always keep on this device" in Explorer (UNVERIFIED until then). Do the real offload. Diff the card listing again (excluding `System Volume Information`).
 6. Rescan the same card: everything shows Imported, and the verdict is Safe (or SafeWithAssumptions only for photos the user chose to leave).
-7. **Card cleanup (M7b).** Snapshot the card listing. Run Before date with a cutoff that takes exactly one old eligible clip and its companions, and confirm. Re-list: only that unit's files are gone, each has a `cardDelete` record, and the rescanned verdict is unchanged for everything else. Put the card in the drone and note what its media browser shows (§15 Q8).
+7. **Card cleanup.** Snapshot the card listing. Run Before date with a cutoff that takes exactly one old eligible clip and its companions, and confirm. Re-list: only that unit's files are gone, each has a `cardDelete` record, and the rescanned verdict is unchanged for everything else. Put the card in the drone and note what its media browser shows (§15 Q8).
 
 ---
 
-## 14. Milestones (command-line first; about 36.5 developer-days plus ~10% contingency, about 40)
+## 14. Build plan (single pass)
 
-| # | Work | Exit | Days |
-|---|---|---|---|
-| M0 | **Setup and stack proof.** &lt;br>• The prerequisites of §2.6, installed by the user: SDK 11 RC1 and PowerShell 7 via winget, and the VS Build Tools C++ workload for Native AOT. &lt;br>• Repo skeleton: slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, analyzer probe project; build and WSL scripts; first restore. &lt;br>• The probe page uses GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `m0-exif.jpg` (StillProbe and the synthetic DNG are M1 work). &lt;br>• Cross-assembly union/closed exhaustiveness test; closed-record JSON round-trip. &lt;br>• A 1-hour check that the VS Code C# extension handles `union` and `closed` without false errors. &lt;br>• Fallbacks if the exit build fails on package compatibility: toolkit 8.2 with the full package, or fixed panes. &lt;br>• If the AOT publish fails a concrete check (a build or AOT warning, a selftest failure, or a warm first frame slower than the 0.37 s ReadyToRun baseline), a ReadyToRun publish of the same commit is used only to diagnose it, and the finding goes to the user before M1 (§1.1) | The real App project with a 30-line probe page restores, builds and **publishes Native AOT (`PublishAot=true`) with `TreatWarningsAsErrors` on**, then passes the **M0 selftest** (`--selftest`, §13): probe page renders, WebView2 reaches the virtual host, MetadataExtractor Stream read of the checked-in `m0-exif.jpg`, GeoTimeZone lookup, closed-record JSON round-trip. The AOT build's size and warm first frame (second of two runs) are recorded against the ReadyToRun baseline (87–97 MB, 0.37 s). The cross-assembly exhaustiveness test is green | 1.5 |
-| M1 | **Card and media.** &lt;br>• Core model, CardDetector, CardSourceValidator (policy), CardClassifier (fail-safe rules). &lt;br>• Mp4Probe: box walker, sample tables, protobuf, model table, generic search, multi-sample search, mdat fallback, `tnal` range, `mvhd` duration (`Mp4Info.Duration`; no extra days). &lt;br>• SyntheticMp4Builder and SyntheticDngBuilder; StillProbe (Stream overloads); MetadataHarvester | Classification, synthetic MP4/DNG (incl. the ≤ 16-read budget) and source-validation policy tests green | 3.5 |
-| M2 | **Time, library and ledger.** &lt;br>• DroneClock learner (SiteLocal, then zones), TimeResolver (incl. `ClockMismatch`), GpsPlausibility, GeoTimeZoneResolver. &lt;br>• LibraryIndex (all roots, `previousPhotoRoots`, fixed watermark). &lt;br>• Ledger reader: derived `<videoRoot>\.uas-sort` location (`LedgerPaths`), multi-file union, dedupe, parse issues, `torn` markers, revokes, attribute-first status check (`LedgerFolderStatus`). `IoGuardPolicy` with the guard exemption for `ledger*.jsonl` only; `.uas-sort` excluded from the library listing (`excludeDirNames`). Settings store with recovery and the read-only load. &lt;br>• `WindowsVolumeProvider`, WindowsDirectoryLister (explicit options, error list), `WindowsCardReaderFactory`/WindowsCardReader (identity, read-only), PlaceholderGuard, sync-root detection, canonical paths (`PathFacts`). &lt;br>• FakeFileSystem with the tripwire, calling `IoGuardPolicy` | Time, newness-ledger (incl. `torn` markers), settings and `IoGuardPolicy` tests green; the scan half of the fake-FS tripwire; the Windows lister/reader integration tests | 2 |
-| M3 | **Planning.** &lt;br>• NewnessRules (with `seen`, per-member set records, the no-watermark rule), Clusterer with causes and the structural-edit algorithm (§8.9), DaySplitFinder, FolderDecider (New-subset with `included`, cross-day rules, two-pass UserSplit), naming, SetFolderNamer, Planner (issue catalogue) and PlanSession (threading contract, pins, quick fixes). &lt;br>• The 37 ported tests (§13 table), golden replay from the checked-in fixture, edit invariants and the derive benchmark. &lt;br>• **CLI `plan`** (§4.5) | The 37 ported tests (§13 table), new planning cases, invariants, golden replay (A0, A–E) and the derive benchmark green; `uas-sort-cli plan --json` runs on a copied card folder under `%TEMP%` and writes nothing | 4.5 |
-| M4 | **Checkpoint:** dry run of the CLI on the first real card; card-listing diff including last-access; fix any classification or time surprises | `plan --expect` ≤ 2 edits from `tests/acceptance/first-card-expected.json`; the before/after card diff shows no app change; scan + plan time recorded | 0.5 |
-| M5 | **Offload engine.** &lt;br>• Compiler, Preflight, CopyEngine (identity per file, confirm, post-run flush), CardAudit (re-list, per-file, worst-of). &lt;br>• GuardedFileOps and WindowsFileOps (`LibraryImport`, `\\?\`, `File.OpenHandle`). &lt;br>• Ledger writer (`OpenOwn` with torn-tail repair, `EnsureFolder`, mirror, `SnapshotToBackup`, `seen`), report store, power request, offload lock, eject. &lt;br>• Fault tests and Windows integration tests | Fault injection (every §10.3 row), the audit table, the offload half of the tripwire, and the Windows integration tests green | 3.5 |
-| M6a | **WinUI shell.** &lt;br>• `Program.Main` single instance; TitleBar, Mica and Frame; stages. &lt;br>• **Setup stage and Settings page**: roots; derived ledger-folder status with [Keep on this device] and [Open]; the video-root change prompt ([Copy] / [Start empty]); drone clock (site-local or a zone); map URLs; About. &lt;br>• The clock banner and the clock-mismatch InfoBar; the "clock ≠ local" chip. &lt;br>• Card and Scan pages. &lt;br>• Timeline ItemsView (cards with chip headers, folds); group card (rename with SuggestionVm, read-only on Append, retarget flyout built on Opening, Browse existing validation) | Named VM tests for Setup, Settings (incl. [Copy]/[Start empty]), Card, Scan, timeline and group card; selftest template checks for the group card | 5 |
-| M6b | **Review lists and quality.** &lt;br>• Clip list (ItemsView, day-split banners, `Thumb.Key` thumbnails); Photos and Other tabs (Dismissed / Confirmed sections). &lt;br>• Undo/redo, drafts, scoped keyboard handling, queued dialogs. &lt;br>• All VMs plus tests; full `--selftest` | All VM tests (incl. the `GatedPlanDeriver` ordering tests) green; the full selftest template checks pass | 4.5 |
-| M7 | **Commit UI.** Preflight sheet with acknowledgements; Copy page; Verdict page (per-file lines, individual decisions, confirmation, undo, eject); device-arrival refresh (WM_DEVICECHANGE via window subclassing; UNVERIFIED), disabled during Commit. **→ The first real, verified offload with a map-less app, around day 28** | A real offload with 0 failures and a verdict of Safe or SafeWithAssumptions | 3 |
-| M7b | **Card cleanup** (§10.6; added 2026-09-27). &lt;br>• Core: the cleanup types, `CleanupVolumeCheck`, CleanupPlanner (eligibility from fresh listings, units and companions, both modes and both free-space readings, cutoff, shortfall, ticked-for-offload and undecided rows, fingerprint, `Confirm` with re-validation), CleanupExecutor (the whole run: lock, keep-awake, thumbnail pause, ledger preparation, per-file checks, evidence re-check, outcomes, `cardDelete` records); the `CardDelete` guard rules 1b and 2 and the fake-FS card-delete tripwire. &lt;br>• Platform: `WindowsCardEraser` and its factory with `WindowsVolumeFacts` (volume root, FS, bus, removable media, system/boot/paging), the `VolumeInfo` bus fields, `ICardReader.Space()`, `CleanupReport` in the report store. &lt;br>• Review and App: `CleanupVm`, `CleanupRowVm`, `CleanupResultVm`, the Cleanup page, [Clean up card…] on the Verdict page and in the title bar | The §13 Card cleanup, guard and tripwire tests, the card-eraser Windows integration tests and the Cleanup VM tests green; acceptance step 7 on the real card: one old eligible clip deleted and the re-list verified | 2 |
-| M8 | **Map.** &lt;br>• First task: MapLibre ESM and its worker under the WebView2 virtual host (`.mjs` MIME), with the `.js`-rename / WebResourceRequested / Leaflet fallbacks. &lt;br>• Then the bridge and messages (out-of-order metadata, unknown types logged), selection sync, live R/G, base toggle, offline canvas | `MapBridge` golden messages green; selftest `ready` + `ping`/`pong` (skipped if M8 is dropped) | 3 |
-| M9 | **GeoNames.** `build-places.cs` extract, PlaceIndex, suggester | PlaceIndex round-trip: "Anvil Mountain" ≤ 0.2 mi, "Zachar Bay" ≤ 0.4 mi | 1.5 |
-| M10 | **Packaging and acceptance.** &lt;br>• Native AOT publish for `win-x64` and `win-arm64`; `deploy.ps1` (AOT publish, selftest gate, `.lnk`, keep 2 versions). &lt;br>• Rehearsal and first full-app offload (exFAT flush and eject checks) | `deploy.ps1` passes its selftest gate on x64, including the warm first frame ≤ 1 s | 1 |
-| SDK | **RC2 bump** (~Oct 13, UNVERIFIED) and **GA bump** (Nov 10), each when it ships. Each re-runs the Native AOT publish, `--selftest` and the analyzer check; the GA bump also moves the development PC to the GA SDK (§2.6). `AnalysisLevel` stays pinned, so new rules don't appear by surprise | The AOT publish, `--selftest` and the analyzer check pass | 0.5 + 0.5 |
+**Single pass** (user decision, 2026-09-27; §1.1). In the user's words: "I want this to be implemented for the initial version in one shot via the AI agent development. So revise anything that's necessary to build it in one go. Doesn't need to be built progressively or tested in batches or milestones, just the initial full feature-complete version."
+- The initial, feature-complete version is built in one pass by an AI coding agent. There are no milestones, effort estimates, checkpoints or staged deliveries, and nothing in this document is deferred except the Later list (§1.4).
+- The CLI is a product feature (the dry-run `plan`, §4.5), not a development stage.
 
-- Native AOT moved from M10 (the former optional attempt) to M0 on 2026-09-27, with 0.5 day, so the total is unchanged.
-- Calendar: RC2 lands around M2–M3, and GA around M7–M8. Neither is tied to M10. M7b follows the first real offload (M7), so the first real cleanup (acceptance step 7) runs on a card whose files the app has just verified.
-- After M4, grouping and newness are proven on a real card before any UI exists.
-- M8 (map) and M9 (GeoNames) can each be dropped without affecting any other milestone. Without M9, names come from ledger folders only.
+**Prerequisites.** The install-once list of §2.6: the .NET 11 SDK, PowerShell 7, and the VS Build Tools C++ workload for Native AOT. The build starts only once they are installed.
+
+**Build sequence.** The parts are built in this order because each uses only the parts before it. The tests of each part are written with it, test-first (§13), in the same pass; there are no separate test batches, and the whole suite stays green as later parts land.
+
+1. **Stack proof.**
+   - Builds: the repo skeleton (slnx, props, global.json, pinned `AnalysisLevel`, `Directory.Packages.props` with exact pins, BannedSymbols, the analyzer probe project; build and WSL scripts; first restore). The real App project with a 30-line probe page: GridSplitter (Sizers), SettingsCard, FolderPicker (owner from `AppWindow.Id`), AppInstance plus the named-mutex fallback, WebView2, and an ItemsView with a template selector. MetadataExtractor is exercised directly on the checked-in `stack-exif.jpg` (StillProbe and the synthetic DNG come in step 3). A check that the VS Code C# extension handles `union` and `closed` without false errors.
+   - Verified here: the App restores, builds and **publishes Native AOT (`PublishAot=true`) with `TreatWarningsAsErrors` on**, then passes the minimal selftest (`--selftest`, §13): probe page renders, WebView2 reaches the virtual host, MetadataExtractor Stream read of the checked-in `stack-exif.jpg`, GeoTimeZone lookup, closed-record JSON round-trip. The AOT build's size and warm first frame (second of two runs) are recorded against the ReadyToRun baseline (87–97 MB, 0.37 s). The cross-assembly union/closed exhaustiveness test is green. This settles the UNVERIFIED `AnalysisLevel` 11.0, MetadataExtractor under trimming, AppInstance and Sizers.
+   - Fallbacks if the build fails on package compatibility: toolkit 8.2 with the full package, or fixed panes.
+   - It comes first so that no later part is built on a package set or publish mode that doesn't work.
+2. **Core model, ports and guard policy.**
+   - Builds: the Core model (§3) and ports (§4.1); `IoGuardPolicy` (§4.3) with the guard exemption for `ledger*.jsonl` only and the `CardDelete` rules; FakeFileSystem with the hydration tripwire and the card-delete tripwire, calling `IoGuardPolicy`; CardDetector, CardSourceValidator (policy), CardClassifier (fail-safe rules, inventory hash).
+   - Tests: the table-driven `IoGuardPolicy` test; classification and source-validation policy tests.
+3. **Media probes.**
+   - Builds: Mp4Probe (box walker, sample tables, protobuf, model table, generic search, multi-sample search, `mdat` fallback, `tnal` range, `mvhd` duration → `Mp4Info.Duration`); SyntheticMp4Builder and SyntheticDngBuilder; StillProbe (Stream overloads); ThumbnailReader; MetadataHarvester.
+   - Tests: synthetic MP4/DNG, incl. the ≤ 16-read budget.
+4. **Time and geo.**
+   - Builds: the DroneClock learner (SiteLocal, then zones, NearestSample with `ClockChange` runs), TimeResolver (incl. `ClockMismatch`), GpsPlausibility, GeoTimeZoneResolver; PlaceIndex and the GeoNames extract tool `tools/places/build-places.cs` (writes `places.bin.gz`).
+   - Tests: the time and clock-learner cases (§13); the PlaceIndex round-trip (§8.7: "Anvil Mountain" ≤ 0.2 mi, "Zachar Bay" ≤ 0.4 mi).
+5. **Library index, ledger and settings.**
+   - Builds: LibraryIndex (all roots, `previousPhotoRoots`, fixed watermark; `.uas-sort` excluded via `excludeDirNames`); ledger reading (derived `<videoRoot>\.uas-sort` location via `LedgerPaths`, multi-file union, dedupe, parse issues, `torn` markers, revokes, attribute-first `LedgerFolderStatus`); settings with recovery and the read-only load.
+   - Tests: newness-ledger (incl. `torn` markers) and settings tests.
+6. **Planning and editing.**
+   - Builds: NewnessRules (with `seen`, per-member set records, the no-watermark rule), Clusterer with causes and the structural-edit algorithm (§8.9), DaySplitFinder, FolderDecider (New subset with `included`, cross-day rules, two-pass UserSplit), FolderNamer and SetFolderNamer, DescriptionSuggester, Planner (issue catalogue), PlanSession (threading contract, pins, quick fixes), ScanService.
+   - Tests: the 37 ported tests (§13 table), the new planning cases, edit invariants, golden replay (A0, A–E) from the checked-in fixture, the derive benchmark, and the scan half of the fake-FS tripwire.
+7. **Offload engine and audit.**
+   - Builds: OffloadCompiler, Preflight, CopyEngine (identity per file, confirm, post-run flush), the Commit ledger writes (`file`, `folder`, `seen`, `run`), CardAudit (re-list, per-file, worst-of) and the verdict, reports.
+   - Tests: fault injection (every §10.3 row), the audit table, the offload half of the tripwire.
+8. **Card cleanup** (§10.6).
+   - Builds: the cleanup types, `CleanupVolumeCheck`, CleanupPlanner (eligibility from fresh listings, units and companions, both modes and both free-space readings, cutoff, shortfall, ticked-for-offload and undecided rows, fingerprint, `Confirm` with re-validation), CleanupExecutor (the whole run: lock, keep-awake, thumbnail pause, ledger preparation, per-file checks, evidence re-check, outcomes, `cardDelete` records).
+   - Tests: the §13 Card cleanup tests and the card-delete tripwire.
+9. **Platform implementations.**
+   - Builds: `WindowsVolumeProvider` (incl. the `VolumeInfo` bus fields), WindowsDirectoryLister (explicit options, error list), `WindowsCardReaderFactory`/WindowsCardReader (identity, read-only, `Space()`), `WindowsCardEraser` and its factory with `WindowsVolumeFacts` (volume root, FS, bus, removable media, system/boot/paging), GuardedFileOps and WindowsFileOps (`LibraryImport`, `\\?\`, `File.OpenHandle`), `LedgerStore` (`Check`, `EnsureFolder`, `OpenOwn` with torn-tail repair, mirror, `SnapshotToBackup`), the settings, draft and report stores (incl. `CleanupReport`), PlaceholderGuard, sync-root detection, canonical paths (`PathFacts`), power request, offload lock, eject, single-instance support, shell launcher, logging.
+   - Tests: the Windows integration tests (§13), incl. the card eraser on a `%TEMP%` fake card; the BannedSymbols content test.
+10. **Review view models.**
+    - Builds: every VM of §4.2 (stages, Review, Commit, Cleanup, Settings), `MapBridge` and its messages, `CollectionSync`.
+    - Tests: all view-model tests (§13), incl. the `GatedPlanDeriver` ordering tests and the Cleanup VM tests; the `MapBridge` golden messages.
+11. **WinUI App.**
+    - Builds: `Program.Main` single instance; TitleBar, Mica and Frame; the stages. The Setup stage and Settings page (roots; derived ledger-folder status with [Keep on this device] and [Open]; the video-root change prompt ([Copy] / [Start empty]); drone clock; map URLs; About). Card and Scan pages. Review: timeline ItemsView (cards with chip headers, folds), group card (rename with SuggestionVm, read-only on Append, retarget flyout built on Opening, Browse existing validation), clip list (day-split banners, `Thumb.Key` thumbnails), Photos and Other tabs, the clock banner, clock-mismatch InfoBar and "clock ≠ local" chip, undo/redo, drafts, scoped keyboard handling, queued dialogs. The map pane: **first** the MapLibre ESM and worker check under the WebView2 virtual host (`.mjs` MIME, §9.6) with the `.js`-rename / WebResourceRequested / Leaflet fallbacks, then the bridge wiring, selection sync, live R/G, base toggle and offline canvas. Commit: preflight sheet with acknowledgements, Copy page, Verdict page. The Cleanup page with [Clean up card…] on the Verdict page and in the title bar. Device-arrival refresh (WM_DEVICECHANGE via window subclassing; UNVERIFIED), disabled during Commit. The full `--selftest`.
+    - Tests: the XAML lint; the full selftest checks (§13), incl. the template checks and `ready` + `ping`/`pong`.
+12. **CLI.**
+    - Builds: `uas-sort-cli plan` (§4.5), incl. `--expect`.
+    - Tests: `uas-sort-cli plan --json` runs on a copied card folder under `%TEMP%` and writes nothing.
+13. **Native AOT publish and deploy.**
+    - Builds: the Native AOT publish for `win-x64` and `win-arm64`; `deploy.ps1` (AOT publish, selftest gate, `.lnk`, keep 2 versions).
+    - Tests: `deploy.ps1` passes its selftest gate on x64, including the warm first frame ≤ 1 s.
+
+**Completion criteria.** The one-pass build is complete when all of these hold:
+- the full solution builds with `TreatWarningsAsErrors`;
+- the whole test suite passes (§13): unit, IO guard policy, card cleanup, invariants, performance, newness and ledger, golden replay, synthetic media, fake-FS tripwire, fault injection, Windows integration and view-model tests, and the CLI run above;
+- `tools/build.ps1 -CheckBannedApi` builds the probe and raises every expected RS0030;
+- the Native AOT publish passes `--selftest`, through the `deploy.ps1` gate on x64 (both runs exit 0, and the warm first frame is ≤ 1 s).
+
+**Acceptance by the user, after the build.** The first-real-card steps of §13 accept the finished product; they are not build stages: the CLI dry run matches `tests/acceptance/first-card-expected.json` within 2 edits, with the card-listing diff; a rehearsal offload to scratch roots (`%TEMP%\uas-sort-rehearsal\{video,photo}`); the real offload; and Card cleanup of one old eligible clip, so the first real cleanup runs on a card whose files the app has just verified. Anything they turn up (classification or time surprises, the cover-JPG rule, exFAT behaviour) is fixed in the finished code, and the completion criteria are re-run.
+
+**Maintenance after the build.** The SDK **RC2** (~Oct 13, UNVERIFIED) and **GA** (Nov 10) updates are applied when each ships. Each re-runs the Native AOT publish, `--selftest` and the analyzer check; the GA update also moves the development PC to the GA SDK and sets `allowPrerelease:false` (§2.2, §2.6). `AnalysisLevel` stays pinned, so new rules don't appear by surprise.
+
+**If Native AOT fails a concrete check** (a build or AOT warning, a selftest failure, or a warm first frame slower than the 0.37 s ReadyToRun baseline), a ReadyToRun publish of the same commit is used only to diagnose it, and the problem is raised with the user rather than silently switching the build type (§1.1).
 
 ---
 
 ## 15. Questions: accepted defaults and what is still open
 
 - **Former Q1 (which synced folder holds the ledger) is resolved and removed.** The user decided the ledger lives in `<videoRoot>\.uas-sort\` (§1.1, §4.3, §11).
-- **Former Q5 (packaging and code generation) is resolved and removed** (user decision, 2026-09-27): Native AOT is the primary build from M0, the C++ build tools are a prerequisite (§2.6), and the unpackaged, non-MSIX departure stays for certificate trust (§1.1). VS Code with the C# Dev Kit is the default editor, and Visual Studio 2026 Insiders stays optional (§2.6). The remaining questions are renumbered.
+- **Former Q5 (packaging and code generation) is resolved and removed** (user decision, 2026-09-27): Native AOT is the primary build from the start of the build (§14 step 1), the C++ build tools are a prerequisite (§2.6), and the unpackaged, non-MSIX departure stays for certificate trust (§1.1). VS Code with the C# Dev Kit is the default editor, and Visual Studio 2026 Insiders stays optional (§2.6). The remaining questions are renumbered.
 - The user approved the design on 2026-09-27 and accepted the defaults of items 1–7 without objection. Item 8 was added with Card cleanup the same day; its default is proposed and not yet reviewed by the user. None of them waits on a decision.
 - What is genuinely open is marked **Still open**. Each such item is an UNVERIFIED fact with a planned check or a fallback.
 
@@ -2821,7 +2867,7 @@ Every row of the §10.3 outcome table, including:
 4. **Daily flights chaining together.** With R = 50 mi and G = 1, flights on consecutive days in the same area (for example, a week at home) become one multi-day folder.
    - *Accepted default:* no cap on how many days a group spans. Every day change shows a one-click split suggestion, emphasised at 10 mi or more. Next-day appends at 10 mi or more are Medium. A maximum-span setting stays on the Later list.
 5. **Are any of the PCs ARM64?**
-   - *Accepted default:* `deploy.ps1` publishes for the RID of the machine it runs on (x64 here). `win-arm64` is built in M10.
+   - *Accepted default:* `deploy.ps1` publishes for the RID of the machine it runs on (x64 here). `win-arm64` is built by the publish step (§14 step 13).
    - **Still open:** ARM64 is UNVERIFIED until it runs on an ARM64 PC.
 6. **PowerShell 7.** The scripts use `pwsh`, which isn't installed on this PC.
    - *Approved:* the user installs it once with `winget install Microsoft.PowerShell` at implementation start, alongside the .NET 11 SDK preview and the C++ build tools (§2.6 Prerequisites). Every script runs via `pwsh -NoProfile -ExecutionPolicy Bypass -File`.
@@ -2829,7 +2875,7 @@ Every row of the §10.3 outcome table, including:
    - *Accepted default:* Autel cards are not supported; their media shows as Unknown (NotSafe). Legacy Autel folders already in the library still match by name and size, and their members' start times come from mtime (§7.1).
 8. **Does the drone's `MISC` media index cope with PC-side deletions?** (added with Card cleanup, 2026-09-27)
    - *Proposed default (2026-09-27, not yet reviewed by the user):* Card cleanup deletes only DCIM media and their companions and never touches `MISC\FC*.db`, `IDX` or `THM`. The result page says the drone may show stale thumbnails until it rebuilds its index, and that formatting in the drone remains the clean option.
-   - **Still open:** whether the Air 3S rebuilds its index or shows stale entries after PC-side deletions (UNVERIFIED; observed in acceptance step 7, M7b). Also UNVERIFIED until M4: which `MISC` index files the Air 3S writes and which bus type and `RemovableMedia` value the user's reader reports, both used by the cleanup volume check (§10.6); if either differs, the check is adjusted to what M4 records.
+   - **Still open:** whether the Air 3S rebuilds its index or shows stale entries after PC-side deletions (UNVERIFIED; observed in acceptance step 7, §13). Also UNVERIFIED until the first-card acceptance (§13): which `MISC` index files the Air 3S writes and which bus type and `RemovableMedia` value the user's reader reports, both used by the cleanup volume check (§10.6); if either differs, the check is adjusted to what that acceptance run records.
 
 ---
 
@@ -2841,16 +2887,16 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 |---|---|---|---|---|---|
 | 1 | requirements | major | Banned list covers only writes; library **reads** and `UtcNow` are unbanned | **Applied** | §2.4: whole-type and read bans, `UtcNow`/`DateTimeOffset` bans, a content test and a probe build; ICardReader/IFileOps are the only openers (§4.3) |
 | 2 | requirements | major | "Personal computers" means several PCs, but the ledger was local to one | **Applied** | §1.1 fact; §11: per-machine files, union read, pinned-folder check without UnsafeIoException, local backups. *Note: superseded by user decision: ledger in `<videoRoot>\.uas-sort` (derived, no `ledgerDir` setting; the guard exemption is in §4.3). The former §15 Q1 was removed.* |
-| 3 | requirements | major | Settings UI and first-run root choice unscheduled; user path hardcoded | **Applied** | §9.1 Setup stage, §9.14 Settings page; defaults derived from KnownFolder Pictures (the video root; the ledger folder follows it); scheduled in M6a (+1 day). *Note: the former synced-folder ledger default is superseded by user decision: ledger in `<videoRoot>\.uas-sort`, and Setup no longer asks for a ledger folder.* |
+| 3 | requirements | major | Settings UI and first-run root choice unscheduled; user path hardcoded | **Applied** | §9.1 Setup stage, §9.14 Settings page; defaults derived from KnownFolder Pictures (the video root; the ledger folder follows it); scheduled in M6a (+1 day). *Note: the former synced-folder ledger default is superseded by user decision: ledger in `<videoRoot>\.uas-sort`, and Setup no longer asks for a ledger folder.* *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 4 | requirements | minor | 3 R-dependent tests (not 1); Zachar↔Kodiak fixture is 53.4 mi | **Applied** | Re-verified 2026-09-27 (34/37 pass at 50 mi); §13 lists all three with the pin or duplicate plan; §8.4 shows 53.4 mi and a 3.4 mi margin |
-| 5 | requirements | minor | Unpackaged and no-AOT silently deviate from the "most modern frameworks" decision; System.* not on 11.x | **Applied** | §1.1 deviation table; §15 Q5 options A/B/C (A approved 2026-09-27; AOT an optional later attempt in M10); System.IO.Hashing 11.0.0-rc.1. TimeProvider.Testing stays 10.10.0 because no 11.x exists. *Note: superseded by user decision (2026-09-27): Native AOT is the primary build from M0, the C++ build tools are a prerequisite, and only the MSIX departure remains (§1.1, §2.1, §2.6); the former §15 Q5 was removed.* |
+| 5 | requirements | minor | Unpackaged and no-AOT silently deviate from the "most modern frameworks" decision; System.* not on 11.x | **Applied** | §1.1 deviation table; §15 Q5 options A/B/C (A approved 2026-09-27; AOT an optional later attempt in M10); System.IO.Hashing 11.0.0-rc.1. TimeProvider.Testing stays 10.10.0 because no 11.x exists. *Note: superseded by user decision (2026-09-27): Native AOT is the primary build from M0, the C++ build tools are a prerequisite, and only the MSIX departure remains (§1.1, §2.1, §2.6); the former §15 Q5 was removed.* *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 6 | requirements | minor | Browse could select a library folder and probe library content | **Applied** | `CardSourceValidator` (§4.3) refuses equal, inside or containing roots, previous roots, ledger and sync roots; tests in §13 |
 | 7 | requirements | minor | Rename meaning on Append/AlreadyImported undefined | **Applied** | §9.4 read-only box with hint; §8.9 `Rejected(RenameExistingFolder)`; VM test |
 | 8 | requirements | minor | Photos in the old Picture Offload are not recognised after the photo root moves | **Applied** | §7.1/§7.3: photos matched against all root listings plus auto-maintained `previousPhotoRoots`; test in §13 |
 | 9 | requirements | minor | Scope creep (Autel, make-fake-card, USGS button, NE outlines, map labels, key forwarding, recent offloads, 960 px previews, flight column, RC2 row, StaleFirstFix, GpsTime) | **Applied** | §1.4 non-goals and Later list; Autel only in LibraryIndex; FakeCardWriter moved to Testing; USGS as a settings preset. The map and GeoNames suggestions stay (they are part of the approved rich review UX and research grafts) |
 | 10 | requirements | minor | Next-day ≥ 10 mi append labelled High | **Applied** | §8.5 uses the 10 mi threshold → Medium with reason and hint; Scenario D now expects Medium (§13) |
-| 11 | requirements | minor | 22-day estimate understated; Settings not scheduled | **Applied** | §14 re-baselined: 34.5 days + contingency ≈ 38; M6 split into M6a/M6b. *Note: Card cleanup (user request, 2026-09-27) adds M7b (2 days): 36.5 days + contingency ≈ 40.* |
-| 12 | requirements | minor | Exact package set never built together; TreatWarningsAsErrors risk | **Applied** | M0 exit criterion: full pinned set incl. Sizers, trimmed + ReadyToRun with warnings as errors, `--selftest`; fallbacks named. *Note: the M0 exit publish is now Native AOT with warnings as errors (user decision, 2026-09-27; §14)* |
+| 11 | requirements | minor | 22-day estimate understated; Settings not scheduled | **Applied** | §14 re-baselined: 34.5 days + contingency ≈ 38; M6 split into M6a/M6b. *Note: Card cleanup (user request, 2026-09-27) adds M7b (2 days): 36.5 days + contingency ≈ 40.* *Note: superseded: single-pass build (user decision 2026-09-27).* |
+| 12 | requirements | minor | Exact package set never built together; TreatWarningsAsErrors risk | **Applied** | M0 exit criterion: full pinned set incl. Sizers, trimmed + ReadyToRun with warnings as errors, `--selftest`; fallbacks named. *Note: the M0 exit publish is now Native AOT with warnings as errors (user decision, 2026-09-27; §14)* *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 13 | requirements | minor | Nothing checks that the card is left unmodified | **Applied** | Automatic audit re-list diff (§10.5); acceptance before/after snapshots incl. last-access (§13); read-only access ACL test. *Note: still true for the offload. Card cleanup (user decision, 2026-09-27; §10.6) is a separate, confirmed action whose deletes are checked by a re-list and recorded in the ledger.* |
 | 14 | requirements | minor | Undefined types, unpinned versions, selftest DNG source, DraftKey hash | **Applied** | §3 supporting types, `TargetChoice` as a closed record with `[JsonPolymorphic]`; versions pinned from the 2026-09-27 NuGet query; SyntheticDngBuilder asset; DraftKey = XxHash64 of the lowercase canonical root |
 | 15 | requirements | minor | x64 hardcoded; a PC may be ARM64 | **Applied** | §1.2 assumption row, §2.5 RIDs `win-x64;win-arm64`, deploy picks the machine's RID; §15 Q5 |
@@ -2872,21 +2918,21 @@ This table records how all 53 findings of the three review lenses (15 requiremen
 | 31 | safety | minor | Preflight doesn't re-check that Append targets still exist | **Applied** | §10.2 Blocking `AppendTargetGone` "folder renamed or moved since the scan; rescan"; §10.3 step 3 (`EnsureDirectory` creates only NewFolder paths, never an Append target); fault test (§13) |
 | 32 | safety | minor | Generic lat/lon search can accept attitude/velocity fields | **Applied** | §6.3 step 5b plausibility gate, `GpsGuessed` flag, else `NoFix` |
 | 33 | safety | minor | `Etc/*` fallback depends on clustering, so dates move with R | **Applied** | §6.4 nearest land-zone GPS item on the whole card; invariant test "local dates never change with R/G" |
-| 34 | safety | minor | exFAT last-access writes on read | **Applied** | M4 and acceptance check; documented in the verdict text if it happens; write-protect badge; no `SetFileTime` suppression |
+| 34 | safety | minor | exFAT last-access writes on read | **Applied** | M4 and acceptance check; documented in the verdict text if it happens; write-protect badge; no `SetFileTime` suppression. *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 35 | safety | minor | P/Invoke paths lack long-path handling; temp path not length-checked | **Applied** | `\\?\` prefix on every P/Invoke path, 400-character check on the temp path, 300-character integration test |
 | 36 | safety | minor | Folding hides Conflict/Truncated members | **Applied** | §8.5 fold rule; §9.3 folds only clean groups; test |
 | 37 | safety | minor | Corrupt settings silently revert the photo root | **Applied** | §11 recovery → Blocking until roots confirmed; roots recorded in `run` records and offered back |
-| 38 | feasibility | major | 22 days unrealistic; first real offload only at the end; SDK bumps mid-build | **Applied** | §14 re-baseline (≈ 38 days), Commit UI (M7) before Map (M8) so a real offload is possible around day 28, SDK bumps scheduled when they ship, VS Code union/closed check in M0. *Note: M7b (Card cleanup, 2 days) follows M7, so the first real offload stays around day 28; the total is now ≈ 40 days.* |
+| 38 | feasibility | major | 22 days unrealistic; first real offload only at the end; SDK bumps mid-build | **Applied** | §14 re-baseline (≈ 38 days), Commit UI (M7) before Map (M8) so a real offload is possible around day 28, SDK bumps scheduled when they ship, VS Code union/closed check in M0. *Note: M7b (Card cleanup, 2 days) follows M7, so the first real offload stays around day 28; the total is now ≈ 40 days.* *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 39 | feasibility | major | Trimming breaks property-path features (AutoSuggestBox ToString in folder names); ItemsSource types untested | **Applied** | §2.4 XAML lint bans property paths; `SuggestionVm` + `UpdateTextOnSelect=False`; ItemsSource rule (§2.7 #4); selftest realises each template and asserts text |
 | 40 | feasibility | major | ListView can't make chip or split rows non-selectable; Space conflicts | **Applied (different mechanism)** | `ItemContainer.CanUserSelect` is documented only in the 2.0-experimental view (checked 2026-09-27), so chips and day-split banners are embedded in the following item's template instead. Every item is selectable, and buttons stay live (§9.3, §9.5). Space is list-scoped (§9.12) |
 | 41 | feasibility | major | BannedApiAnalyzers can't express "File.* writes"; many write paths are open | **Applied** | §2.4 whole-type bans incl. WinRT storage, VB FileSystem and Process.Start; member list and pragmas in Platform; make-fake-card moved to Testing; `DownloadStarting` cancelled; probe build |
-| 42 | feasibility | major | Selftest gate can't fail or can hang; single-instance details missing | **Applied** | §13 selftest isolation, `Environment.Exit(ok?0:1)` + result JSON + 60 s timeout; §4.4 custom Main, worker-thread redirect, `AllowSetForegroundWindow`; mutex fallback tested in M0; offload lock |
+| 42 | feasibility | major | Selftest gate can't fail or can hang; single-instance details missing | **Applied** | §13 selftest isolation, `Environment.Exit(ok?0:1)` + result JSON + 60 s timeout; §4.4 custom Main, worker-thread redirect, `AllowSetForegroundWindow`; mutex fallback tested in M0; offload lock. *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 43 | feasibility | minor | Map JSON needs `type` first, but map.js sends `v` first; unknown types throw | **Applied** | §9.6 `AllowOutOfOrderMetadataProperties`, try/catch with logging, golden test with `v` first, GeoPoint converter |
-| 44 | feasibility | minor | `.mjs` MIME under the virtual host is unverified | **Applied** | §9.6: M8 first task plus ordered fallbacks (rename to `.js` + `setWorkerUrl`, WebResourceRequested with explicit Content-Type, Leaflet); selftest waits for `ready` |
+| 44 | feasibility | minor | `.mjs` MIME under the virtual host is unverified | **Applied** | §9.6: M8 first task plus ordered fallbacks (rename to `.js` + `setWorkerUrl`, WebResourceRequested with explicit Content-Type, Leaflet); selftest waits for `ready`. *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 45 | feasibility | minor | Win32 details: write-through meaningless, AllowUnsafeBlocks, CreateFileW unnecessary, noisy handle probe | **Applied (flag kept)** | `AllowUnsafeBlocks`; `File.OpenHandle` + NO_BUFFERING; deterministic FileShare.None lister test; criterion 1 reworded; write-through test and claim dropped. The flag stays because the approved Safety graft names it (harmless) |
-| 46 | feasibility | minor | exFAT last-access may write to the card (duplicate of #34) | **Applied** | M4 checkpoint and acceptance; write-protect detection |
-| 47 | feasibility | minor | TreatWarningsAsErrors vs trim warnings from rooted assemblies; AnalysisLevel drift | **Applied** | §2.5 targeted `NoWarn IL2104` only if M0 shows it; `AnalysisLevel` pinned; 0.5 day per SDK bump |
-| 48 | feasibility | minor | Lean package combination and cross-assembly `closed`/`union` untested | **Applied** | M0 exit build of the exact set; Review.Tests exhaustive-switch and JSON round-trip tests |
+| 46 | feasibility | minor | exFAT last-access may write to the card (duplicate of #34) | **Applied** | M4 checkpoint and acceptance; write-protect detection. *Note: superseded: single-pass build (user decision 2026-09-27).* |
+| 47 | feasibility | minor | TreatWarningsAsErrors vs trim warnings from rooted assemblies; AnalysisLevel drift | **Applied** | §2.5 targeted `NoWarn IL2104` only if M0 shows it; `AnalysisLevel` pinned; 0.5 day per SDK bump. *Note: superseded: single-pass build (user decision 2026-09-27).* |
+| 48 | feasibility | minor | Lean package combination and cross-assembly `closed`/`union` untested | **Applied** | M0 exit build of the exact set; Review.Tests exhaustive-switch and JSON round-trip tests. *Note: superseded: single-pass build (user decision 2026-09-27).* |
 | 49 | feasibility | minor | Slider has no drag-completed event; UI-thread derive may stutter | **Applied** | §9.7 `AddHandler(PointerReleased, handledEventsToo)` + `PointerCaptureLost`, 400 ms idle commit, background derive with latest-wins; FakeTimeProvider test |
 | 50 | feasibility | minor | Unmodified-key accelerators collide with list and TextBox input | **Applied** | §9.12 page accelerators use modified keys only; list-scoped keys; TextBox check for undo; smoke test |
 | 51 | feasibility | minor | Thumbnails need images without WinUI types in VMs; recycled containers | **Applied** | §9.5 `ThumbKey` + `Thumb.Key` attached property with key re-check; `IThumbnailSource` returns bytes |
