@@ -21,6 +21,11 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <!-- Custom Program.Main (Ref §4.4). -->
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!-- CsWinRT generates its AOT interop (CCW vtables, e.g. ObservableCollection<T> for ItemsView.ItemsSource) only
+         with AllowUnsafeBlocks; without it trimmed builds crash at the first x:Bind. Hand-written App code never uses
+         `unsafe` (guard test). Level 2 makes CsWinRT AOT diagnostics warnings, hence errors (user decision 2026-09-28). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
   </PropertyGroup>
 
   <!-- Every Release publish is Native AOT (it implies trimming). ReadyToRun is never a build configuration. -->

@@ -11,7 +11,7 @@ namespace UasSort.App;
 /// (UNVERIFIED), or --single-instance-mutex is given, the named mutex Local\uas-sort decides instead; a second
 /// instance then simply exits.
 /// </summary>
-internal sealed class SingleInstanceGate : IDisposable
+internal sealed partial class SingleInstanceGate : IDisposable
 {
     private readonly NamedMutexLock? _mutex;
 

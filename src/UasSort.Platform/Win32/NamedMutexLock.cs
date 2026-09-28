@@ -5,7 +5,7 @@ namespace UasSort.Platform.Win32;
 /// (or the process exits). Ownership is never taken, so the lock is not thread-affine and any thread may dispose it.
 /// Used for the single-instance fallback (Local\uas-sort) and, from Part 09, the offload lock (Local\uas-sort-offload).
 /// </summary>
-public sealed class NamedMutexLock : IDisposable
+public sealed partial class NamedMutexLock : IDisposable
 {
     private readonly Mutex _mutex;
 

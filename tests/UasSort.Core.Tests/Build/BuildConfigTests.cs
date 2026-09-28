@@ -1,11 +1,12 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using UasSort.Testing;
 
 namespace UasSort.Core.Tests.Build;
 
 /// <summary>Guards the build configuration of Ref §2.1, §2.4, §2.5 against drift.</summary>
-public sealed class BuildConfigTests
+public sealed partial class BuildConfigTests
 {
     private static readonly string[] ExpectedPins =
     [
@@ -160,5 +161,66 @@ public sealed class BuildConfigTests
         {
             Assert.Empty(csproj.Descendants(forbidden));
         }
+    }
+
+    [Fact]
+    public void AppProject_GeneratesCsWinRtAotInterop_AndFailsOnItsDiagnostics()
+    {
+        // CsWinRT emits the AOT interop vtables (e.g. for ObservableCollection<T> bound to ItemsSource) only with
+        // AllowUnsafeBlocks; level 2 turns its gaps (CsWinRT1028/1030 …) into build errors (user decision 2026-09-28).
+        var csproj = XDocument.Load(RepoPaths.Of("src/UasSort.App/UasSort.App.csproj"));
+        string Prop(string name) => csproj.Descendants(name).Select(e => e.Value.Trim()).FirstOrDefault() ?? "";
+
+        Assert.Equal("true", Prop("AllowUnsafeBlocks"));
+        Assert.Equal("2", Prop("CsWinRTAotWarningLevel"));
+    }
+
+    [Fact]
+    public void AppSources_NeverUseTheUnsafeKeyword()
+    {
+        // AllowUnsafeBlocks exists only for CsWinRT's generated interop; hand-written App code stays safe.
+        var offenders = RepoPaths.EnumerateFiles("*.cs", "src/UasSort.App")
+            .Where(f => !IsGenerated(f))
+            .Where(f => ContainsUnsafeToken(File.ReadAllText(f)))
+            .Select(RepoPaths.Relative)
+            .ToList();
+        Assert.True(offenders.Count == 0, "unsafe in: " + string.Join(", ", offenders));
+    }
+
+    private static bool IsGenerated(string path)
+    {
+        var name = Path.GetFileName(path);
+        return name.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".g.i.cs", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsUnsafeToken(string source)
+    {
+        var code = BlockComment().Replace(source, " ");
+        code = StringLiteral().Replace(code, "\"\"");
+        code = LineComment().Replace(code, "");
+        return UnsafeToken().IsMatch(code);
+    }
+
+    [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex BlockComment();
+
+    [GeneratedRegex(@"@?""(?:[^""\\\r\n]|\\.|"""")*""")]
+    private static partial Regex StringLiteral();
+
+    [GeneratedRegex(@"//[^\r\n]*")]
+    private static partial Regex LineComment();
+
+    [GeneratedRegex(@"\bunsafe\b")]
+    private static partial Regex UnsafeToken();
+
+    [Fact]
+    public void UnsafeTokenScan_IgnoresCommentsAndStrings()
+    {
+        Assert.True(ContainsUnsafeToken("static unsafe void F() { }"));
+        Assert.True(ContainsUnsafeToken("x = 1; unsafe { }"));
+        Assert.False(ContainsUnsafeToken("// unsafe here\nvar s = \"unsafe\"; /* unsafe */"));
+        Assert.False(ContainsUnsafeToken("var notunsafe = 1; var unsafely = 2;"));
     }
 }
