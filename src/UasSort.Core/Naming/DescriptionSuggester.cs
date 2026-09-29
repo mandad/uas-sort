@@ -28,7 +28,8 @@ public static class DescriptionSuggester
                 list.Add(new Suggestion(p.Name, DescSource.Feature, p.Away, day.Key));
             foreach (var p in places.Near(c, Distance.FromMiles(3), PlaceClass.Populated, 3))
                 list.Add(new Suggestion(p.Name, DescSource.Place, p.Away, day.Key));
-            var town = places.Near(c, Distance.FromMiles(30), PlaceClass.Populated, 50)
+            // No truncation before the population filter: the 30 mi radius bounds the query (Ref §8.7 rule 5).
+            var town = places.Near(c, Distance.FromMiles(30), PlaceClass.Populated, int.MaxValue)
                              .Where(p => p.Population >= 1000).OrderBy(p => p.Away.Meters).FirstOrDefault();
             if (town is not null) list.Add(new Suggestion($"near {town.Name}", DescSource.Town, town.Away, day.Key));
         }

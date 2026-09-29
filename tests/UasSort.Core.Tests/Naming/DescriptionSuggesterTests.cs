@@ -46,21 +46,37 @@ public sealed class DescriptionSuggesterTests
         Assert.Equal((DescSource.Ledger, "Zachar Bay"), (s.Source, s.Text));
     }
 
-    [Fact]
+    [Fact] // day 1 alone gives 2 names; days 2-3 add new names, an exact repeat and a case variant; 7 distinct -> first 6
     public void Deduplicated_AndCappedAtSix()
     {
         var scan = new PlanScenario().Card(
-            Clip.Vid("20260601100000", 1, new GeoPoint(60, -150)),
-            Clip.Vid("20260602100000", 2, new GeoPoint(60, -150)),
-            Clip.Vid("20260603100000", 3, new GeoPoint(60, -150))).Build();
+            Clip.Vid("20260601100000", 1, new GeoPoint(60.0, -150)),
+            Clip.Vid("20260602100000", 2, new GeoPoint(60.1, -150)),
+            Clip.Vid("20260603100000", 3, new GeoPoint(60.2, -150))).Build();
         var places = new FakePlaceIndex(
             P("Alpha Peak", 60.001, -150, PlaceClass.Feature), P("Beta Lake", 60.002, -150, PlaceClass.Feature),
-            P("Gamma Cove", 60.003, -150, PlaceClass.Feature), P("Delta", 60.004, -150, PlaceClass.Populated, 50),
-            P("Epsilon", 60.005, -150, PlaceClass.Populated, 60), P("Zeta", 60.006, -150, PlaceClass.Populated, 70));
+            P("alpha peak", 60.101, -150, PlaceClass.Feature), P("Gamma Cove", 60.102, -150, PlaceClass.Feature),
+            P("Delta", 60.110, -150, PlaceClass.Populated, 50),
+            P("Beta Lake", 60.201, -150, PlaceClass.Feature), P("Epsilon Ridge", 60.202, -150, PlaceClass.Feature),
+            P("Zeta", 60.210, -150, PlaceClass.Populated, 60), P("Eta", 60.212, -150, PlaceClass.Populated, 70));
         var s = DescriptionSuggester.Suggest(OneGroup(scan), scan.Library, places);
-        Assert.Equal(6, s.Count);
-        Assert.Equal(s.Count, s.Select(x => x.Text).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(["Alpha Peak", "Beta Lake", "Gamma Cove", "Delta", "Epsilon Ridge", "Zeta"], s.Select(x => x.Text));
+        Assert.Equal([new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 1), new DateOnly(2026, 6, 2), new DateOnly(2026, 6, 2),
+                      new DateOnly(2026, 6, 3), new DateOnly(2026, 6, 3)], s.Select(x => x.ForDay));
         Assert.True(DescriptionSuggester.Prefills(DescSource.Place));
         Assert.False(DescriptionSuggester.Prefills(DescSource.Town));
+    }
+
+    [Fact] // Ref §8.7 rule 5: 60 nearer sub-1,000 places must not hide the nearest town of >= 1,000 within 30 mi
+    public void Town_NotHiddenByManyNearerSmallPlaces()
+    {
+        var scan = new PlanScenario().Card(Clip.Vid("20260601100000", 1, new GeoPoint(61.0, -149))).Build();
+        var hits = Enumerable.Range(0, 60)
+            .Select(i => P($"Hamlet {i:00}", 61.1 + i * 0.001, -149, PlaceClass.Populated, 100 + i))
+            .Append(P("Bigtown", 61.3, -149, PlaceClass.Populated, 1500))
+            .ToList();
+        var s = DescriptionSuggester.Suggest(OneGroup(scan), scan.Library, new FakePlaceIndex(hits));
+        var town = Assert.Single(s);
+        Assert.Equal(("near Bigtown", DescSource.Town), (town.Text, town.Source));
     }
 }
