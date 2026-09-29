@@ -89,6 +89,17 @@ public sealed class LedgerFolderStatusTests
     }
 
     [Fact]
+    public void LedgerStatus_FolderThatCantBeListed_IsUnlistable_NeverEmpty()
+    {
+        var unlistable = new ListingResult([], [(L, 5)]);                 // ERROR_ACCESS_DENIED on the folder itself
+        Assert.Equal(LedgerFolderState.Unlistable, Build(PinnedFolder, unlistable).State);
+        Assert.Equal(LedgerFolderState.Unlistable, Build(Dir(L), new ListingResult([], [(L, 362)])).State);   // cloud provider not running
+        Assert.Equal(LedgerFolderState.Unlistable,
+                     Build(PinnedFolder, new ListingResult([Fil(L + @"\ledger-B.jsonl", 0x400000 | 0x20)], [(L, 1117)]), writable: false).State);
+        Assert.Equal(LedgerFolderState.VideoRootMissing, Build(PinnedFolder, unlistable, rootExists: false).State);
+    }
+
+    [Fact]
     public void LedgerStatus_Unwritable_BeatsNotPinnedAndMissing()
     {
         ListingResult top = Listing(Fil(L + @"\ledger-DESKTOP-A.jsonl"));

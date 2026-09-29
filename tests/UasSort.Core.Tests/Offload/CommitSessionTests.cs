@@ -172,4 +172,47 @@ public class CommitSessionTests
         Assert.True(result.FailureFree);
         Assert.Equal("created", h.Rig.Writer.Records.OfType<FolderRecord>().Single().Source);
     }
+
+    private sealed class CancelWhenFilesDone(int n, CancellationTokenSource cts) : IProgress<OffloadProgress>
+    {
+        public void Report(OffloadProgress p) { if (p.FilesDone == n) cts.Cancel(); }
+    }
+
+    [Fact] // F18: a folder record that fails after the loop (the run was cancelled mid-group) leaves the history incomplete
+    public async Task AFolderRecordFailingAfterTheLoop_MarksTheLedgerIncomplete()
+    {
+        var b = new OffloadPlanBuilder();
+        b.Group(new NewFolder(ZRel), Zachar, b.Video("DJI_20260927140000_0123_D.MP4", 5_000, T0),
+                b.Video("DJI_20260927141000_0124_D.MP4", 6_000, T0.AddMinutes(10)));
+        var h = new Harness(new OffloadRig(b).Build());
+        h.Rig.Writer.ThrowWhen = r => r is FolderRecord;
+        using var session = h.Begin();
+        using var cts = new CancellationTokenSource();
+
+        var result = await session.StartAsync(All(session), new CancelWhenFilesDone(1, cts), cts.Token);
+
+        Assert.Equal(StopReason.Cancelled, result.Offload.Stop);                 // the real stop reason is kept
+        Assert.True(result.Offload.LedgerIncomplete);
+        Assert.False(result.LedgerComplete);
+    }
+
+    [Fact] // F5: Browse to folder… on E:\ has no identity in its CardSource; Begin pins the volume's identity (as ScanService finds it)
+    public async Task ABrowsedSource_PinsTheVolumeIdentity_AndOffloads()
+    {
+        var b = new OffloadPlanBuilder().Browsed();
+        b.Group(new NewFolder(ZRel), Zachar, b.Video("DJI_20260927140000_0123_D.MP4", 5_000, T0));
+        var rig = new OffloadRig(b).Build();
+        rig.Volumes.Add(new VolumeInfo(CardRoot, OffloadPlanBuilder.Card, "Removable", true, false, false, true, 1_000_000, "Sd", false, false));
+        var h = new Harness(rig);
+        Assert.Null(rig.Plan.Base.Scan.Inventory.Source.Identity);
+
+        using var session = h.Begin();
+
+        Assert.Equal(OffloadPlanBuilder.Card, session.Batch.Card);
+        Assert.True(session.Preflight.CanStart);
+        var result = await session.StartAsync(All(session), new ListProgress<OffloadProgress>(), CancellationToken.None);
+        Assert.IsType<Verified>(Assert.Single(result.Offload.Outcomes));
+        Assert.Equal(VerdictLevel.Safe, result.Verdict.Level);
+        Assert.True(rig.Plan.Base.Scan.Inventory.Source.IsBrowsedFolder);        // cleanup stays refused for it
+    }
 }

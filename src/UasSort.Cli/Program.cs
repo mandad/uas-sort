@@ -8,6 +8,7 @@ public static class Program
     public static int Main(string[] args)
     {
         sbyte previousMode = PlaceholderMode.ExposePlaceholders();   // Ref §4.3: first, before any file-system access
+        _ = CriticalErrorMode.FailQuietly();                         // a pulled card fails the call, never a "no disk" system dialog
         Console.OutputEncoding = Encoding.UTF8;
         if (previousMode < 0)
             Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,

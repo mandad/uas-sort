@@ -67,6 +67,9 @@ public static class Preflight
                 case LedgerFolderState.VideoRootMissing:
                     issues.Block(IssueCode.RootMissing, $"{settings.VideoRoot} is not available; its items are unticked");
                     break;
+                case LedgerFolderState.Unlistable:
+                    issues.Block(IssueCode.LedgerUnlistable, $"Can't list {ledgerFolder}");
+                    break;
                 case LedgerFolderState.Missing or LedgerFolderState.Empty:
                     issues.Info(IssueCode.LedgerNoHistory, "No history yet; this offload starts it");
                     break;

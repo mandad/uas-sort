@@ -51,7 +51,12 @@ public sealed class CommitSession : IDisposable
         try
         {
             var settings = plan.Base.Scan.Settings;
-            var batch = OffloadCompiler.Compile(plan, runId ?? Guid.NewGuid().ToString("N"));
+            // Ref §4.4 step 6 "pin the card identity": a Browse source has none in its CardSource (Ref §4.1, IsBrowsedFolder stays
+            // true so Card cleanup stays refused); it is pinned to the identity of the volume holding it, as ScanService found it
+            var source = plan.Base.Scan.Inventory.Source;
+            var card = CardVolumes.IdentityOf(env.Volumes, source)
+                       ?? throw new InvalidOperationException($"No volume found for {source.Root}; rescan the card.");
+            var batch = OffloadCompiler.Compile(plan, runId ?? Guid.NewGuid().ToString("N"), card);
             var files = env.FileOpsForRun(OffloadCompiler.NewFolderDirs(batch, settings.VideoRoot));
             var preflight = global::UasSort.Core.Offload.Preflight.Check(batch, plan, files, env.Lister, env.Reader, env.Ledger,
                                                     lockHandle is null ? env.Lock : HeldLock.Instance, settings);
@@ -112,7 +117,7 @@ public sealed class CommitSession : IDisposable
         {
             var engine = new CopyEngine(env.Clock, new CopyEngineOptions(env.Machine, OffloadCompiler.Describe(Plan, Batch), env.Volumes.GetVolumes()));
             result = await engine.RunAsync(Batch, env.Reader, _files, writer, progress, ct).ConfigureAwait(false);
-            if (result.Stop == StopReason.LedgerWriteFailed) ledgerComplete = false;
+            if (result.Stop == StopReason.LedgerWriteFailed || result.LedgerIncomplete) ledgerComplete = false;
             ledgerComplete &= TryAppendAll(writer,
                 [.. CommitTailRecords.CardLeftovers(Batch, env.Machine), .. CommitTailRecords.Seen(Batch, Plan, result, env.Machine, Now())]);
         }

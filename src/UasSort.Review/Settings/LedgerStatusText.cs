@@ -17,6 +17,7 @@ public static partial class LedgerStatusText
             LedgerFolderState.VideoRootMissing => ("The video folder doesn't exist; pick an existing folder", InfoSeverity.Error, false),
             LedgerFolderState.CloudOnly => ($"Set {library}\\.uas-sort to Always keep on this device", InfoSeverity.Error, true),
             LedgerFolderState.Unwritable => ($"Can't write the history file in {s.Folder}", InfoSeverity.Error, false),
+            LedgerFolderState.Unlistable => ($"Can't list {s.Folder}", InfoSeverity.Error, false),
             LedgerFolderState.Missing or LedgerFolderState.Empty =>
                 ("No history yet. It will be created at the first offload. If you've used uas-sort on another PC, let OneDrive finish syncing first",
                  InfoSeverity.Informational, false),

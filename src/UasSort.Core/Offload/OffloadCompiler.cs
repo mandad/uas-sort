@@ -10,10 +10,18 @@ public static partial class OffloadCompiler
     public static OffloadBatch Compile(Plan plan, string runId)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        return Compile(plan, runId, plan.Base.Scan.Inventory.Source.Identity
+                                    ?? throw new InvalidOperationException("The card identity isn't pinned; rescan the card."));
+    }
+
+    /// <summary>Compile against a pinned card identity: the CardSource's, or for a Browse source (no identity in its CardSource,
+    /// Ref §4.1) the identity of the volume holding it, which CommitSession.Begin pins as ScanService found it.</summary>
+    public static OffloadBatch Compile(Plan plan, string runId, CardIdentity card)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(card);
         var scan = plan.Base.Scan;
         var settings = scan.Settings;
-        var card = scan.Inventory.Source.Identity
-                   ?? throw new InvalidOperationException("The card identity isn't pinned; rescan the card.");
         var items = plan.Base.Items.ToDictionary(i => i.Raw.Unit.Id);
         var jobs = ImmutableArray.CreateBuilder<CopyJob>();
         var folders = ImmutableArray.CreateBuilder<FolderPlan>();

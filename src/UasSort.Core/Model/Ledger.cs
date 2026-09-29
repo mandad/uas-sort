@@ -16,10 +16,10 @@ public sealed record LedgerRun(string Run, string Machine, DateTime StartUtc, Da
 public sealed record LedgerCardDelete(string Run, DateTime AtUtc, FileKey Key, string Src, string Evidence, string Machine);
 public sealed record LedgerParseIssue(string File, int Line, string Reason);
 
-public enum LedgerFolderState { Ok, Empty, Missing, NotPinned, Unwritable, CloudOnly, VideoRootMissing }
+public enum LedgerFolderState { Ok, Empty, Missing, NotPinned, Unwritable, CloudOnly, VideoRootMissing, Unlistable }
 
 public sealed record LedgerFolderStatus(string Folder, LedgerFolderState State /* the most severe that applies: VideoRootMissing >
-    CloudOnly > Unwritable > NotPinned > Missing > Empty > Ok */, bool Exists, bool InSyncRoot, bool Pinned, bool Writable,
+    Unlistable (the folder exists but its listing failed) > CloudOnly > Unwritable > NotPinned > Missing > Empty > Ok */, bool Exists, bool InSyncRoot, bool Pinned, bool Writable,
     ImmutableArray<string> LedgerFiles, ImmutableArray<string> CloudOnlyFiles, ImmutableArray<string> OtherMachineFiles);
 
 public sealed record LedgerSnapshot(

@@ -63,7 +63,11 @@ public sealed partial class Planner : IPlanDeriver
         var un = b.Scan.Library.UnavailableRoots;
         bool Eq(string a, string c) => PathCmp.Equals(a.TrimEnd('\\'), c.TrimEnd('\\'));
         var video = un.Any(r => Eq(r, s.VideoRoot)) || b.Scan.Ledger.Status.State == LedgerFolderState.VideoRootMissing;
-        return new Roots(video, video && s.PhotoRoot.StartsWith(s.VideoRoot, StringComparison.OrdinalIgnoreCase) || un.Any(r => Eq(r, s.PhotoRoot)), un);
+        // Ref §12 "A library root is missing": a photo-bearing root that can't be listed (the photo root, or a previousPhotoRoots
+        // entry) leaves photo newness unknown, so photos stay New and unticked (the RootMissing warning says so)
+        var photo = video && s.PhotoRoot.StartsWith(s.VideoRoot, StringComparison.OrdinalIgnoreCase)
+                    || un.Any(r => Eq(r, s.PhotoRoot) || s.PreviousPhotoRoots.Any(p => Eq(r, p)));
+        return new Roots(video, photo, un);
     }
 
     private static HashSet<ItemId> Inclusion(PlanBase b, IReadOnlyList<PlanEdit> edits, Roots roots)
@@ -177,6 +181,11 @@ public sealed partial class Planner : IPlanDeriver
 
         // suggestions (the append target's description first when it is not the wall)
         var suggestions = DescriptionSuggester.Suggest(g, lib, _places).ToList();
+        // Ref §8.7 rule 1: the wall folder's description is a suggestion only on Append (or AlreadyImported to it); a NewFolder
+        // (the user's New folder, or NewBeforeWall) never gets it, or its prefill would turn the new folder back into the wall
+        if (target is not (Append or AlreadyImported) && g.Wall is { } walled)
+            suggestions.RemoveAll(x => x.Source == DescSource.ExistingFolder
+                                       && string.Equals(x.Text, walled.Description, StringComparison.OrdinalIgnoreCase));
         if (target is Append ap && (g.Wall is null || !Clusterer.SameFolder(ap.Folder, g.Wall)) && ap.Folder.Description.Length > 0)
             suggestions.Insert(0, new Suggestion(ap.Folder.Description, DescSource.ExistingFolder, null, null));
         suggestions = suggestions.DistinctBy(x => x.Text, StringComparer.OrdinalIgnoreCase).Take(DescriptionSuggester.Max).ToList();
@@ -194,11 +203,13 @@ public sealed partial class Planner : IPlanDeriver
         {
             case NewFolder:
             {
-                // after a UserSplit, never prefill a name whose path is a folder excluded from this group (Ref §8.7 Prefill, §8.9 step 4)
+                // after a UserSplit, never prefill a name whose path is a folder excluded from this group (Ref §8.7 Prefill, §8.9 step 4);
+                // nor one whose path is the wall itself (a ledger suggestion with the wall's name): the prefill would append to the wall
                 bool Excluded(Suggestion x)
                 {
                     var path = Path.Join(s.VideoRoot, FolderNamer.NewFolderRel(g.Start, FolderNamer.Clean(x.Text)));
-                    return excluded.Any(e => PathCmp.Equals(e.TrimEnd('\\'), path));
+                    return excluded.Any(e => PathCmp.Equals(e.TrimEnd('\\'), path))
+                           || (g.Wall is { } w && PathCmp.Equals(w.FullPath.TrimEnd('\\'), path));
                 }
                 var top = suggestions.FirstOrDefault(x => DescriptionSuggester.Prefills(x.Source) && !Excluded(x));
                 (description, descSource) = rn is not null ? (FolderNamer.Clean(rn.Description!), DescSource.User)
@@ -387,6 +398,8 @@ public sealed partial class Planner : IPlanDeriver
         if (st.State == LedgerFolderState.NotPinned)
             issues.Add(new Issue(IssueSeverity.Warning, IssueCode.LedgerNotPinned, $"Set {display} to Always keep on this device", null,
                                  [new QuickFix("Keep on this device", [])], false));
+        if (st.State == LedgerFolderState.Unlistable)
+            issues.Add(new Issue(IssueSeverity.Blocking, IssueCode.LedgerUnlistable, $"Can't list {st.Folder}", null, [], false));
         if (st.State is LedgerFolderState.Missing or LedgerFolderState.Empty)
             issues.Add(new Issue(IssueSeverity.Info, IssueCode.LedgerNoHistory, "No history yet; this offload starts it", null, [], false));
 

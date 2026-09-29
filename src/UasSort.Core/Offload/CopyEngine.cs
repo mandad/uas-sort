@@ -43,6 +43,7 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
         var meter = new ProgressMeter(clock, jobs, progress);
         var ensured = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var renamed = new List<string>();
+        var sizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var landed = new List<GroupId>();
         var folderDone = new HashSet<GroupId>();
         var lastOfGroup = new Dictionary<GroupId, int>();
@@ -70,7 +71,11 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
             var step = CopyOne(batch, job, card, files, ensured, meter, ct);
             outcomes[i] = step.Outcome;
             stop = step.Stop;
-            if (step.Outcome is Verified) renamed.Add(job.DestPath);
+            if (step.Outcome is Verified)
+            {
+                renamed.Add(job.DestPath);
+                sizes[job.DestPath] = job.Size;
+            }
             if (step.Outcome is Verified or AlreadyThere)
             {
                 if (job.Group is { } lg && !landed.Contains(lg)) landed.Add(lg);
@@ -81,13 +86,26 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
                 stop = StopReason.LedgerWriteFailed;
             meter.End(job);
         }
+        var ledgerIncomplete = false;
         if (stop != StopReason.LedgerWriteFailed)
             foreach (var g in landed.Where(g => !folderDone.Contains(g)).ToList())
-                if (!WriteFolder(g)) break;
+                if (!WriteFolder(g))
+                {
+                    ledgerIncomplete = true;   // the stop that cut the group short is kept; the history is incomplete (Ref §10.3)
+                    break;
+                }
 
-        var safeRemoval = FlushDestinations(files, renamed, out bool flushRefused);
+        var safeRemoval = FlushDestinations(files, renamed, sizes, out bool flushRefused, out var unconfirmed);
         if (flushRefused) stop ??= StopReason.InternalSafetyStop;
-        return new OffloadResult(batch.RunId, [.. outcomes], stop, start, Now(), safeRemoval);
+        if (unconfirmed.Count > 0)
+        {
+            // the destination went away after the rename: those files can't be shown durable, so they are not Verified
+            for (int i = 0; i < outcomes.Length; i++)
+                if (outcomes[i] is Verified v && unconfirmed.Contains(v.Job.DestPath))
+                    outcomes[i] = new Failed(v.Job, CopyPhase.Confirm, "The destination went away before its files were flushed");
+            stop ??= StopReason.DestinationLost;
+        }
+        return new OffloadResult(batch.RunId, [.. outcomes], stop, start, Now(), safeRemoval) { LedgerIncomplete = ledgerIncomplete };
     }
 
     private static bool TryAppend(ILedgerWriter ledger, LedgerRecord record)
@@ -346,10 +364,14 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
 
     /// <summary>After the loop: flush renamed files and their directories on volumes that are not NTFS on a fixed disk, and list
     /// those volumes for safe removal (Ref §10.3). Durability there comes from the flush plus safe removal, not write-through.
-    /// A guard refusal ends all flushing (refused = true; Run makes it an InternalSafetyStop), but every volume is still listed.</summary>
-    private ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed, out bool refused)
+    /// A guard refusal ends all flushing (refused = true; Run makes it an InternalSafetyStop), but every volume is still listed.
+    /// An IO failure of the flush is ignored only while the volume is still there and every file of that directory still confirms
+    /// (exFAT can reject a directory flush); otherwise the files are returned as unconfirmed (Run: Failed(Confirm), DestinationLost).</summary>
+    private ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed, Dictionary<string, long> sizes,
+                                                     out bool refused, out HashSet<string> unconfirmed)
     {
         refused = false;
+        unconfirmed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var needing = ImmutableArray.CreateBuilder<string>();
         foreach (var volume in renamed.GroupBy(OffloadPaths.VolumeRoot, StringComparer.OrdinalIgnoreCase))
         {
@@ -367,12 +389,34 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
                 }
                 catch (Exception e) when (Failures.IsIo(e))
                 {
-                    // the volume is still listed for safe removal, which is what makes the copies durable there
+                    // still there and every file confirms: safe removal makes the copies durable; else they are not durable
+                    unconfirmed.UnionWith(Unconfirmed(files, volume.Key, dir.ToList(), sizes));
                 }
             }
             needing.Add(volume.Key);
         }
         return needing.ToImmutable();
+    }
+
+    private static List<string> Unconfirmed(IFileOps files, string volume, List<string> paths, Dictionary<string, long> sizes)
+    {
+        try
+        {
+            files.FreeBytes(volume);
+        }
+        catch (Exception gone) when (Failures.IsIo(gone))
+        {
+            return paths;
+        }
+        var failed = new List<string>();
+        foreach (var path in paths)
+        {
+            bool ok;
+            try { ok = files.ConfirmFinal(path, sizes[path]); }
+            catch (Exception e) when (Failures.IsIo(e)) { ok = false; }
+            if (!ok) failed.Add(path);
+        }
+        return failed;
     }
 
     private bool NeedsSafeRemoval(string volumeRoot)

@@ -30,4 +30,13 @@ internal static partial class NativeMethods
     [LibraryImport("ntdll.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial sbyte RtlSetProcessPlaceholderCompatibilityMode(sbyte mode);
+
+    /// <summary>kernel32: UINT SetErrorMode(UINT uMode); returns the previous mode.</summary>
+    [LibraryImport("kernel32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    internal static partial uint SetErrorMode(uint mode);
+
+    [LibraryImport("kernel32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    internal static partial uint GetErrorMode();
 }

@@ -11,11 +11,13 @@ public sealed class ProgramTests
         Assert.True(main >= 0, "Program.Main not found");
         int bodyStart = source.IndexOf('{', main) + 1;
         int expose = source.IndexOf("PlaceholderMode.ExposePlaceholders()", bodyStart, StringComparison.Ordinal);
+        int quiet = source.IndexOf("CriticalErrorMode.FailQuietly()", bodyStart, StringComparison.Ordinal);
         int encoding = source.IndexOf("Console.OutputEncoding", bodyStart, StringComparison.Ordinal);
         int run = source.IndexOf("PlanCommand.RunAsync(", bodyStart, StringComparison.Ordinal);
 
         Assert.True(expose > 0, "Program.Main must call PlaceholderMode.ExposePlaceholders()");
         Assert.DoesNotContain(";", source[bodyStart..expose], StringComparison.Ordinal);   // it is the first statement
+        Assert.True(quiet > expose && quiet < encoding, "critical-error dialogs are turned off right after ExposePlaceholders()");
         Assert.True(encoding > expose, "the console encoding is set after ExposePlaceholders()");
         Assert.True(run > encoding, "PlanCommand.RunAsync runs after ExposePlaceholders() and the encoding");
     }

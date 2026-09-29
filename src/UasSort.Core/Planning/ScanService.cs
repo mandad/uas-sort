@@ -34,7 +34,7 @@ public sealed class ScanService
 
     public async Task<ScanResult> ScanAsync(CardSource source, ICardReaderFactory readers, IProgress<ScanProgress> progress, CancellationToken ct)
     {
-        var identity = source.Identity ?? IdentityOf(source.Root)
+        var identity = CardVolumes.IdentityOf(_volumes, source)
                        ?? throw new InvalidOperationException($"No volume found for {source.Root}");
         var reader = readers.Open(source, identity);
 
@@ -56,7 +56,7 @@ public sealed class ScanService
         progress.Report(new ScanProgress(ScanPhase.ReadingLedger, 0, 1, null));
         var status = _ledger.Check();                                           // attributes only, before any open
         var ledger = status.State is LedgerFolderState.CloudOnly or LedgerFolderState.Missing
-                                  or LedgerFolderState.Empty or LedgerFolderState.VideoRootMissing
+                                  or LedgerFolderState.Empty or LedgerFolderState.VideoRootMissing or LedgerFolderState.Unlistable
             ? LedgerSnapshots.Empty(status)
             : _ledger.Load();
         ct.ThrowIfCancellationRequested();
@@ -81,12 +81,6 @@ public sealed class ScanService
         var listing = _lister.Enumerate(root, true, LibraryExcludes);
         var missing = listing.Errors.Any(e => SamePath(e.Path, root) && e.Win32Error is 2 or 3);   // file / path not found
         return new RootListing(root, kind, previous, !missing, listing);
-    }
-
-    private CardIdentity? IdentityOf(string root)
-    {
-        var volumeRoot = Path.GetPathRoot(root);
-        return volumeRoot is null ? null : _volumes.GetVolumes().FirstOrDefault(v => SamePath(v.Root, volumeRoot))?.Identity;
     }
 
     private static bool SamePath(string a, string b) => PathRules.Equal(a, b);

@@ -104,6 +104,38 @@ public sealed class ThumbnailReaderTests
         }
     }
 
+    [Fact] // deferred minor 03.13: a rescan disposes the reader while loads are queued; none may hang, throw or leak a card handle
+    public async Task Dispose_WhileLoadsAreQueued_CompletesEveryLoad_AndLeaksNoHandle()
+    {
+        (ThumbnailReader thumbs, MemoryCardReader reader, List<RawItem> items) = Setup();
+        var ct = TestContext.Current.CancellationToken;
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        int opens = 0;
+        reader.OnOpen = _ =>
+        {
+            if (Interlocked.Increment(ref opens) != 1) return;
+            entered.Set();
+            release.Wait(ct);
+        };
+
+        var slow = Task.Run(() => thumbs.GetAsync(Id(items, ItemKind.Video), ct).AsTask(), ct);
+        entered.Wait(ct);
+        var queued1 = thumbs.GetAsync(Id(items, ItemKind.Photo), ct).AsTask();
+        var queued2 = thumbs.GetAsync(Id(items, ItemKind.Set), ct).AsTask();
+        var disposing = Task.Run(thumbs.Dispose, ct);
+        await Task.Delay(50, ct);
+        release.Set();
+
+        await disposing.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await Task.WhenAll(slow, queued1, queued2).WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Equal(0, reader.OpenHandles);
+        Assert.True((await thumbs.GetAsync(Id(items, ItemKind.Video), ct)).IsEmpty);   // after Dispose: empty, never a new handle
+        thumbs.Pause().Dispose();
+        thumbs.Dispose();
+        Assert.Equal(0, reader.OpenHandles);
+    }
+
     [Fact]
     public async Task Dispose_ClosesTheCachedHandle()
     {

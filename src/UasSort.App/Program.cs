@@ -23,6 +23,7 @@ public static class Program
 
         WinRT.ComWrappersSupport.InitializeComWrappers();
         var previousMode = PlaceholderMode.ExposePlaceholders();
+        _ = CriticalErrorMode.FailQuietly();               // a pulled card fails the call, never a "no disk" system dialog
         if (previousMode < 0)
         {
             Trace.WriteLine("RtlSetProcessPlaceholderCompatibilityMode failed: " + previousMode);

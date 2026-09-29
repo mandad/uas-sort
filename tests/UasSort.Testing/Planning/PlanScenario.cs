@@ -29,6 +29,7 @@ public sealed partial class PlanScenario
     private readonly Dictionary<FileKey, DateTime> _seen = [];
     private readonly Dictionary<string, List<LedgerSet>> _sets = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<LedgerParseIssue> _parse = [];
+    private readonly HashSet<string> _unavailablePrevious = new(StringComparer.OrdinalIgnoreCase);
 
     public string Root { get; init; } = VideoRoot;
     public string PhotoRoot => Root + @"\Picture Offload";
@@ -81,7 +82,18 @@ public sealed partial class PlanScenario
     public PlanScenario PreviousPhotoRootFile(string root, string relPath, long size, DateTime mtimeUtc)
     {
         if (!_previous.TryGetValue(root, out var list)) _previous[root] = list = [];
+        for (var i = relPath.IndexOf('\\', StringComparison.Ordinal); i > 0; i = relPath.IndexOf('\\', i + 1))   // ancestors, as a real listing
+            if (!list.Any(e => e.IsDirectory && string.Equals(e.RelPath, relPath[..i], StringComparison.OrdinalIgnoreCase)))
+                list.Add(new FsEntry(root + @"\" + relPath[..i], relPath[..i], true, 0, mtimeUtc, mtimeUtc, mtimeUtc, 0x10));
         list.Add(new FsEntry(root + @"\" + relPath, relPath, false, size, mtimeUtc, mtimeUtc, mtimeUtc, 0x20));
+        return this;
+    }
+
+    /// <summary>A previousPhotoRoots entry whose listing failed (unplugged drive): listed as unavailable, like ScanService does.</summary>
+    public PlanScenario UnavailablePreviousPhotoRoot(string root)
+    {
+        if (!_previous.ContainsKey(root)) _previous[root] = [];
+        _unavailablePrevious.Add(root);
         return this;
     }
 
@@ -143,7 +155,8 @@ public sealed partial class PlanScenario
                             new ListingResult(VideoRootAvailable ? [.. _video] : [], [])),
             new RootListing(PhotoRoot, DestRoot.Photo, false, PhotoRootAvailable,
                             new ListingResult(PhotoRootAvailable ? [.. _photo] : [], [])),
-            [.. _previous.Select(kv => new RootListing(kv.Key, DestRoot.Photo, true, true, new ListingResult([.. kv.Value], [])))]);
+            [.. _previous.Select(kv => new RootListing(kv.Key, DestRoot.Photo, true, !_unavailablePrevious.Contains(kv.Key),
+                                                                new ListingResult(_unavailablePrevious.Contains(kv.Key) ? [] : [.. kv.Value], [])))]);
         var ledger = BuildLedger();
         var lib = LibraryIndex.Build(listings, ledger, clock);
         var entries = raw.SelectMany(r => Entries(r)).ToImmutableArray();

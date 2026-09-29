@@ -29,7 +29,11 @@ public sealed record FolderPlan(GroupId Group, string FullPath, bool Create, str
                                 DateOnly Start, DateOnly End, string TzId);
 public enum StopReason { Cancelled, CardSwapped, CardRemoved, DestinationFull, DestinationLost, LedgerWriteFailed, InternalSafetyStop }
 public sealed record OffloadResult(string RunId, ImmutableArray<CopyOutcome> Outcomes, StopReason? Stop /* null = ran to the end */,
-                                   DateTime StartUtc, DateTime EndUtc, ImmutableArray<string> VolumesNeedingSafeRemoval);
+                                   DateTime StartUtc, DateTime EndUtc, ImmutableArray<string> VolumesNeedingSafeRemoval)
+{
+    /// <summary>A ledger append after the loop failed (a folder record of a group the stop cut short); the stop reason is kept.</summary>
+    public bool LedgerIncomplete { get; init; }
+}
 
 public sealed record VolumeNeed(string Volume, int Files, long Bytes, long FreeBytes, long RequiredFree);   // RequiredFree = Σ + max(1 GiB, 2 % of Σ)
 public sealed record PreflightReport(ImmutableArray<Issue> Issues, ImmutableArray<string> FoldersToCreate,

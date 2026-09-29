@@ -95,7 +95,8 @@ public static partial class CleanupExecutor
         private bool PrepareLedger(Stack<IDisposable> held)
         {
             var status = _env.Ledger.Check();
-            if (status.State is LedgerFolderState.CloudOnly or LedgerFolderState.Unwritable or LedgerFolderState.VideoRootMissing)
+            if (status.State is LedgerFolderState.CloudOnly or LedgerFolderState.Unwritable or LedgerFolderState.VideoRootMissing
+                             or LedgerFolderState.Unlistable)
             { _stop = CleanupStop.LedgerUnavailable; return false; }
             try
             {

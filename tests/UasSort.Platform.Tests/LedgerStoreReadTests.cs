@@ -27,6 +27,19 @@ public sealed class LedgerStoreReadTests
         Assert.Equal(env.C(Path.Join(env.VideoRoot, ".uas-sort")), s.Folder);
     }
 
+    [Fact] // F2: the folder is there but can't be listed (ERROR_ACCESS_DENIED): Unlistable, never Empty, and Load opens nothing
+    public void Check_FolderThatCantBeListed_IsUnlistable()
+    {
+        using var env = new TestEnv();
+        env.Temp.File(@"video\.uas-sort\ledger-B.jsonl");
+        TempDir.Deny(Path.Join(env.VideoRoot, ".uas-sort"), FileSystemRights.ListDirectory);
+        var store = Store(env);
+        Assert.Equal(LedgerFolderState.Unlistable, store.Check().State);
+        var snapshot = store.Load();
+        Assert.Empty(snapshot.SourceFiles);
+        Assert.Equal(LedgerFolderState.Unlistable, snapshot.Status.State);
+    }
+
     [Fact]
     public void Check_EmptyFolder()
     {

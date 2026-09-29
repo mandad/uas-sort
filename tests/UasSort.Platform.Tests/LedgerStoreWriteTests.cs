@@ -128,6 +128,43 @@ public sealed class LedgerStoreWriteTests
         Assert.Equal(3, File.ReadAllLines(Path.Join(newStore.BackupDir, "ledger-TESTPC.jsonl")).Length);
     }
 
+    [Fact] // F8: the app calls CopyInto on the NEW root's store (the new root is saved first, Ref §9.14) with the old root's snapshot
+    public void CopyInto_OnTheNewRootsStore_ReadsTheOldRootsLedgers()
+    {
+        using var env = new TestEnv();
+        LedgerRecords.Write(Path.Join(env.VideoRoot, ".uas-sort", "ledger-B.jsonl"), LedgerRecords.Run("B", "b1"));
+        var old = Store(env);
+        old.EnsureFolder();
+        using (var w = old.OpenOwn()) w.Append(LedgerRecords.Run("TESTPC", "t1"));
+        var current = old.Load();
+        var newRoot = env.Temp.Sub("video2");
+        var newStore = Store(env, env.Settings with { VideoRoot = newRoot });
+
+        newStore.CopyInto(newRoot, current);
+
+        Assert.Equal(["b1", "t1"], newStore.Load().Runs.Select(r => r.Run).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(2, File.ReadAllLines(newStore.OwnFile).Length);
+    }
+
+    [Fact] // F8: every source is read and cleared before the new own file is created, so a refusal leaves nothing behind
+    public void CopyInto_ARefusedSource_CreatesNoOwnFile()
+    {
+        using var env = new TestEnv();
+        var old = Store(env);
+        old.EnsureFolder();
+        using (var w = old.OpenOwn()) w.Append(LedgerRecords.Run("TESTPC", "t1"));
+        var stray = env.Temp.File(@"elsewhere\ledger-X.jsonl");                  // outside every root: the guard refuses it
+        var current = old.Load() is var s ? s with { SourceFiles = [.. s.SourceFiles, stray] } : null!;
+        var newRoot = env.Temp.Sub("video2");
+        var newStore = Store(env, env.Settings with { VideoRoot = newRoot });
+
+        Assert.Throws<UnsafeIoException>(() => newStore.CopyInto(newRoot, current));
+
+        Assert.False(File.Exists(newStore.OwnFile));
+        Assert.False(Directory.Exists(Path.Join(newRoot, ".uas-sort")));
+        Assert.Equal(LedgerFolderState.Missing, newStore.Check().State);          // the "No history found" prompt can come back
+    }
+
     [Fact]
     public void LoadFromBackup_IsLatestSnapshotUnionMirror()
     {

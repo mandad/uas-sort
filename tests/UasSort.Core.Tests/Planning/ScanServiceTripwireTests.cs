@@ -89,4 +89,18 @@ public sealed class ScanServiceTripwireTests
         Assert.Equal(IssueSeverity.Blocking, Assert.Single(plan.Issues, i => i.Code == IssueCode.LedgerCloudOnly).Severity);
         Assert.Empty(fs.CardDeleteViolations);
     }
+
+    [Fact] // F2: a .uas-sort folder whose listing fails is never "no history": Blocking LedgerUnlistable, nothing loaded
+    public async Task UnlistableLedgerFolder_IsBlocking_NeverANoHistoryPlan()
+    {
+        var fs = Fixture(cloudOnlyLedgerB: false);
+        fs.Faults.EnumerationErrors[Ledger] = 362;
+        var scan = await Service(fs).ScanAsync(new CardSource(@"E:\", Card, false, false), new FakeCardReaderFactory(fs), new ListProgress(),
+                                               TestContext.Current.CancellationToken);
+        Assert.Equal(LedgerFolderState.Unlistable, scan.Ledger.Status.State);
+        Assert.DoesNotContain(Opened(fs), p => p.StartsWith(Ledger, StringComparison.OrdinalIgnoreCase));
+        var plan = PlanScenario.Derive(PlanScenario.CreatePlanner().Prepare(scan));
+        Assert.Equal(IssueSeverity.Blocking, Assert.Single(plan.Issues, i => i.Code == IssueCode.LedgerUnlistable).Severity);
+        Assert.DoesNotContain(plan.Issues, i => i.Code == IssueCode.LedgerNoHistory);
+    }
 }

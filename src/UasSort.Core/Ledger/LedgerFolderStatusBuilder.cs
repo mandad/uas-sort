@@ -17,6 +17,8 @@ public static class LedgerFolderStatusBuilder
         string folder = LedgerPaths.For(videoRoot);
         bool exists = facts.VideoRootExists && facts.Folder is { IsDirectory: true };
         bool pinned = exists && (facts.Folder!.RawAttributes & PinnedBit) != 0;
+        // The folder exists but its (non-recursive) listing failed: its history is unknown, never "no history" (Ref §7.1 Blocking).
+        bool unlistable = exists && facts.TopLevel is { Errors.IsEmpty: false };
 
         ImmutableArray<FsEntry> ledgerEntries = exists && facts.TopLevel is { } top
             ? [.. top.Entries
@@ -33,6 +35,7 @@ public static class LedgerFolderStatusBuilder
 
         LedgerFolderState state =
             !facts.VideoRootExists ? LedgerFolderState.VideoRootMissing
+            : unlistable ? LedgerFolderState.Unlistable
             : !cloudOnly.IsEmpty ? LedgerFolderState.CloudOnly
             : !facts.Writable ? LedgerFolderState.Unwritable
             : exists && facts.InSyncRoot && !pinned ? LedgerFolderState.NotPinned

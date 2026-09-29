@@ -10,8 +10,12 @@ public static class SetFolderNamer
 {
     private static readonly TimeSpan MtimeTolerance = TimeSpan.FromSeconds(2);
 
-    public static SetPlacement Resolve(SetUnit set, Item first, LibraryIndex lib, LedgerSnapshot ledger, ISet<string> batchTaken)
+    /// <summary>photoRoot: where the offload writes set folders (&lt;photoRoot&gt;\&lt;FolderName&gt;). Only a listing of exactly that folder can
+    /// be resumed; an existing subset anywhere else (a previous photo root, the video root) is a clash, as is any different set.</summary>
+    public static SetPlacement Resolve(SetUnit set, Item first, LibraryIndex lib, LedgerSnapshot ledger, ISet<string> batchTaken,
+                                       string photoRoot)
     {
+        ArgumentNullException.ThrowIfNull(photoRoot);
         var card = set.Members.Select(m => (Name: PlanKeys.FileName(m.RelPath), m.Size, m.MtimeUtc)).ToList();
 
         if (ledger.SetsByName.TryGetValue(set.SetName, out var known)
@@ -39,7 +43,7 @@ public static class SetFolderNamer
                     batchTaken.Add(candidate);
                     return new SetPlacement(set.Id, candidate, SetResolution.Imported, []);
                 }
-                if (existingAllMatch)                                         // existing ⊂ card: copy the missing members
+                if (existingAllMatch && PathRules.Equal(l.FullPath, PathRules.Join(photoRoot, candidate)))   // existing ⊂ card: copy the missing
                     resume ??= new SetPlacement(set.Id, candidate, SetResolution.Resume,
                         [.. card.Where(c => !l.Members.Any(m => Same(m, c))).Select(c => c.Name)]);
             }

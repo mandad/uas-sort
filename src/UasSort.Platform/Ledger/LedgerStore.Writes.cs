@@ -84,8 +84,22 @@ public sealed partial class LedgerStore : ILedgerStore
         return LedgerReader.Read(texts, LedgerSnapshots.Detached(BackupDir, files));
     }
 
+    /// <summary>Video-root [Copy] (Ref §9.14). The app calls it on the NEW root's store (the new root is saved first) with the old
+    /// root's snapshot, so each source is cleared with the guard context of the root it belongs to: a <c>&lt;root&gt;\.uas-sort\ledger*.jsonl</c>
+    /// under that root's context (the ledger exemption), a backup under app data with this store's. Every source is read before the
+    /// target's folder and own file are touched, so a refusal or a read error leaves no empty own file behind (the "No history
+    /// found" prompt comes back).</summary>
     public void CopyInto(string newVideoRoot, LedgerSnapshot current)
     {
+        ArgumentNullException.ThrowIfNull(current);
+        var texts = new List<string>(current.SourceFiles.Length);
+        foreach (var listed in current.SourceFiles)
+        {
+            var source = _facts.Canonical(listed);
+            IoGate.Require(IoOp.ReadData, source, ContextOfSource(source));
+            texts.Add(ReadAllText(source));
+        }
+
         var target = new LedgerStore(CurrentSettings with { VideoRoot = newVideoRoot }, AppDataDir, Machine, _facts, _lister, Clock);
         target.EnsureFolder();
         var present = new HashSet<string>(StringComparer.Ordinal);
@@ -96,16 +110,26 @@ public sealed partial class LedgerStore : ILedgerStore
                 if (TryRecord(line) is { } r) present.Add(r.Id);
         }
         using var writer = target.OpenOwnWriter();
-        foreach (var listed in current.SourceFiles)
+        foreach (var text in texts)
         {
-            var source = _facts.Canonical(listed);
-            IoGate.Require(IoOp.ReadData, source, _ctx);
-            foreach (var line in ReadAllText(source).Split('\n'))
+            foreach (var line in text.Split('\n'))
             {
                 if (TryRecord(line) is not { } r || r is TornRecord) continue;   // torn line numbers belong to their own file
                 if (present.Add(r.Id)) writer.AppendRawLine(line.TrimEnd('\r'));
             }
         }
+    }
+
+    /// <summary>The guard context a [Copy] source is read under: its own root's for a file directly in a <c>.uas-sort</c> folder,
+    /// else this store's (a local backup snapshot or mirror under app data).</summary>
+    private GuardContext ContextOfSource(string source)
+    {
+        if (PathRules.Parent(source) is { } folder
+            && string.Equals(PathRules.FileName(folder), LedgerPaths.FolderName, StringComparison.OrdinalIgnoreCase)
+            && PathRules.Parent(folder) is { } root
+            && !PathRules.Equal(root, _videoRoot))
+            return GuardContexts.For(CurrentSettings with { VideoRoot = root }, AppDataDir, Machine, _facts);
+        return _ctx;
     }
 
     private static ImmutableArray<string> LocalLedgerFiles(LedgerFolderStatus status)

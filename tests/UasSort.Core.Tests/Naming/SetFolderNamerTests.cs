@@ -22,7 +22,7 @@ public sealed class SetFolderNamerTests
     {
         var scan = s.Card(set).Build();
         return SetFolderNamer.Resolve((SetUnit)set.Unit, ItemOf(set), scan.Library, scan.Ledger,
-                                      taken ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                                      taken ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase), s.PhotoRoot);
     }
 
     [Fact]
@@ -93,6 +93,25 @@ public sealed class SetFolderNamerTests
         var p = Resolve(new PlanScenario(), Pano(), taken);
         Assert.Equal(("001_0087 2026-05-25", SetResolution.DateSuffixed), (p.FolderName, p.Resolution));
         Assert.Contains("001_0087 2026-05-25", taken);
+    }
+
+    [Fact] // deferred minor 06.5: a partial set in a previous photo root never resumes into the photo root's different same-named set
+    public void PartialSetInAPreviousRoot_ClashesWithADifferentSetInThePhotoRoot_DateSuffixed()
+    {
+        var s = new PlanScenario()
+            .PreviousPhotoRootFile(@"D:\Old Offload", @"001_0087\PANO_0001.DNG", 13_751_808, M1)
+            .LibraryFile(@"Picture Offload\001_0087\OTHER.DNG", 1, M1);
+        var p = Resolve(s, Pano());
+        Assert.Equal(("001_0087 2026-05-25", SetResolution.DateSuffixed), (p.FolderName, p.Resolution));
+    }
+
+    [Fact] // deferred minor 06.5: Resume only continues the set folder the offload writes to, <photoRoot>\<name>
+    public void PartialSetOnlyInAPreviousRoot_IsAClash_NeverAResumeIntoAMissingFolder()
+    {
+        var s = new PlanScenario().PreviousPhotoRootFile(@"D:\Old Offload", @"001_0087\PANO_0001.DNG", 13_751_808, M1);
+        var p = Resolve(s, Pano());
+        Assert.Equal(("001_0087 2026-05-25", SetResolution.DateSuffixed), (p.FolderName, p.Resolution));
+        Assert.Equal(["PANO_0001.DNG", "PANO_0002.DNG"], p.MembersToCopy);
     }
 
     [Fact]

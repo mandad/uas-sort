@@ -11,6 +11,7 @@ public static class LedgerLoader
         ArgumentNullException.ThrowIfNull(status);
         ArgumentNullException.ThrowIfNull(openRead);
         if (status.State is LedgerFolderState.VideoRootMissing or LedgerFolderState.Missing or LedgerFolderState.CloudOnly
+                or LedgerFolderState.Unlistable
             || status.LedgerFiles.IsEmpty)
         {
             return LedgerSnapshots.Empty(status);

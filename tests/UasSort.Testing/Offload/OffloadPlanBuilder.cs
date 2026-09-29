@@ -30,6 +30,7 @@ public sealed class OffloadPlanBuilder
     private LedgerFolderState _ledgerState = LedgerFolderState.Ok;
     private bool _copyTwin = true;
     private bool _rootsConfirmed = true;
+    private bool _browsed;
 
     public string VideoRoot { get; } = FakeLayout.VideoRoot;
     public string PhotoRoot { get; private set; } = FakeLayout.PhotoRoot;
@@ -38,6 +39,8 @@ public sealed class OffloadPlanBuilder
     public OffloadPlanBuilder WithPhotoRoot(string root) { PhotoRoot = root; return this; }
     public OffloadPlanBuilder CopyJpgTwin(bool on) { _copyTwin = on; return this; }
     public OffloadPlanBuilder RootsConfirmed(bool on) { _rootsConfirmed = on; return this; }
+    /// <summary>The source came from Browse to folder: no identity in the CardSource (CardSourceValidator, Ref §4.1).</summary>
+    public OffloadPlanBuilder Browsed() { _browsed = true; return this; }
     public OffloadPlanBuilder LedgerState(LedgerFolderState state) { _ledgerState = state; return this; }
     public OffloadPlanBuilder Warning(ScanWarning w) { _warnings.Add(w); return this; }
     public OffloadPlanBuilder Issue(Issue i) { _issues.Add(i); return this; }
@@ -161,7 +164,7 @@ public sealed class OffloadPlanBuilder
             new RootListing(PhotoRoot, DestRoot.Photo, false, true, new ListingResult([.. _photoListing], [])),
             []);
         var library = LibraryIndex.Build(listings, ledger, clock);
-        var inventory = new CardInventory(new CardSource(CardRoot, Card, false, false), T0, "0123456789abcdef",
+        var inventory = new CardInventory((_browsed ? new CardSource(CardRoot, null, true, false) : new CardSource(CardRoot, Card, false, false)), T0, "0123456789abcdef",
                                           [.. _entries], [.. _units], "FC9113", [.. _warnings]);
         var scan = new ScanResult(inventory, [.. _items.Select(i => i.Raw)], library, ledger, clock, [.. _warnings], settings);
         var summary = new ClockSummary(ClockMode.Zone, "America/New_York", 0, "Drone clock: America/New_York", 0, [], []);

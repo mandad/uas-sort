@@ -136,6 +136,17 @@ public sealed class LedgerSnapshotTests
         Assert.Empty(snap.Files);            // a cardDelete is read by no rule
     }
 
+    [Fact] // deferred minor 05.2: an unknown folder zone is a parse issue and the record is dropped, like every bad field value
+    public void LedgerSnapshot_FolderWithAnUnknownZone_IsAParseIssueAndDropped()
+    {
+        var snap = TestLedger.Snapshot(
+            FolderRec("fo1", ZrelDir, "Zachar Bay", new DateOnly(2026, 9, 27), new DateOnly(2026, 9, 27), "Bogus/Zone", 57.5415, -153.7409),
+            FolderRec("fo2", ZrelDir + "x", "Other", new DateOnly(2026, 9, 27), new DateOnly(2026, 9, 27), "America/Anchorage"));
+        var issue = Assert.Single(snap.ParseIssues);
+        Assert.Equal((1, "bad tz 'Bogus/Zone'"), (issue.Line, issue.Reason));
+        Assert.Equal("Other", Assert.Single(snap.Folders).Value.Description);
+    }
+
     [Fact]
     public void LedgerSnapshot_BadFieldValues_AreParseIssuesAndDropped()
     {

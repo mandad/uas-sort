@@ -225,6 +225,34 @@ public sealed class PlannerDeriveTests
         Assert.Contains(p.Groups[0].Hints, h => h.StartsWith("2 days", StringComparison.Ordinal));
     }
 
+    [Fact] // F3 (Ref §8.7 rule 1): the wall's description is a suggestion only on Append, never a NewFolder prefill
+    public void NewFolderRetarget_OnAWalledGroup_StaysANewFolder_NeverTheWall()
+    {
+        const string council = @"2026\2026-07\2026-07-25 Council Road";
+        var b = new PlanScenario().Library(council, C117, C118).Card(C117, C118, A1, A2).Prepare();
+        var auto = Assert.Single(PlanScenario.Derive(b).Groups);
+        Assert.Equal(Confidence.Medium, Assert.IsType<Append>(auto.Target).Confidence);
+        var members = auto.Videos;
+
+        var p = PlanScenario.Derive(b, edits: [new Retarget(auto.Id.Anchor, new NewFolderTarget(), false, members)]);
+
+        var g = Assert.Single(p.Groups);
+        var nf = Assert.IsType<NewFolder>(g.Target);
+        Assert.NotEqual(council, nf.RelPath, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual("Council Road", g.Description);
+        Assert.Empty(Of(p, IssueCode.FolderExistsAppending));
+        Assert.DoesNotContain(g.Suggestions, s => s.Source == DescSource.ExistingFolder);
+
+        // NewBeforeWall (same fixture as NewBeforeWallFolder_InfoWithSplitHere): the later folder's name is never the prefill
+        var f = new[] { Clip.Vid("20260726000000", 5, Sites.Anvil), Clip.Vid("20260726010000", 6, Sites.Anvil) };
+        var early = Clip.Vid("20260725000000", 1, Sites.Anvil);
+        var nbw = PlanScenario.Derive(new PlanScenario().Library(@"2026\2026-07\2026-07-25 Anvil", f).Card([early, .. f]).Prepare());
+        Assert.Single(Of(nbw, IssueCode.NewBeforeWallFolder));
+        var first = nbw.Groups.First(x => x.Videos.Contains(early.Id()));
+        Assert.IsType<NewFolder>(first.Target);
+        Assert.NotEqual("Anvil", first.Description);
+    }
+
     [Fact]
     public void NewBeforeWallFolder_InfoWithSplitHere()
     {
@@ -252,6 +280,10 @@ public sealed class PlannerDeriveTests
             new PlanScenario { LedgerState = LedgerFolderState.NotPinned }.Card(Z[0]).Prepare()), IssueCode.LedgerNotPinned)).Severity);
         Assert.Equal(IssueSeverity.Info, Assert.Single(Of(PlanScenario.Derive(
             new PlanScenario { LedgerState = LedgerFolderState.Missing }.Card(Z[0]).Prepare()), IssueCode.LedgerNoHistory)).Severity);
+        var unlistable = PlanScenario.Derive(new PlanScenario { LedgerState = LedgerFolderState.Unlistable }.Card(Z[0]).Prepare());
+        var cantList = Assert.Single(Of(unlistable, IssueCode.LedgerUnlistable));
+        Assert.Equal((IssueSeverity.Blocking, $@"Can't list {PlanScenario.VideoRoot}\.uas-sort"), (cantList.Severity, cantList.Message));
+        Assert.Empty(Of(unlistable, IssueCode.LedgerNoHistory));
         Assert.Equal(IssueSeverity.Blocking, Assert.Single(Of(PlanScenario.Derive(
             new PlanScenario { RootsConfirmed = false }.Card(Z[0]).Prepare()), IssueCode.RootsUnconfirmed)).Severity);
 
@@ -262,6 +294,23 @@ public sealed class PlannerDeriveTests
         Assert.Equal(IssueSeverity.Warning, Assert.Single(Of(p, IssueCode.RootMissing)).Severity);
         var ticked = PlanScenario.Derive(noPhotoRoot, edits: [new SetIncluded([dng.Id()], true)]);
         Assert.Equal(IssueSeverity.Blocking, Assert.Single(Of(ticked, IssueCode.RootMissing)).Severity);
+    }
+
+    [Fact] // F4 (Ref §12 "A library root is missing"): an unavailable previous photo root leaves photos New and unticked
+    public void UnavailablePreviousPhotoRoot_UnticksPhotos_AsItsWarningSays()
+    {
+        const string old = @"D:\Old Photos";
+        var dng = Clip.Dng("20260927141000", 125, Sites.Zachar);
+        var b = new PlanScenario().UnavailablePreviousPhotoRoot(old).Card(Z[0], dng).Prepare();
+        Assert.IsType<IsNew>(b.Items.Single(i => i.Raw.Unit.Id == dng.Id()).Newness);
+
+        var p = PlanScenario.Derive(b);
+
+        Assert.DoesNotContain(dng.Id(), p.Included);
+        Assert.Contains(Z[0].Id(), p.Included);                                 // videos don't depend on a photo root
+        var w = Assert.Single(Of(p, IssueCode.RootMissing));
+        Assert.Equal((IssueSeverity.Warning, $"{old} is not available; its items are unticked"), (w.Severity, w.Message));
+        Assert.Contains(dng.Id(), PlanScenario.Derive(b, edits: [new SetIncluded([dng.Id()], true)]).Included);   // the user can still tick it
     }
 
     [Fact]

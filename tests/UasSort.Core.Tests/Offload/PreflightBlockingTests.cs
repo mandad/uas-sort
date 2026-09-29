@@ -130,6 +130,24 @@ public class PreflightBlockingTests
     }
 
     [Fact]
+    public void LedgerFolderListingError_BlocksAsUnlistable_NotNoHistory()
+    {
+        var b = new OffloadPlanBuilder();
+        b.Group(new NewFolder(ZRel), Zachar, b.Video("DJI_20260927140000_0123_D.MP4", 1_000, T0));
+        var rig = new OffloadRig(b).Build(ledgerOnFileSystem: true);
+        var folder = rig.B.VideoRoot + @"\.uas-sort";
+        rig.Fs.AddDirectory(folder);
+        rig.Fs.Faults.EnumerationErrors[folder] = 362;                 // ERROR_CLOUD_FILE_PROVIDER_NOT_RUNNING
+
+        var r = Check(rig);
+
+        Assert.Equal(LedgerFolderState.Unlistable, rig.Ledger.Check().State);
+        Assert.Equal((IssueSeverity.Blocking, $"Can't list {folder}"), (Only(r, IssueCode.LedgerUnlistable).Severity, Only(r, IssueCode.LedgerUnlistable).Message));
+        Assert.DoesNotContain(r.Issues, i => i.Code == IssueCode.LedgerNoHistory);
+        Assert.False(r.CanStart);
+    }
+
+    [Fact]
     public void AppendTargetGone_Blocks_AnchoredToTheGroup()
     {
         var b = new OffloadPlanBuilder();

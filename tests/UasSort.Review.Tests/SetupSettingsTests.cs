@@ -18,6 +18,8 @@ public class SetupSettingsTests
         var cloud = LedgerStatusText.For(Status(LedgerFolderState.CloudOnly, "ledger-PC2.jsonl"));
         Assert.Equal(("Set UAS Videos\\.uas-sort to Always keep on this device", InfoSeverity.Error, true), cloud);
         Assert.Equal(InfoSeverity.Warning, LedgerStatusText.For(Status(LedgerFolderState.NotPinned, "ledger-PC1.jsonl")).Severity);
+        Assert.Equal(($@"Can't list {TestPlans.VideoRoot}\.uas-sort", InfoSeverity.Error, false),
+                     LedgerStatusText.For(Status(LedgerFolderState.Unlistable, "ledger-PC1.jsonl")));      // F2: never "History: …" or "No history yet"
         foreach (var state in Enum.GetValues<LedgerFolderState>())
             Assert.False(string.IsNullOrWhiteSpace(LedgerStatusText.For(Status(state, "ledger-PC1.jsonl")).Text), state.ToString());
     }

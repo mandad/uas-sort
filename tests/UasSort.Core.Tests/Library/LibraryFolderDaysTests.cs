@@ -26,6 +26,16 @@ public sealed class LibraryFolderDaysTests
         Assert.Equal(new[] { new DateOnly(2026, 7, 25), new DateOnly(2026, 7, 26) }, f.DaysIn("America/Anchorage").Order());
     }
 
+    [Theory] // deferred minor 05.2: a ledger zone this PC can't resolve (hand edit, newer ICU elsewhere, empty) falls back, never throws
+    [InlineData("Bogus/Zone")]
+    [InlineData("")]
+    public void LibraryFolder_DaysIn_UnknownLedgerZone_UsesTheGivenZone(string bad)
+    {
+        var f = new LibraryFolder(Council, Starts, bad, null, LocationSource.Ledger);
+        Assert.Equal(new[] { new DateOnly(2026, 7, 25), new DateOnly(2026, 7, 26) }, f.DaysIn("America/Anchorage").Order());
+        Assert.Equal(new[] { new DateOnly(2026, 7, 26) }, f.DaysIn("America/New_York").Order());
+    }
+
     [Fact]
     public void LibraryFolder_DaysIn_NoMembersIsEmpty()
         => Assert.Empty(new LibraryFolder(Council, [], null, null, LocationSource.Unknown).DaysIn("America/Anchorage"));

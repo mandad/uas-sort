@@ -50,7 +50,7 @@ public sealed class OffloadRig
         }
         Reader = new FakeCardReader(Fs, OffloadPlanBuilder.CardRoot, OffloadPlanBuilder.Card);
         Ledger = new FakeLedgerStore(ledgerOnFileSystem ? Fs : null, B.VideoRoot, FakeLayout.Machine, Plan.Base.Scan.Ledger);
-        Rebatch(OffloadCompiler.Compile(Plan, "run-1"));
+        Rebatch(OffloadCompiler.Compile(Plan, "run-1", Plan.Base.Scan.Inventory.Source.Identity ?? OffloadPlanBuilder.Card));
         return this;
     }
 

@@ -16,6 +16,7 @@ public sealed class ThumbnailReader : IThumbnailSource, IDisposable
     private string? _openPath;
     private Stream? _open;
     private int _pauses;
+    private bool _disposed;   // under _gate; the gate itself is never disposed, so queued loads always get it and return empty
 
     public ThumbnailReader(ICardReader reader, IEnumerable<RawItem> items)
     {
@@ -47,7 +48,7 @@ public sealed class ThumbnailReader : IThumbnailSource, IDisposable
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (_pauses > 0) return ReadOnlyMemory<byte>.Empty;
+            if (_disposed || _pauses > 0) return ReadOnlyMemory<byte>.Empty;
             Stream s = Handle(location.CardRelPath);
             if (location.Range.Offset + location.Range.Length > s.Length) return ReadOnlyMemory<byte>.Empty;
             var buffer = new byte[location.Range.Length];
@@ -71,6 +72,7 @@ public sealed class ThumbnailReader : IThumbnailSource, IDisposable
         _gate.Wait();
         try
         {
+            if (_disposed) return NoPause.Instance;
             _pauses++;
             CloseHandle();
         }
@@ -81,18 +83,20 @@ public sealed class ThumbnailReader : IThumbnailSource, IDisposable
         return new PauseToken(this);
     }
 
+    /// <summary>Closes the card handle once any load in progress finishes. Loads queued behind it (a rescan while thumbnails load)
+    /// then return empty instead of opening a new handle; the gate is not disposed, so none of them hangs or throws.</summary>
     public void Dispose()
     {
         _gate.Wait();
         try
         {
+            _disposed = true;
             CloseHandle();
         }
         finally
         {
             _gate.Release();
         }
-        _gate.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -117,12 +121,18 @@ public sealed class ThumbnailReader : IThumbnailSource, IDisposable
         _gate.Wait();
         try
         {
-            _pauses--;
+            if (!_disposed) _pauses--;
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    private sealed class NoPause : IDisposable
+    {
+        public static readonly NoPause Instance = new();
+        public void Dispose() { }
     }
 
     private sealed class PauseToken(ThumbnailReader owner) : IDisposable

@@ -132,6 +132,7 @@ public static class LedgerSnapshotBuilder
             case "cardLeftovers": source = FolderSource.CardLeftovers; break;
             default: return $"bad source '{f.Source}'";
         }
+        if (!string.IsNullOrEmpty(f.Tz) && !Zones.TryFind(f.Tz, out _)) return $"bad tz '{f.Tz}'";   // a zone this PC can't resolve
         GeoPoint? centroid = f.Lat is { } lat && f.Lon is { } lon ? new GeoPoint(lat, lon) : null;
         string key = PathRules.Normalize(f.Path);
         var folder = new LedgerFolder(key, f.Desc ?? "", source, centroid, f.Start, f.End, f.Tz);

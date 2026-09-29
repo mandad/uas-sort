@@ -15,6 +15,9 @@ public sealed class MemoryCardReader(CardIdentity identity) : ICardReader
 
     public CardIdentity Identity { get; set; } = identity;
 
+    /// <summary>Called with the path before every open, outside the lock (a test can block an open here).</summary>
+    public Action<string>? OnOpen { get; set; }
+
     /// <summary>Every OpenRandom/OpenSequential call, in order.</summary>
     public IReadOnlyList<string> OpenLog { get { lock (_lock) return [.. _streams.Select(s => s.Path)]; } }
 
@@ -62,6 +65,7 @@ public sealed class MemoryCardReader(CardIdentity identity) : ICardReader
 
     private TrackedStream Open(string relPath)
     {
+        OnOpen?.Invoke(relPath);
         lock (_lock)
         {
             if (_failing.Contains(relPath)) throw new IOException($"Simulated read error: {relPath}");

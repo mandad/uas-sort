@@ -71,6 +71,37 @@ public class CopyEngineFlushTests
         Assert.Equal(3, rig.Writer.Records.Count);
     }
 
+    [Fact] // F6: the flush fails because D: went away after the last rename: the files there are not confirmed, the verdict can't be Safe
+    public async Task AFlushFailure_OnAVanishedDestination_StopsDestinationLost_AndFailsItsFiles()
+    {
+        var rig = VideoOnCPhotosOnD();
+        rig.Files.ThrowOnFlush = new IOException("The device is not ready.");
+        rig.Files.FreeBytesOverride = p => p.StartsWith(@"D:\", StringComparison.OrdinalIgnoreCase)
+            ? throw new IOException("The device is not ready.") : 1L << 40;
+
+        var r = await rig.RunEngineAsync();
+
+        Assert.Equal(StopReason.DestinationLost, r.Stop);
+        Assert.Equal(["Verified", "Failed", "Failed"], r.Kinds());
+        Assert.All(r.Outcomes.OfType<Failed>(), f => Assert.Equal(CopyPhase.Confirm, f.Phase));
+        var verdict = CardAudit.Audit(rig.Plan.Base.Scan.Inventory, rig.Reader.Relist(), rig.Reader.CurrentIdentity(), rig.Plan, r,
+                                      rig.Plan.Base.Scan.Ledger, rig.Batch.Card);
+        Assert.NotEqual(VerdictLevel.Safe, verdict.Level);
+    }
+
+    [Fact] // F6: exFAT rejecting the directory flush while the volume is present and every file confirms stays ignored
+    public async Task AFlushFailure_WithTheVolumePresentAndFilesConfirmed_IsIgnored()
+    {
+        var rig = VideoOnCPhotosOnD();
+        rig.Files.ThrowOnFlush = new IOException("The parameter is incorrect.");
+
+        var r = await rig.RunEngineAsync();
+
+        Assert.Null(r.Stop);
+        Assert.Equal(["Verified", "Verified", "Verified"], r.Kinds());
+        Assert.Equal([@"D:\"], r.VolumesNeedingSafeRemoval.ToArray());
+    }
+
     [Fact]
     public async Task AnUnknownVolume_IsTreatedAsNeedingSafeRemoval()
     {

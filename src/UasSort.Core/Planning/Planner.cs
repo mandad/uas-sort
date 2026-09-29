@@ -40,7 +40,7 @@ public sealed partial class Planner
             if (r.Raw.Unit is SetUnit su)
             {
                 var provisional = new Item(r.Raw, r.Time, r.Gps, r.Session, Flags(r), new IsNew(NewReason.NoMatch, null));
-                placement = SetFolderNamer.Resolve(su, provisional, lib, ledger, taken);
+                placement = SetFolderNamer.Resolve(su, provisional, lib, ledger, taken, scan.Settings.PhotoRoot);
                 sets[su.Id] = placement;
             }
             photos.Add(new Item(r.Raw, r.Time, r.Gps, r.Session, Flags(r),
