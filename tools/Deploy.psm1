@@ -34,3 +34,81 @@ function Get-AppPublishConfig {
                             Where-Object { $_ -match '^IL\d{4}$' } | Sort-Object -Unique)
     [pscustomobject]$config
 }
+
+function Test-SelftestRun {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$Run,
+        [Parameter(Mandatory)][int]$ExitCode,
+        [bool]$TimedOut = $false,
+        [Parameter(Mandatory)][string]$ResultPath,
+        [switch]$AllowNoPlaceholders
+    )
+    $reasons = [System.Collections.Generic.List[string]]::new()
+    $firstFrameMs = $null
+    if ($TimedOut) { $reasons.Add("run ${Run}: timed out") }
+    elseif ($ExitCode -ne 0) { $reasons.Add("run ${Run}: exit code $ExitCode") }
+
+    if (-not (Test-Path -LiteralPath $ResultPath -PathType Leaf)) {
+        $reasons.Add("run ${Run}: no result file at '$ResultPath'")
+    }
+    else {
+        $json = $null
+        try { $json = Get-Content -LiteralPath $ResultPath -Raw | ConvertFrom-Json -AsHashtable }
+        catch { $reasons.Add("run ${Run}: unreadable result file: $($_.Exception.Message)") }
+        if ($null -ne $json) {
+            if ($json['ok'] -ne $true) { $reasons.Add("run ${Run}: the result says ok = '$($json['ok'])'") }
+            $ff = $json['firstFrameMs']
+            if ($ff -is [long] -or $ff -is [int] -or $ff -is [double] -or $ff -is [decimal]) { $firstFrameMs = [double]$ff }
+            else { $reasons.Add("run ${Run}: the result has no numeric firstFrameMs") }
+            $checks = @($json['checks'] | Where-Object { $null -ne $_ })
+            if ($checks.Count -eq 0) { $reasons.Add("run ${Run}: the result lists no checks") }
+            foreach ($c in $checks) {
+                switch ([string]$c['status']) {
+                    'pass' { }
+                    'fail' { $reasons.Add("run ${Run}: check '$($c['name'])' failed: $($c['detail'])") }
+                    'notApplicable' {
+                        if ([string]$c['name'] -ne 'placeholderVisibility') {
+                            $reasons.Add("run ${Run}: check '$($c['name'])' is not applicable ($($c['detail'])); " +
+                                         'only placeholderVisibility may be not applicable')
+                        }
+                        elseif (-not $AllowNoPlaceholders) {
+                            $reasons.Add("run ${Run}: check '$($c['name'])' is not applicable ($($c['detail'])); " +
+                                         'pass -AllowNoPlaceholders only if the video root really has no cloud-only files')
+                        }
+                    }
+                    default { $reasons.Add("run ${Run}: check '$($c['name'])' has an unknown status '$($c['status'])'") }
+                }
+            }
+        }
+    }
+    [pscustomobject]@{ Run = $Run; Ok = ($reasons.Count -eq 0); FirstFrameMs = $firstFrameMs; Reasons = $reasons.ToArray() }
+}
+
+function Test-SelftestGate {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$Runs,
+        [double]$MaxWarmMs = 1000,
+        [double]$BaselineMs = 370
+    )
+    $reasons = [System.Collections.Generic.List[string]]::new()
+    if ($Runs.Count -ne 2) { $reasons.Add("the gate needs exactly 2 runs, got $($Runs.Count)") }
+    foreach ($r in $Runs) { foreach ($x in $r.Reasons) { $reasons.Add($x) } }
+    $cold = $null
+    $warm = $null
+    if ($Runs.Count -ge 1) { $cold = $Runs[0].FirstFrameMs }
+    if ($Runs.Count -ge 2) { $warm = $Runs[1].FirstFrameMs }
+    if ($null -ne $warm -and $warm -gt $MaxWarmMs) {
+        $reasons.Add("the warm first frame $warm ms exceeds $MaxWarmMs ms")
+    }
+    [pscustomobject]@{
+        Ok                 = ($reasons.Count -eq 0)
+        ColdMs             = $cold
+        WarmMs             = $warm
+        MaxWarmMs          = $MaxWarmMs
+        BaselineMs         = $BaselineMs
+        SlowerThanBaseline = ($null -ne $warm -and $warm -gt $BaselineMs)
+        Reasons            = $reasons.ToArray()
+    }
+}
