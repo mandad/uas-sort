@@ -1,15 +1,19 @@
+using System.Globalization;
+using System.Text;
+
 namespace UasSort.Cli;
 
 public static class Program
 {
-    private const string Usage =
-        "usage: uas-sort-cli plan --card <path> [--video-root <path>] [--photo-root <path>] [--radius-mi <5..100>] "
-        + "[--gap-days <0..7>] [--settings <path>] [--json] [--expect <expected.json>]";
-
     public static int Main(string[] args)
     {
-        ArgumentNullException.ThrowIfNull(args);
-        Console.Error.WriteLine(Usage);
-        return 2;
+        sbyte previousMode = PlaceholderMode.ExposePlaceholders();   // Ref §4.3: first, before any file-system access
+        Console.OutputEncoding = Encoding.UTF8;
+        if (previousMode < 0)
+            Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"warning: RtlSetProcessPlaceholderCompatibilityMode failed ({previousMode}); cloud placeholders may not show as placeholders"));
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+        return PlanCommand.RunAsync(args, Console.Out, Console.Error, new WindowsCliHost(), cts.Token).GetAwaiter().GetResult();
     }
 }
