@@ -121,6 +121,56 @@ Test-Case 'Gate: a result without firstFrameMs or checks fails' {
     finally { Remove-Item -LiteralPath $dir -Recurse -Force }
 }
 
+function New-RawResultFile([string]$Dir, [string]$Text) {
+    $path = Join-Path $Dir 'r.json'
+    [System.IO.File]::WriteAllText($path, $Text)
+    $path
+}
+
+function Assert-NotAnObjectResultFails([string]$Text) {
+    $dir = New-TestDir
+    try {
+        $r = Test-SelftestRun -Run 1 -ExitCode 0 -ResultPath (New-RawResultFile $dir $Text)
+        Assert-True (-not $r.Ok) 'a result that is not a JSON object must fail'
+        Assert-True ($null -eq $r.FirstFrameMs) "FirstFrameMs must stay null, got '$($r.FirstFrameMs)'"
+        Assert-True (($r.Reasons -join ' ') -like '*run 1: the result file is empty or not a JSON object*') ($r.Reasons -join '; ')
+        $g = Test-SelftestGate -Runs @($r, (New-Run 2 $true 300))
+        Assert-True (-not $g.Ok) 'the gate must fail'
+    }
+    finally { Remove-Item -LiteralPath $dir -Recurse -Force }
+}
+
+Test-Case 'Gate: an empty (0-byte) result file fails even with exit 0' { Assert-NotAnObjectResultFails '' }
+
+Test-Case 'Gate: a whitespace-only result file fails even with exit 0' { Assert-NotAnObjectResultFails " `r`n`t " }
+
+Test-Case "Gate: a result file holding the JSON text 'null' fails even with exit 0" { Assert-NotAnObjectResultFails 'null' }
+
+Test-Case 'Gate: a result file holding a JSON array fails even with exit 0' { Assert-NotAnObjectResultFails '[1, 2]' }
+
+Test-Case 'Gate: a result with ok and checks but no firstFrameMs fails' {
+    $dir = New-TestDir
+    try {
+        $content = New-PassingResult 400
+        $content.Remove('firstFrameMs')
+        $r = Test-SelftestRun -Run 2 -ExitCode 0 -ResultPath (New-ResultFile $dir 'r.json' $content)
+        Assert-True (-not $r.Ok) 'missing firstFrameMs must fail'
+        Assert-True (($r.Reasons -join ' ') -like '*run 2: the result has no numeric firstFrameMs*') ($r.Reasons -join '; ')
+    }
+    finally { Remove-Item -LiteralPath $dir -Recurse -Force }
+}
+
+Test-Case 'Gate: a run reported Ok without a numeric firstFrameMs never passes the gate' {
+    foreach ($ff in @($null, 'fast')) {
+        $cold = Test-SelftestGate -Runs @((New-Run 1 $true $ff), (New-Run 2 $true 300))
+        Assert-True (-not $cold.Ok) "a cold run with firstFrameMs '$ff' must fail the gate"
+        Assert-True (($cold.Reasons -join ' ') -like '*run 1*no numeric firstFrameMs*') ($cold.Reasons -join '; ')
+        $warm = Test-SelftestGate -Runs @((New-Run 1 $true 300), (New-Run 2 $true $ff))
+        Assert-True (-not $warm.Ok) "a warm run with firstFrameMs '$ff' must fail the gate"
+        Assert-True (($warm.Reasons -join ' ') -like '*run 2*no numeric firstFrameMs*') ($warm.Reasons -join '; ')
+    }
+}
+
 Test-Case 'Gate: the warm run passes at 1000 ms and fails at 1001 ms' {
     $at = Test-SelftestGate -Runs @((New-Run 1 $true 2400), (New-Run 2 $true 1000))
     Assert-True $at.Ok ($at.Reasons -join '; ')

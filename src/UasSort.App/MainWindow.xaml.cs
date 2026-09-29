@@ -18,6 +18,11 @@ public sealed partial class MainWindow : Window
     {
         _options = options;
         InitializeComponent();
+        // Created and set explicitly, and kept typed: under Native AOT, CsWinRT projects AppWindow.Presenter as the base
+        // AppWindowPresenter, so a C# cast or type test on it fails (Task 13fix). Same defaults as the
+        // presenter WinUI creates (resizable, maximizable, minimizable, border and title bar).
+        Presenter = OverlappedPresenter.Create();
+        AppWindow.SetPresenter(Presenter);
         Title = "uas-sort";
         SystemBackdrop = new MicaBackdrop();
         ExtendsContentIntoTitleBar = true;
@@ -32,6 +37,9 @@ public sealed partial class MainWindow : Window
     }
 
     public AppServices Services { get; }
+
+    /// <summary>The window's overlapped presenter (set in the constructor); read this, never cast AppWindow.Presenter.</summary>
+    internal OverlappedPresenter Presenter { get; }
     public ShellPage? Shell => RootFrame.Content as ShellPage;
     public nint Hwnd => Win32Interop.GetWindowFromWindowId(AppWindow.Id);
     public DeviceChangeWatcher? DeviceWatcher { get; private set; }
@@ -69,11 +77,8 @@ public sealed partial class MainWindow : Window
     public void ApplyMinimumSize()
     {
         var scale = RootFrame.XamlRoot?.RasterizationScale ?? 1.0;
-        if (AppWindow.Presenter is OverlappedPresenter p)
-        {
-            p.PreferredMinimumWidth = (int)Math.Ceiling(MinWidth * scale);
-            p.PreferredMinimumHeight = (int)Math.Ceiling(MinHeight * scale);
-        }
+        Presenter.PreferredMinimumWidth = (int)Math.Ceiling(MinWidth * scale);
+        Presenter.PreferredMinimumHeight = (int)Math.Ceiling(MinHeight * scale);
         if (!_sized)
         {
             _sized = true;

@@ -73,14 +73,22 @@ internal static partial class SelfTestChecks
             : SelfTestCheck.Fail("shell.render", "TitleBar 'uas-sort' not found"));
     }
 
+    /// <summary>Reads MainWindow's typed presenter (never a cast of AppWindow.Presenter: under Native AOT that is the base
+    /// AppWindowPresenter), checks it is the one in effect, and that the real window is at least the minimum size.</summary>
     private static Task<SelfTestCheck> WindowMinSize(SelfTestContext ctx)
     {
         var scale = ctx.Window.Shell?.XamlRoot?.RasterizationScale ?? 1.0;
-        var p = (OverlappedPresenter)ctx.Window.AppWindow.Presenter;
+        var p = ctx.Window.Presenter;
+        var app = ctx.Window.AppWindow;
+        var size = app.Size;
         int w = (int)Math.Ceiling(MainWindow.MinWidth * scale), h = (int)Math.Ceiling(MainWindow.MinHeight * scale);
-        return Task.FromResult(p.PreferredMinimumWidth == w && p.PreferredMinimumHeight == h
-            ? SelfTestCheck.Pass("window.minSize", $"{w}x{h} physical at scale {scale}")
-            : SelfTestCheck.Fail("window.minSize", $"expected {w}x{h}, got {p.PreferredMinimumWidth}x{p.PreferredMinimumHeight}"));
+        if (app.Presenter.Kind != AppWindowPresenterKind.Overlapped)
+            return Task.FromResult(SelfTestCheck.Fail("window.minSize", $"presenter kind is {app.Presenter.Kind}, expected Overlapped"));
+        if (p.PreferredMinimumWidth != w || p.PreferredMinimumHeight != h)
+            return Task.FromResult(SelfTestCheck.Fail("window.minSize", $"expected minimum {w}x{h}, got {p.PreferredMinimumWidth}x{p.PreferredMinimumHeight}"));
+        return Task.FromResult(size.Width >= w && size.Height >= h
+            ? SelfTestCheck.Pass("window.minSize", $"minimum {w}x{h} physical at scale {scale}; window {size.Width}x{size.Height}")
+            : SelfTestCheck.Fail("window.minSize", $"window {size.Width}x{size.Height} is below the minimum {w}x{h}"));
     }
 
     private static Task<SelfTestCheck> ProbeTimeZone(SelfTestContext ctx)

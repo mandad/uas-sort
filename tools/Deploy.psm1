@@ -35,6 +35,12 @@ function Get-AppPublishConfig {
     [pscustomobject]$config
 }
 
+function Test-IsNumber {
+    [CmdletBinding()]
+    param([AllowNull()]$Value)
+    $Value -is [long] -or $Value -is [int] -or $Value -is [double] -or $Value -is [decimal]
+}
+
 function Test-SelftestRun {
     [CmdletBinding()]
     param(
@@ -54,12 +60,20 @@ function Test-SelftestRun {
     }
     else {
         $json = $null
-        try { $json = Get-Content -LiteralPath $ResultPath -Raw | ConvertFrom-Json -AsHashtable }
+        $parsed = $false
+        try {
+            $json = Get-Content -LiteralPath $ResultPath -Raw | ConvertFrom-Json -AsHashtable
+            $parsed = $true
+        }
         catch { $reasons.Add("run ${Run}: unreadable result file: $($_.Exception.Message)") }
-        if ($null -ne $json) {
+        # A 0-byte or whitespace-only file, the JSON text null, or a JSON array/scalar is a failed run, never a pass.
+        if ($parsed -and $json -isnot [System.Collections.IDictionary]) {
+            $reasons.Add("run ${Run}: the result file is empty or not a JSON object")
+        }
+        elseif ($parsed) {
             if ($json['ok'] -ne $true) { $reasons.Add("run ${Run}: the result says ok = '$($json['ok'])'") }
             $ff = $json['firstFrameMs']
-            if ($ff -is [long] -or $ff -is [int] -or $ff -is [double] -or $ff -is [decimal]) { $firstFrameMs = [double]$ff }
+            if (Test-IsNumber $ff) { $firstFrameMs = [double]$ff }
             else { $reasons.Add("run ${Run}: the result has no numeric firstFrameMs") }
             $checks = @($json['checks'] | Where-Object { $null -ne $_ })
             if ($checks.Count -eq 0) { $reasons.Add("run ${Run}: the result lists no checks") }
@@ -94,12 +108,21 @@ function Test-SelftestGate {
     )
     $reasons = [System.Collections.Generic.List[string]]::new()
     if ($Runs.Count -ne 2) { $reasons.Add("the gate needs exactly 2 runs, got $($Runs.Count)") }
-    foreach ($r in $Runs) { foreach ($x in $r.Reasons) { $reasons.Add($x) } }
+    foreach ($r in $Runs) {
+        $own = @($r.Reasons | Where-Object { $null -ne $_ })
+        foreach ($x in $own) { $reasons.Add($x) }
+        # Never Ok for a run that is not Ok or has no numeric first frame, whatever its own reasons say.
+        if ($r.Ok -ne $true -and $own.Count -eq 0) { $reasons.Add("run $($r.Run): the run is not ok") }
+        if (-not (Test-IsNumber $r.FirstFrameMs) -and -not ($own -like '*no numeric firstFrameMs*')) {
+            $reasons.Add("run $($r.Run): the result has no numeric firstFrameMs")
+        }
+    }
     $cold = $null
     $warm = $null
     if ($Runs.Count -ge 1) { $cold = $Runs[0].FirstFrameMs }
     if ($Runs.Count -ge 2) { $warm = $Runs[1].FirstFrameMs }
-    if ($null -ne $warm -and $warm -gt $MaxWarmMs) {
+    $warmIsNumber = Test-IsNumber $warm
+    if ($warmIsNumber -and $warm -gt $MaxWarmMs) {
         $reasons.Add("the warm first frame $warm ms exceeds $MaxWarmMs ms")
     }
     [pscustomobject]@{
@@ -108,7 +131,7 @@ function Test-SelftestGate {
         WarmMs             = $warm
         MaxWarmMs          = $MaxWarmMs
         BaselineMs         = $BaselineMs
-        SlowerThanBaseline = ($null -ne $warm -and $warm -gt $BaselineMs)
+        SlowerThanBaseline = ($warmIsNumber -and $warm -gt $BaselineMs)
         Reasons            = $reasons.ToArray()
     }
 }
