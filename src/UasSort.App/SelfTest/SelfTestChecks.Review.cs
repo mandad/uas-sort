@@ -236,4 +236,49 @@ internal static partial class SelfTestChecks
         return ok ? SelfTestCheck.Pass("thumb.keyRecheck", "late load for the old key was not assigned; Source is the new key's image")
                   : SelfTestCheck.Fail("thumb.keyRecheck", $"A {imgA is not null}, B {imgB is not null}, source is B {ReferenceEquals(image.Source, imgB)}");
     }
+
+    private static async Task<SelfTestCheck> TemplatePhotoTile(SelfTestContext ctx)
+    {
+        var page = await ReviewPageAsync(ctx);
+        page.Vm.SelectedTab = 1;
+        var photos = VisualTree.FindDescendant<PhotosTab>(page)!;
+        page.Vm.Photos.SelectedDay = page.Vm.Photos.Days[0];
+        if (!await WaitUntilAsync(() => page.Vm.Photos.Tiles.Count == 1 && photos.ContainerFor(page.Vm.Photos.Tiles[0]) is not null, TimeSpan.FromSeconds(5)))
+            return SelfTestCheck.Fail("template.photoTile", $"tiles {page.Vm.Photos.Tiles.Count}");
+        var tile = page.Vm.Photos.Tiles[0];
+        var c = photos.ContainerFor(tile)!;
+        bool thumb = VisualTree.FindDescendant<Image>(c, i => Thumb.GetKey(i).CardRelPath == SelfTestFixture.Dng) is not null;
+        bool status = VisualTree.FindDescendant<TextBlock>(c, t => t.Text == tile.StatusText && t.Text.Length > 0) is not null;
+        bool dayRow = VisualTree.FindDescendant<TextBlock>(photos.DayList, t => t.Text == page.Vm.Photos.Days[0].DayText) is not null;
+        bool layout = photos.Wall.Layout is LinedFlowLayout;
+        page.Vm.SelectedTab = 0;
+        return thumb && status && dayRow && layout
+            ? SelfTestCheck.Pass("template.photoTile", $"day '{page.Vm.Photos.Days[0].DayText}', tile '{tile.StatusText}' on a LinedFlowLayout wall")
+            : SelfTestCheck.Fail("template.photoTile", $"thumb {thumb} status {status} day {dayRow} lined {layout}");
+    }
+
+    private static async Task<SelfTestCheck> TemplateOtherTab(SelfTestContext ctx)
+    {
+        var page = await ReviewPageAsync(ctx);
+        page.Vm.SelectedTab = 2;
+        // Ruling P11-C3: the synthetic card has no Other-tab content, so a probe section proves the template renders rows.
+        var probe = new OtherSectionVm("Selftest section", "selftest note", (OtherRowVm[])[new OtherRowVm("selftest-row.txt", "1 KB", null)], false);   // explicit array: CsWinRT1032
+        page.Vm.Other.Sections.Add(probe);
+        try
+        {
+            var other = VisualTree.FindDescendant<OtherTab>(page)!;
+            await WaitUntilAsync(() => other.IsLoaded, TimeSpan.FromSeconds(3));
+            bool row = await WaitUntilAsync(() => VisualTree.FindDescendant<TextBlock>(other, t => t.Text == "selftest-row.txt") is not null, TimeSpan.FromSeconds(3));
+            int expanders = VisualTree.FindAll<Expander>(other).Count;
+            int sections = page.Vm.Other.Sections.Count;
+            page.Vm.SelectedTab = 0;
+            return row && expanders == sections && expanders >= 1
+                ? SelfTestCheck.Pass("template.otherTab", $"{expanders} sections rendered; row 'selftest-row.txt'")
+                : SelfTestCheck.Fail("template.otherTab", $"{expanders} expanders for {sections} sections; row {row}");
+        }
+        finally
+        {
+            page.Vm.Other.Sections.Remove(probe);
+        }
+    }
 }

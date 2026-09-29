@@ -56,6 +56,8 @@ public sealed partial class ReviewPage : Page
     {
         TimelineSlot.Attach(Vm, _window);
         ClipListSlot.Attach(Vm);
+        PhotosSlot.Attach(Vm);
+        OtherSlot.Vm = Vm.Other;
         if (previous is not null) previous.MapContextMenuRequested -= OnMapContextMenu;
         Vm.MapContextMenuRequested += OnMapContextMenu;
     }

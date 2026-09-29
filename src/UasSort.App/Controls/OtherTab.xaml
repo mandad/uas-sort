@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Controls/OtherTab.xaml — Ref §9.9 -->
+<UserControl
+    x:Class="UasSort.App.Controls.OtherTab"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:UasSort.App.Services"
+    xmlns:rv="using:UasSort.Review">
+    <ScrollViewer Padding="12,8">
+        <ItemsControl ItemsSource="{x:Bind Vm.Sections, Mode=OneWay}">
+            <ItemsControl.ItemTemplate>
+                <!-- OtherSectionVm is immutable (rebuilt per plan): IsCollapsed sets the initial state, the user may expand -->
+                <DataTemplate x:DataType="rv:OtherSectionVm">
+                    <Expander Header="{x:Bind Title}" IsExpanded="{x:Bind ui:UiFormat.Not(IsCollapsed)}"
+                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,0,0,6">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                                       Visibility="{x:Bind ui:UiFormat.VisibleIfText(Note)}" />
+                            <!-- Ruling P11-C6: Rows is IReadOnlyList<OtherRowVm>; UiFormat.Items hands ItemsSource a List -->
+                            <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(Rows)}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="rv:OtherRowVm">
+                                        <Grid ColumnSpacing="8" Padding="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{x:Bind Text}" TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
+                                                <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                                                           Visibility="{x:Bind ui:UiFormat.VisibleIfText(Detail)}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="Un-dismiss" Command="{x:Bind UndismissCommand}"
+                                                    Visibility="{x:Bind ui:UiFormat.VisibleIfNotNull(UndismissCommand)}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>

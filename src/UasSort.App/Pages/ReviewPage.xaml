@@ -51,8 +51,8 @@
                 <ctl:ClipListView x:Name="ClipListSlot" Grid.Row="3" SizeChanged="OnPaneSizeChanged" />
             </Grid>
         </Grid>
-        <Border x:Name="PhotosSlot" Grid.Row="2" Visibility="Collapsed" />
-        <Border x:Name="OtherSlot" Grid.Row="2" Visibility="Collapsed" />
+        <ctl:PhotosTab x:Name="PhotosSlot" Grid.Row="2" Visibility="Collapsed" />
+        <ctl:OtherTab x:Name="OtherSlot" Grid.Row="2" Visibility="Collapsed" />
 
         <ctl:FooterBar x:Name="Footer" Grid.Row="3" />
     </Grid>
