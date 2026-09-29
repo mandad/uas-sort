@@ -2,7 +2,9 @@
 using System.Text;
 using System.Text.Json;
 using CommunityToolkit.WinUI.Controls;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace UasSort.App.SelfTest;
 
@@ -135,5 +137,65 @@ internal static partial class SelfTestChecks
                  && s.Contains("\"radius\":1", StringComparison.Ordinal), TimeSpan.FromSeconds(8));
         bool ok = stats is not null && stats.Contains("\"items\":3", StringComparison.Ordinal) && stats.Contains("\"radius\":1", StringComparison.Ordinal);
         return ok ? SelfTestCheck.Pass("review.map", "bridge drew " + stats) : SelfTestCheck.Fail("review.map", "stats " + (stats ?? "(none)"));
+    }
+
+    private static async Task<(ReviewPage Page, TimelineView Timeline, List<GroupCardVm> Groups)> TimelineAsync(SelfTestContext ctx)
+    {
+        var page = await ReviewPageAsync(ctx);
+        page.ShowTab(0);
+        var timeline = VisualTree.FindDescendant<TimelineView>(page) ?? throw new InvalidOperationException("no TimelineView");
+        var groups = page.Vm.Videos.Timeline.OfType<GroupCardVm>().ToList();
+        await WaitUntilAsync(() => groups.All(g => timeline.ContainerFor(g) is not null), TimeSpan.FromSeconds(5));
+        return (page, timeline, groups);
+    }
+
+    private static async Task<SelfTestCheck> TemplateGroupCard(SelfTestContext ctx)
+    {
+        var (_, timeline, groups) = await TimelineAsync(ctx);
+        var second = timeline.ContainerFor(groups[1]);
+        var first = timeline.ContainerFor(groups[0]);
+        if (first is null || second is null) return SelfTestCheck.Fail("template.groupCard", "cards not realised");
+        var chip = VisualTree.FindDescendant<FrameworkElement>(second, e => e.Name == "ChipHeader");
+        bool chipText = VisualTree.FindDescendant<TextBlock>(second, t => t.Text.Contains("63 days", StringComparison.Ordinal)) is not null;
+        bool merge = VisualTree.FindDescendant<Button>(second, b => (b.Content as string) == "Merge") is not null;
+        int thumbs = VisualTree.FindAll<Image>(first, i => Thumb.GetKey(i).CardRelPath.Length > 0).Count;
+        bool badge = VisualTree.FindDescendant<TextBlock>(first, t => t.Text == groups[0].Badge && t.Text.Length > 0) is not null;
+        bool ok = chip?.Visibility == Visibility.Visible && chipText && merge && thumbs == 2 && badge;
+        return ok ? SelfTestCheck.Pass("template.groupCard", $"chip header '63 days' + [Merge], badge '{groups[0].Badge}', {thumbs} thumbnails")
+                  : SelfTestCheck.Fail("template.groupCard", $"chip {chip?.Visibility} text {chipText} merge {merge} thumbs {thumbs} badge {badge}");
+    }
+
+    private static async Task<SelfTestCheck> TemplateSuggestion(SelfTestContext ctx)
+    {
+        var (page, timeline, groups) = await TimelineAsync(ctx);
+        var box = VisualTree.FindDescendant<AutoSuggestBox>(timeline.ContainerFor(groups[0])!, b => b.Name == "DescriptionBox");
+        if (box is null) return SelfTestCheck.Fail("template.suggestion", "no rename box on the first card");
+        box.Focus(FocusState.Programmatic);
+        box.IsSuggestionListOpen = true;                                     // the popup, opened in code (Ref §13)
+        bool found = await WaitUntilAsync(() => VisualTreeHelper.GetOpenPopupsForXamlRoot(page.XamlRoot)
+            .Any(p => p.Child is not null && VisualTree.FindDescendant<TextBlock>(p.Child, t => t.Text == "Anvil Mountain") is not null),
+            TimeSpan.FromSeconds(5));
+        bool noRecordText = !VisualTreeHelper.GetOpenPopupsForXamlRoot(page.XamlRoot)
+            .Any(p => p.Child is not null && VisualTree.FindDescendant<TextBlock>(p.Child, t => t.Text.Contains("SuggestionVm", StringComparison.Ordinal)) is not null);
+        box.IsSuggestionListOpen = false;
+        return found && noRecordText ? SelfTestCheck.Pass("template.suggestion", "popup shows 'Anvil Mountain'")
+                                     : SelfTestCheck.Fail("template.suggestion", $"found {found}, record text absent {noRecordText}");
+    }
+
+    private static async Task<SelfTestCheck> TemplateTargetMenu(SelfTestContext ctx)
+    {
+        var (_, timeline, groups) = await TimelineAsync(ctx);
+        var button = VisualTree.FindDescendant<DropDownButton>(timeline.ContainerFor(groups[0])!, b => b.Name == "TargetButton");
+        if (button?.Flyout is not MenuFlyout flyout) return SelfTestCheck.Fail("template.targetMenu", "no target DropDownButton");
+        flyout.ShowAt(button);                                                  // Opening builds the items (Ref §9.4)
+        await WaitUntilAsync(() => flyout.Items.Count > 0, TimeSpan.FromSeconds(3));
+        var options = groups[0].RetargetOptions();
+        var texts = flyout.Items.OfType<MenuFlyoutItem>().Select(i => i.Text).ToList();
+        flyout.Hide();
+        bool ok = texts.Count == options.Count
+                  && options.Any(o => o.Kind == RetargetKind.Browse) && options.Any(o => o.Kind == RetargetKind.Skip)
+                  && options.Any(o => o.Kind == RetargetKind.Auto) && options.Any(o => o.Kind == RetargetKind.NewFolder);
+        return ok ? SelfTestCheck.Pass("template.targetMenu", "menu built on Opening: " + string.Join(" | ", texts))
+                  : SelfTestCheck.Fail("template.targetMenu", "items: " + string.Join(" | ", texts));
     }
 }

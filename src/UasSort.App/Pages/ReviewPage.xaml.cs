@@ -51,10 +51,9 @@ public sealed partial class ReviewPage : Page
 
     /// <summary>Hands the new ReviewVm to the child controls (previous = the ReviewVm shown before, or null).
     /// Tasks 11.11–11.14 each add their lines here.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Empty until Tasks 11.11–11.14 hand the ReviewVm to their controls (instance members)")]
     private void OnReviewAttached(ReviewVm? previous)
     {
+        TimelineSlot.Attach(Vm, _window);
     }
 
     /// <summary>Registry Part 11 item 14: one MapBridge per ReviewVm; init once the pane is ready, then review.Map = bridge,

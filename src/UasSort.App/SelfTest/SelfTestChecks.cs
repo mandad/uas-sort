@@ -20,6 +20,7 @@ internal static partial class SelfTestChecks
         ("review.layout", ReviewLayout), ("review.clock", ReviewClock), ("review.tuning", ReviewTuning), ("review.map", ReviewMap),
         ("map.mime", MapMime), ("map.ready", MapReady),
         ("map.draw", MapDraw),
+        ("template.groupCard", TemplateGroupCard), ("template.suggestion", TemplateSuggestion), ("template.targetMenu", TemplateTargetMenu),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)

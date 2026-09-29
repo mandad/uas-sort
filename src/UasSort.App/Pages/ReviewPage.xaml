@@ -36,7 +36,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="420" />
             </Grid.ColumnDefinitions>
-            <Border x:Name="TimelineSlot" SizeChanged="OnPaneSizeChanged" />
+            <ctl:TimelineView x:Name="TimelineSlot" SizeChanged="OnPaneSizeChanged" />
             <ctk:GridSplitter Grid.Column="1" Width="8" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" />
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>

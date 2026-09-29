@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Controls/TimelineView.xaml — Ref §9.3 timeline + §9.4 group card -->
+<UserControl
+    x:Class="UasSort.App.Controls.TimelineView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ctl="using:UasSort.App.Controls"
+    xmlns:ui="using:UasSort.App.Services"
+    xmlns:rv="using:UasSort.Review">
+    <UserControl.Resources>
+        <!-- The boundary chip (GroupCardVm.Chip) is the HEADER of the card after it, so every row is a selectable item. -->
+        <DataTemplate x:Key="GroupCardTemplate" x:DataType="rv:GroupCardVm">
+            <!-- ItemsView runs an x:Bind template through its compiled bindings and leaves DataContext unset; the code-behind
+                 (ContainerFor, the rename box, the target menu, the fold button) reads DataContext, so the root sets it -->
+            <ItemContainer DataContext="{x:Bind}">
+                <StackPanel Padding="4,2">
+                    <Grid x:Name="ChipHeader" ColumnSpacing="6" Padding="4,2" Visibility="{x:Bind ui:UiFormat.VisibleIfNotNull(Chip), Mode=OneWay}"
+                          ToolTipService.ToolTip="{x:Bind Chip.MergeTooltip, Mode=OneWay}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind Chip.Text, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                        <!-- "Merge" or "Undo split"; MergeCommand's CanExecute is CanMerge (false across library folders) -->
+                        <Button Grid.Column="2" Content="{x:Bind Chip.ButtonText, Mode=OneWay}" Command="{x:Bind Chip.MergeCommand, Mode=OneWay}"
+                                Padding="8,1" FontSize="12" />
+                        <Rectangle Grid.Column="3" Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="6">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- not x:Name="Swatch": x:Bind resolves a path against template element names first, so that name shadows
+                                 GroupCardVm.Swatch and the XAML compiler fails (WMC9999) -->
+                            <Rectangle x:Name="SwatchBar" Fill="{x:Bind ui:UiFormat.Brush(Swatch), Mode=OneWay}" RadiusX="3" RadiusY="3" />
+                            <StackPanel Grid.Column="1" Spacing="3" Padding="0,8,8,8">
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Suggestions holds at most 6 (DescriptionSuggester.Max); no filtering in the App -->
+                                    <AutoSuggestBox x:Name="DescriptionBox" Text="{x:Bind Description, Mode=OneWay}" ItemsSource="{x:Bind Suggestions}"
+                                                    UpdateTextOnSelect="False" PlaceholderText="Name this folder"
+                                                    FontStyle="{x:Bind ui:UiFormat.Italic(DescriptionIsSuggestion), Mode=OneWay}"
+                                                    Visibility="{x:Bind ui:UiFormat.Hidden(IsDescriptionReadOnly), Mode=OneWay}"
+                                                    SuggestionChosen="OnSuggestionChosen" QuerySubmitted="OnQuerySubmitted"
+                                                    LostFocus="OnDescriptionLostFocus">
+                                        <AutoSuggestBox.ItemTemplate>
+                                            <DataTemplate x:DataType="rv:SuggestionVm">
+                                                <StackPanel Padding="0,2">
+                                                    <TextBlock Text="{x:Bind Text}" />
+                                                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionText}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </AutoSuggestBox.ItemTemplate>
+                                    </AutoSuggestBox>
+                                    <TextBox x:Name="ExistingDescription" Text="{x:Bind Description, Mode=OneWay}" IsReadOnly="True"
+                                             Visibility="{x:Bind ui:UiFormat.Visible(IsDescriptionReadOnly), Mode=OneWay}" />
+                                    <Border Grid.Column="1" Style="{StaticResource ChipBorder}" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind Badge, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource ChipBorder}" VerticalAlignment="Center"
+                                            Visibility="{x:Bind ui:UiFormat.VisibleIfText(ConfidenceText), Mode=OneWay}">
+                                        <TextBlock Text="{x:Bind ConfidenceText, Mode=OneWay}" FontSize="11" />
+                                    </Border>
+                                </Grid>
+                                <!-- Append targets are read-only with a hint (Ref §9.4) -->
+                                <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{x:Bind ui:UiFormat.VisibleIfText(ReadOnlyHint), Mode=OneWay}">
+                                    <TextBlock Text="{x:Bind ReadOnlyHint, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                                    <HyperlinkButton Content="New folder instead" Command="{x:Bind NewFolderInsteadCommand}" Padding="2,0" />
+                                </StackPanel>
+                                <Grid ColumnSpacing="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind TargetPath, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="{x:Bind TargetPath, Mode=OneWay}" />
+                                    <DropDownButton x:Name="TargetButton" Grid.Column="1" Content="Target" Padding="8,2" FontSize="12">
+                                        <DropDownButton.Flyout>
+                                            <MenuFlyout Opening="OnTargetMenuOpening" Placement="BottomEdgeAlignedRight" />
+                                        </DropDownButton.Flyout>
+                                    </DropDownButton>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{x:Bind DateRangeText, Mode=OneWay}" />
+                                    <!-- ZoneBadges is an IReadOnlyList<string>, wrapped by UiFormat.Items (ruling P11-C6) -->
+                                    <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(ZoneBadges), Mode=OneWay}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="x:String">
+                                                <Border Style="{StaticResource ChipBorder}"><TextBlock Text="{x:Bind}" FontSize="11" /></Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                                <TextBlock Text="{x:Bind LocationText, Mode=OneWay}" Style="{StaticResource CaptionText}" />
+                                <TextBlock Text="{x:Bind VideoCountsText, Mode=OneWay}" Style="{StaticResource CaptionText}" />
+                                <!-- the photo counts open the Photos tab (ReviewVm.SelectedTab = 1) -->
+                                <HyperlinkButton Padding="0" Click="OnShowPhotos"
+                                                 Visibility="{x:Bind ui:UiFormat.VisibleIfText(PhotoCountsText), Mode=OneWay}">
+                                    <TextBlock Text="{x:Bind PhotoCountsText, Mode=OneWay}" Style="{StaticResource CaptionText}" />
+                                </HyperlinkButton>
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <!-- Thumbs is an IReadOnlyList<ThumbVm> replaced whole on each plan, wrapped by UiFormat.Items (ruling P11-C6) -->
+                                    <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(Thumbs), Mode=OneWay}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="rv:ThumbVm">
+                                                <Border Width="48" Height="27" CornerRadius="2" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                                    <Image ctl:Thumb.Key="{x:Bind Key}" Stretch="UniformToFill" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{x:Bind MoreThumbsText, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center"
+                                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(MoreThumbsText), Mode=OneWay}" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{x:Bind Chips}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="rv:ChipVm">
+                                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,2,0,0" ToolTipService.ToolTip="{x:Bind Tooltip}">
+                                                <Border Style="{StaticResource ChipBorder}"><TextBlock Text="{x:Bind Text}" FontSize="11" /></Border>
+                                                <!-- ChipVm.Actions is an IReadOnlyList<QuickFixVm>, wrapped by UiFormat.Items (ruling P11-C6) -->
+                                                <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(Actions)}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="rv:QuickFixVm">
+                                                            <HyperlinkButton Content="{x:Bind Label}" Command="{x:Bind Command}" Padding="2,0" FontSize="12" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ItemContainer>
+        </DataTemplate>
+
+        <!-- A run of AlreadyImported groups folded into one row; expanding it is VideosTabVm.ToggleFold(run) -->
+        <DataTemplate x:Key="FoldedRunTemplate" x:DataType="rv:FoldedRunVm">
+            <ItemContainer DataContext="{x:Bind}">
+                <StackPanel Padding="4,2">
+                    <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="10,6">
+                        <Grid>
+                            <TextBlock Text="{x:Bind Text, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                            <Button HorizontalAlignment="Right" Click="OnToggleFold" Style="{StaticResource SubtleButtonStyle}"
+                                    ToolTipService.ToolTip="Show or hide these groups">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ItemContainer>
+        </DataTemplate>
+
+        <ctl:TimelineTemplateSelector x:Key="TimelineSelector"
+                                      GroupCard="{StaticResource GroupCardTemplate}" FoldedRun="{StaticResource FoldedRunTemplate}" />
+    </UserControl.Resources>
+
+    <ItemsView x:Name="Items" x:FieldModifier="internal" SelectionMode="Single" ItemTemplate="{StaticResource TimelineSelector}"
+               SelectionChanged="OnSelectionChanged" TabFocusNavigation="Once" />
+</UserControl>
