@@ -21,6 +21,7 @@ internal static partial class SelfTestChecks
         ("map.mime", MapMime), ("map.ready", MapReady),
         ("map.draw", MapDraw),
         ("template.groupCard", TemplateGroupCard), ("template.suggestion", TemplateSuggestion), ("template.targetMenu", TemplateTargetMenu),
+        ("template.clipRow", TemplateClipRow), ("thumb.keyRecheck", ThumbKeyRecheck),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)

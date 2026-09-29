@@ -20,6 +20,7 @@ public sealed partial class ReviewPage : Page
     public ReviewPage()
     {
         InitializeComponent();
+        Map.FocusReturnRequested += () => ClipListSlot.FocusList();
         Map.Ready += ConnectMap;
         Map.OnlineChanged += _ => SendMapInit();                // Ref §9.6 offline: re-send init with the new online flag
     }
@@ -54,6 +55,23 @@ public sealed partial class ReviewPage : Page
     private void OnReviewAttached(ReviewVm? previous)
     {
         TimelineSlot.Attach(Vm, _window);
+        ClipListSlot.Attach(Vm);
+        if (previous is not null) previous.MapContextMenuRequested -= OnMapContextMenu;
+        Vm.MapContextMenuRequested += OnMapContextMenu;
+    }
+
+    // Ref §9.6: the map's contextMenu (through ReviewVm.MapContextMenuRequested) → a WinUI MenuFlyout at the pointer
+    // (CSS px = DIPs at WebView2 zoom 1); the clicked dots become the clip selection first.
+    private void OnMapContextMenu(MapContextMenu menu)
+    {
+        if (Vm is null) return;
+        var ids = Vm.Videos.Clips.Where(r => menu.ItemIds.Contains(r.Id.CardRelPath)).Select(r => r.Id).ToList();
+        if (ids.Count > 0) ClipListSlot.SelectRows(ids);
+        var row = Vm.Videos.Clips.FirstOrDefault(r => ids.Contains(r.Id));
+        ClipMenu.Build(Vm, row).ShowAt(Map, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+        {
+            Position = new Windows.Foundation.Point(menu.X, menu.Y),
+        });
     }
 
     /// <summary>Registry Part 11 item 14: one MapBridge per ReviewVm; init once the pane is ready, then review.Map = bridge,

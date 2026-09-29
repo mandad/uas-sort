@@ -48,7 +48,7 @@
                 <map:MapPane x:Name="Map" x:FieldModifier="internal" SizeChanged="OnPaneSizeChanged" />
                 <ctl:TuningStrip x:Name="Tuning" Grid.Row="1" />
                 <ctk:GridSplitter Grid.Row="2" Height="8" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
-                <Border x:Name="ClipListSlot" Grid.Row="3" SizeChanged="OnPaneSizeChanged" />
+                <ctl:ClipListView x:Name="ClipListSlot" Grid.Row="3" SizeChanged="OnPaneSizeChanged" />
             </Grid>
         </Grid>
         <Border x:Name="PhotosSlot" Grid.Row="2" Visibility="Collapsed" />

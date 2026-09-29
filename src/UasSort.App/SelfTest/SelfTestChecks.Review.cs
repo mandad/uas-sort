@@ -198,4 +198,42 @@ internal static partial class SelfTestChecks
         return ok ? SelfTestCheck.Pass("template.targetMenu", "menu built on Opening: " + string.Join(" | ", texts))
                   : SelfTestCheck.Fail("template.targetMenu", "items: " + string.Join(" | ", texts));
     }
+
+    private static async Task<SelfTestCheck> TemplateClipRow(SelfTestContext ctx)
+    {
+        var (page, _, groups) = await TimelineAsync(ctx);
+        page.Vm.Videos.SelectedEntry = groups[0];                // the Anvil group: clip A (Jul 25) and clip B (Jul 26)
+        var list = VisualTree.FindDescendant<ClipListView>(page)!;
+        if (!await WaitUntilAsync(() => page.Vm.Videos.Clips.Count == 2 && list.ContainerFor(page.Vm.Videos.Clips[1]) is not null, TimeSpan.FromSeconds(5)))
+            return SelfTestCheck.Fail("template.clipRow", $"clip rows: {page.Vm.Videos.Clips.Count}");
+        var rowB = page.Vm.Videos.Clips[1];
+        var c = list.ContainerFor(rowB)!;
+        var banner = VisualTree.FindDescendant<FrameworkElement>(c, e => e.Name == "DayBanner");
+        bool splitHere = VisualTree.FindDescendant<Button>(c, b => (b.Content as string) == "Split here") is not null;
+        bool name = VisualTree.FindDescendant<TextBlock>(c, t => t.Text == rowB.Name) is not null;
+        var img = VisualTree.FindDescendant<Image>(c, i => Thumb.GetKey(i) == rowB.ThumbKey);
+        bool noBannerOnA = VisualTree.FindDescendant<FrameworkElement>(list.ContainerFor(page.Vm.Videos.Clips[0])!, e => e.Name == "DayBanner")?.Visibility != Visibility.Visible;
+        bool ok = rowB.Banner is not null && banner?.Visibility == Visibility.Visible && splitHere && name && img is not null && noBannerOnA;
+        return ok ? SelfTestCheck.Pass("template.clipRow", $"row '{rowB.Name}' carries banner '{rowB.Banner?.Text}' with [Split here]")
+                  : SelfTestCheck.Fail("template.clipRow", $"banner {banner?.Visibility} split {splitHere} name {name} thumb {img is not null} noBannerOnA {noBannerOnA}");
+    }
+
+    private static async Task<SelfTestCheck> ThumbKeyRecheck(SelfTestContext ctx)
+    {
+        await EnsureReviewAsync(ctx);
+        var cache = ctx.Services.Thumbnails;
+        var a = new ItemId(SelfTestFixture.ClipA);
+        var b = new ItemId(SelfTestFixture.ClipB);
+        cache.Clear();
+        var image = new Image();
+        Thumb.SetKey(image, a);
+        Thumb.SetKey(image, b);                                  // recycled before A's load finished
+        var imgA = await cache.GetAsync(a);
+        var imgB = await cache.GetAsync(b);
+        await WaitUntilAsync(() => image.Source is not null, TimeSpan.FromSeconds(3));
+        await Task.Delay(300);                                   // let any late completion of A run
+        bool ok = imgA is not null && imgB is not null && !ReferenceEquals(imgA, imgB) && ReferenceEquals(image.Source, imgB);
+        return ok ? SelfTestCheck.Pass("thumb.keyRecheck", "late load for the old key was not assigned; Source is the new key's image")
+                  : SelfTestCheck.Fail("thumb.keyRecheck", $"A {imgA is not null}, B {imgB is not null}, source is B {ReferenceEquals(image.Source, imgB)}");
+    }
 }
