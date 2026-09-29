@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Pages/ScanPage.xaml — Ref §9.1 Scan; ErrorText covers a card removed during the scan (Ref §12) -->
+<Page
+    x:Class="UasSort.App.Pages.ScanPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:UasSort.App.Services">
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" Width="520">
+        <TextBlock Text="Scanning" Style="{StaticResource TitleTextBlockStyle}" />
+        <TextBlock x:Name="PhaseText" Text="{x:Bind Vm.PhaseText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+        <ProgressBar Maximum="1" Value="{x:Bind Vm.Progress, Mode=OneWay}" IsIndeterminate="{x:Bind Vm.IsIndeterminate, Mode=OneWay}"
+                     Visibility="{x:Bind ui:UiFormat.Visible(Vm.IsRunning), Mode=OneWay}" />
+        <InfoBar IsOpen="True" IsClosable="False" Severity="Error" Message="{x:Bind Vm.ErrorText, Mode=OneWay}"
+                 Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.ErrorText), Mode=OneWay}">
+            <InfoBar.ActionButton>
+                <Button Content="Rescan" Command="{x:Bind Shell.RescanCommand}" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+        <Button Content="Cancel" Command="{x:Bind Vm.CancelCommand}" HorizontalAlignment="Right"
+                Visibility="{x:Bind ui:UiFormat.Visible(Vm.IsRunning), Mode=OneWay}" />
+    </StackPanel>
+</Page>

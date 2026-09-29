@@ -24,6 +24,9 @@ public static class UiFormat
     public static string Count(int value) => value.ToString(System.Globalization.CultureInfo.CurrentCulture);
     public static double ToDouble(int value) => value;
 
+    /// <summary>Rows that can't be used (not a DJI card) are dimmed, not hidden (Ref §9.1 Card).</summary>
+    public static double EnabledOpacity(bool enabled) => enabled ? 1.0 : 0.55;
+
     /// <summary>InfoBarVm, SetupVm and SettingsPageVm severities (Review's InfoSeverity).</summary>
     public static InfoBarSeverity BarSeverity(InfoSeverity s) => s switch
     {

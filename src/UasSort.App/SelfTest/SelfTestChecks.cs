@@ -15,6 +15,7 @@ internal static partial class SelfTestChecks
         ("json.planEdit", JsonPlanEdit),
         ("placeholderVisibility", PlaceholderVisibility),
         ("page.settings", PageSettings),
+        ("page.card", PageCard),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)

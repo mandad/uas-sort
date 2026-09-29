@@ -13,6 +13,8 @@ public sealed partial class ShellPage : Page
     {
         [Stage.Setup] = typeof(SetupPage),
         [Stage.Settings] = typeof(SettingsPage),
+        [Stage.Card] = typeof(CardPage),
+        [Stage.Scan] = typeof(ScanPage),
     };
 
     private MainWindow _window = null!;

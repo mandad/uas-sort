@@ -36,4 +36,18 @@ internal static partial class SelfTestChecks
             ? SelfTestCheck.Pass("page.settings", "Video folder card shows the sandbox root; About credits GeoNames")
             : SelfTestCheck.Fail("page.settings", $"card={video is not null} root={rootShown} about={about}");
     }
+
+    private static async Task<SelfTestCheck> PageCard(SelfTestContext ctx)
+    {
+        // Under --selftest the Card stage lists no volumes (NoVolumes, Task 11.4), so it opens empty.
+        if (!await WaitUntilAsync(() => CurrentPage<CardPage>(ctx) is { IsLoaded: true }, TimeSpan.FromSeconds(10)))
+            return SelfTestCheck.Fail("page.card", $"Card stage not shown (stage {ctx.Services.Shell.Stage})");
+        var page = CurrentPage<CardPage>(ctx)!;
+        var browse = VisualTree.FindDescendant<Button>(page, b => (b.Content as string) == "Browse to folder…");
+        var empty = page.Vm.Rows.Count == 0
+                    && VisualTree.FindDescendant<TextBlock>(page, t => t.Text == page.Vm.StatusText && t.Text.Length > 0) is not null;
+        return browse is { IsEnabled: true } && empty
+            ? SelfTestCheck.Pass("page.card", "empty Card stage with Browse to folder…: " + page.Vm.StatusText)
+            : SelfTestCheck.Fail("page.card", $"browse={browse?.IsEnabled} empty={empty}");
+    }
 }
