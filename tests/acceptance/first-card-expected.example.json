@@ -1,0 +1,14 @@
+{
+  "$schema": "./first-card-expected.schema.json",
+  "folders": [
+    {
+      "relPath": "2026\\2026-10\\2026-10-04 Nome Roads",
+      "clips": [ "DJI_20261004163012_0151_D.MP4", "DJI_20261004164530_0152_D.MP4", "DJI_20261004170105_0153_D.MP4" ]
+    },
+    {
+      "relPath": "2026\\2026-10\\2026-10-05 Safety Roadhouse",
+      "clips": [ "DJI_20261005121500_0154_D.MP4" ],
+      "target": "NewFolder"
+    }
+  ]
+}

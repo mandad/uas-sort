@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/uas-sort/tests/acceptance/first-card-expected.schema.json",
+  "title": "uas-sort first-card expected folder list",
+  "description": "The folders the user expects uas-sort-cli plan to propose for the first real card (Ref §4.5, §13). Compared by uas-sort-cli plan --expect; acceptance passes at 2 edits or fewer.",
+  "type": "object",
+  "required": [ "folders" ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "folders": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "relPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Folder path relative to the video root, e.g. 2026\\2026-10\\2026-10-04 Nome Roads (an existing folder for an append)."
+          },
+          "clips": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "pattern": "^[^/\\\\]+$" },
+            "description": "Bare file names of the card's MP4 clips that belong in this folder."
+          },
+          "target": {
+            "enum": [ "NewFolder", "Append", "AlreadyImported", "NothingToCopy", "SkipGroup" ],
+            "description": "Optional: the target kind you expect. When given, a different kind counts as one edit (a Retarget)."
+          }
+        },
+        "required": [ "relPath", "clips" ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

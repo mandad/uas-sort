@@ -47,4 +47,5 @@ internal sealed record IssueJson(IssueSeverity Severity, IssueCode Code, string?
                              WriteIndented = true, PropertyNameCaseInsensitive = true,
                              ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true)]
 [JsonSerializable(typeof(PlanDocument))]
+[JsonSerializable(typeof(ExpectedFileJson))]
 internal sealed partial class CliJsonContext : JsonSerializerContext;
