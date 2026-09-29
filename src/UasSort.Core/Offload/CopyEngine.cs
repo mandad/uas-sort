@@ -343,8 +343,35 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
         return new Step(failed, null);
     }
 
-    // Completed in Task 07.10 (non-NTFS / removable destinations).
-    private static ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed) => [];
+    /// <summary>After the loop: flush renamed files and their directories on volumes that are not NTFS on a fixed disk, and list
+    /// those volumes for safe removal (Ref §10.3). Durability there comes from the flush plus safe removal, not write-through.</summary>
+    private ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed)
+    {
+        var needing = ImmutableArray.CreateBuilder<string>();
+        foreach (var volume in renamed.GroupBy(OffloadPaths.VolumeRoot, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!NeedsSafeRemoval(volume.Key)) continue;
+            foreach (var dir in volume.GroupBy(OffloadPaths.DirectoryOf, StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    files.FlushDestination(dir.Key, [.. dir]);
+                }
+                catch (Exception e) when (Failures.IsIo(e))
+                {
+                    // the volume is still listed for safe removal, which is what makes the copies durable there
+                }
+            }
+            needing.Add(volume.Key);
+        }
+        return needing.ToImmutable();
+    }
+
+    private bool NeedsSafeRemoval(string volumeRoot)
+    {
+        var v = options.Volumes.FirstOrDefault(x => OffloadPaths.Same(x.Root, volumeRoot));
+        return v is null || !v.IsNtfs || v.IsRemovableBus || !string.Equals(v.DriveType, "Fixed", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Deletes this run's temp; false only when the guard refused the delete.</summary>
     private static bool DeleteQuietly(IFileOps files, string? temp)
