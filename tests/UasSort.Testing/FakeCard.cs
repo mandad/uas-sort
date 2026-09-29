@@ -72,9 +72,14 @@ public sealed class FakeCardReader : ICardReader
 
 public sealed class FakeCardEraserFactory(FakeFileSystem fs) : ICardEraserFactory
 {
+    private readonly List<FakeCardEraser> _erasers = [];
+
     /// <summary>False = one of the Win32 cleanup volume facts fails (not a volume root, wrong bus, no MISC index, …).</summary>
     public bool VolumeVerified { get; set; } = true;
     public int OpenCount { get; private set; }
+
+    /// <summary>Every path deleted by every eraser this factory opened, in order ('/' card paths; removed folders end in '/').</summary>
+    public IReadOnlyList<string> AllDeleted => [.. _erasers.SelectMany(e => e.Deleted)];
 
     public ICardEraser Open(CardSource source, CardIdentity pinned, ConfirmedCleanupPlan plan)
     {
@@ -88,8 +93,21 @@ public sealed class FakeCardEraserFactory(FakeFileSystem fs) : ICardEraserFactor
             throw new UnsafeIoException("The confirmed plan is for another card");
         OpenCount++;
         var root = PathRules.Normalize(source.Root);
-        var ctx = fs.Context with { CardRoot = root, CardIsVerifiedCardVolume = true, Cleanup = plan };
-        return new FakeCardEraser(fs, root, ctx);
+        return Track(new FakeCardEraser(fs, root, fs.Context with { CardRoot = root, CardIsVerifiedCardVolume = true, Cleanup = plan }));
+    }
+
+    /// <summary>Tripwire tests only (Part 08): an eraser bound to any context, so a refused context can be exercised.
+    /// Not counted in OpenCount.</summary>
+    public ICardEraser OpenUnchecked(GuardContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        return Track(new FakeCardEraser(fs, PathRules.Normalize(ctx.CardRoot ?? FakeLayout.CardRoot), ctx));
+    }
+
+    private FakeCardEraser Track(FakeCardEraser eraser)
+    {
+        _erasers.Add(eraser);
+        return eraser;
     }
 }
 
@@ -118,6 +136,7 @@ public sealed class FakeCardEraser : ICardEraser
         if (_fs.Faults.CardRemoved) return new EraseError(21, "The device is not ready.");
         if (_fs.Metadata(full) is not { IsDirectory: false }) return new EraseError(2, "The system cannot find the file specified.");
         _fs.Guard(IoOp.CardDelete, full, _ctx);   // throws UnsafeIoException + records a CardDeleteViolation on refusal
+        _fs.Faults.OnCardDelete?.Invoke(key);    // Part 08: outside the lock, before DeleteErrors and the delete apply
         lock (_fs.Gate)
         {
             if (_fs.Faults.DeleteErrors.TryGetValue(key, out var code)) return new EraseError(code, $"Win32 error {code}");

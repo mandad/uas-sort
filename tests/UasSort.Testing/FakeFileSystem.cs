@@ -134,6 +134,21 @@ public sealed class FakeFileSystem : IDirectoryLister
         lock (_gate) { RemoveTree(PathRules.Normalize(path)); }
     }
 
+    /// <summary>Changes a file's size and/or mtime in place, as another program writing it would (Part 08; unguarded, tests only).</summary>
+    public void Touch(string path, long? size = null, DateTime? mtimeUtc = null)
+    {
+        lock (_gate)
+        {
+            var n = Require(path);
+            if (size is { } s)
+            {
+                n.Bytes = null;
+                n.PatternLength = s;
+            }
+            if (mtimeUtc is { } m) n.MtimeUtc = m;
+        }
+    }
+
     // ── card volumes
     public void AddCardVolume(string root, CardIdentity identity, CardSpace space)
     {

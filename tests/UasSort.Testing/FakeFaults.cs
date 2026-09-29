@@ -41,6 +41,9 @@ public sealed class FakeFaults
     public Dictionary<string, int> DeleteErrors { get; } = new(Cmp);
     /// <summary>Card paths whose delete succeeds but whose entry stays listed (another program holds it open).</summary>
     public HashSet<string> DeletePending { get; } = new(Cmp);
+    /// <summary>Called by FakeCardEraser.DeleteFile with the '/' card path once the guard has allowed the delete and before
+    /// DeleteErrors or the delete itself apply (Part 08: swap, remove or cancel between two deletes).</summary>
+    public Action<string>? OnCardDelete { get; set; }
 
     internal bool IsLost(string fullPath)
     {
