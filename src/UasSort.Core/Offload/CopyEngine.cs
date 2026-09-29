@@ -276,7 +276,8 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
         return total;
     }
 
-    // Completed in Task 07.8 (one re-read of the chunk at the same offset).
+    /// <summary>Step 5: read one chunk; on a card read error re-read it once at the same offset (same stream, seeked back;
+    /// reopened only if the stream can't seek). A second failure goes to CardError.</summary>
     private static ChunkRead ReadChunk(OffloadBatch batch, CopyJob job, ICardReader card, ref Stream? src, byte[] buffer,
                                        long offset, int want)
     {
@@ -285,15 +286,40 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
             src ??= card.OpenSequential(job.CardRelPath);
             return new ChunkRead(ReadFully(src, buffer, want), null);
         }
-        catch (Exception e) when (Failures.IsIo(e))
+        catch (Exception first) when (Failures.IsIo(first))
         {
-            return new ChunkRead(0, CardError(batch, job, card, CopyPhase.Copy, e, new Failed(job, CopyPhase.Copy, e.Message)));
+            try
+            {
+                if (src is null || !src.CanSeek)
+                {
+                    src?.Dispose();
+                    src = card.OpenSequential(job.CardRelPath);
+                }
+                src.Seek(offset, SeekOrigin.Begin);
+                return new ChunkRead(ReadFully(src, buffer, want), null);
+            }
+            catch (Exception second) when (Failures.IsIo(second) || second is NotSupportedException)
+            {
+                return new ChunkRead(0, CardError(batch, job, card, CopyPhase.Copy, second, new Failed(job, CopyPhase.Copy, second.Message)));
+            }
         }
     }
 
-    // Completed in Task 07.8 (card gone → CardRemoved; another card → CardSwapped).
+    /// <summary>After a card-side failure: is the card gone (CardRemoved), another card (CardSwapped), or still ours?</summary>
     private static Step CardError(OffloadBatch batch, CopyJob job, ICardReader card, CopyPhase phase, Exception error, CopyOutcome whenPresent)
-        => new(whenPresent, null);
+    {
+        CardIdentity now;
+        try
+        {
+            now = card.CurrentIdentity();
+        }
+        catch (Exception gone) when (Failures.IsIo(gone))
+        {
+            return new Step(new Failed(job, phase, error.Message), StopReason.CardRemoved);
+        }
+        if (now != batch.Card) return new Step(new CardSwapped(job, now), StopReason.CardSwapped);
+        return new Step(whenPresent, null);
+    }
 
     // Completed in Task 07.9 (disk full → DestinationFull; volume gone → DestinationLost).
     private static Step DestinationError(CopyJob job, IFileOps files, CopyPhase phase, Exception error)
