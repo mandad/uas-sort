@@ -2,11 +2,12 @@
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>UasSort.Review</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\UasSort.Core\UasSort.Core.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <InternalsVisibleTo Include="UasSort.Review.Tests" />
   </ItemGroup>
 </Project>

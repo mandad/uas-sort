@@ -3,16 +3,15 @@
     <TargetFramework>net11.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>UasSort.Review.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
-  <ItemGroup>
+    <ProjectReference Include="..\..\src\UasSort.Review\UasSort.Review.csproj" />
+    <ProjectReference Include="..\UasSort.Testing\UasSort.Testing.csproj" />
     <PackageReference Include="xunit.v3.mtp-v2" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\UasSort.Review\UasSort.Review.csproj" />
-    <ProjectReference Include="..\UasSort.Testing\UasSort.Testing.csproj" />
+    <Using Include="Xunit" />
   </ItemGroup>
 </Project>
