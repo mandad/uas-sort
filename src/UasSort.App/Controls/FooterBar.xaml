@@ -11,6 +11,7 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <TextBlock x:Name="Totals" Text="{x:Bind Review.FooterText, Mode=OneWay}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
         <DropDownButton x:Name="IssuesButton" Grid.Column="1" AutomationProperties.Name="Issues">
@@ -56,7 +57,12 @@
                 </Flyout>
             </DropDownButton.Flyout>
         </DropDownButton>
-        <Button x:Name="OffloadButton" Grid.Column="2" Content="Offload ▶" Style="{StaticResource AccentButtonStyle}"
+        <!-- Ref §9.1: the read-only plan shown from the Verdict page returns to that verdict; "Nothing new on this card" can still
+             show the verdict without an offload (ReviewVm.ShowVerdictCommand, CanExecute IsReadOnly || NothingNew) -->
+        <Button x:Name="VerdictButton" Grid.Column="2" Content="{x:Bind ui:UiFormat.VerdictButtonText(Review.IsReadOnly), Mode=OneWay}"
+                Command="{x:Bind Review.ShowVerdictCommand, Mode=OneWay}"
+                Visibility="{x:Bind ui:UiFormat.VisibleIfEither(Review.IsReadOnly, Review.NothingNew), Mode=OneWay, FallbackValue=Collapsed}" />
+        <Button x:Name="OffloadButton" Grid.Column="3" Content="Offload ▶" Style="{StaticResource AccentButtonStyle}"
                 Command="{x:Bind Review.OffloadCommand, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Review.OffloadDisabledReason, Mode=OneWay}" />
     </Grid>
 </UserControl>

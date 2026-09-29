@@ -17,6 +17,7 @@ public static class UiFormat
     public static Visibility VisibleIfAny(int count) => count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public static Visibility VisibleIfNone(int count) => count == 0 ? Visibility.Visible : Visibility.Collapsed;
     public static Visibility VisibleIfNotNull(object? value) => value is null ? Visibility.Collapsed : Visibility.Visible;
+    public static Visibility VisibleIfEither(bool a, bool b) => a || b ? Visibility.Visible : Visibility.Collapsed;
     public static bool Not(bool value) => !value;
     public static Windows.UI.Text.FontStyle Italic(bool value) => value ? Windows.UI.Text.FontStyle.Italic : Windows.UI.Text.FontStyle.Normal;
     public static Windows.UI.Text.FontWeight Weight(bool strong) =>
@@ -88,6 +89,10 @@ public static class UiFormat
             : Color.FromArgb(255, 128, 128, 128);
         return Brushes[hex] = new SolidColorBrush(c);
     }
+
+    /// <summary>The Review footer's verdict button (ReviewVm.ShowVerdictCommand): back to the same verdict from the read-only plan
+    /// ("Show plan" on the Verdict page), or the verdict without an offload when nothing on the card is new.</summary>
+    public static string VerdictButtonText(bool readOnly) => readOnly ? "Back to verdict" : "Show verdict";
 
     public static SolidColorBrush VerdictBrush(VerdictLevel level) => level switch
     {

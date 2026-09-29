@@ -24,6 +24,7 @@ internal static partial class SelfTestChecks
         ("template.clipRow", TemplateClipRow), ("thumb.keyRecheck", ThumbKeyRecheck),
         ("template.photoTile", TemplatePhotoTile), ("template.otherTab", TemplateOtherTab),
         ("keys.spaceInRenameBox", KeysSpaceInRenameBox), ("keys.accelerators", KeysAccelerators),
+        ("pages.construct", PagesConstruct),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)

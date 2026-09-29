@@ -16,6 +16,9 @@ public sealed partial class ShellPage : Page
         [Stage.Card] = typeof(CardPage),
         [Stage.Scan] = typeof(ScanPage),
         [Stage.Review] = typeof(ReviewPage),
+        [Stage.Preflight] = typeof(PreflightPage),
+        [Stage.Copy] = typeof(CopyPage),
+        [Stage.Verdict] = typeof(VerdictPage),
     };
 
     private MainWindow _window = null!;

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Controls/IssueList.xaml — one InfoBar per preflight line (PreflightVm.Blocking / Warnings / Infos are strings) -->
+<UserControl
+    x:Class="UasSort.App.Controls.IssueList"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel x:Name="Host" Spacing="2" />
+</UserControl>

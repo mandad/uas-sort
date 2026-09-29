@@ -50,4 +50,22 @@ internal static partial class SelfTestChecks
             ? SelfTestCheck.Pass("page.card", "empty Card stage with Browse to folder…: " + page.Vm.StatusText)
             : SelfTestCheck.Fail("page.card", $"browse={browse?.IsEnabled} empty={empty}");
     }
+
+    /// <summary>Every stage page must load its XAML (x:Bind paths are compile-checked; markup errors only show at load).</summary>
+    public static readonly List<Func<Page>> PageFactories =
+    [
+        () => new SetupPage(), () => new CardPage(), () => new ScanPage(), () => new SettingsPage(),
+        () => new PreflightPage(), () => new CopyPage(), () => new VerdictPage(),
+    ];
+
+    private static Task<SelfTestCheck> PagesConstruct(SelfTestContext ctx)
+    {
+        var built = new List<string>();
+        foreach (var make in PageFactories)
+        {
+            var page = make();                                   // InitializeComponent parses the page's XAML
+            built.Add(page.GetType().Name);
+        }
+        return Task.FromResult(SelfTestCheck.Pass("pages.construct", "loaded " + string.Join(", ", built)));
+    }
 }
