@@ -34,6 +34,7 @@ public enum IssueCode                       // the closed catalogue of Ref §9.1
     EmptyFolderName, TempPathTooLong, MediumAppend, EmphasisedDaySplit, PinMembershipChanged, ConflictingPins, SharedTarget,
     FolderExistsAppending, NewBeforeWallFolder, CheckDate, ClockNotSet, ClockMismatch, RootMissing, RootsUnconfirmed,
     LedgerParseIssue, LedgerCloudOnly, LedgerUnwritable, LedgerNotPinned, LedgerNoHistory,
+    NothingNew,   // Review Focus #1: every clip and photo is already imported or decided; Blocking, blocks Offload with its reason
     // PlanSession.Resume and the Settings page
     StaleEditsDropped, NoHistoryInNewRoot,
     // Preflight.Check
