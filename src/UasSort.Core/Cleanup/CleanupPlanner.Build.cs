@@ -23,6 +23,7 @@ public static partial class CleanupPlanner
             : RowState.Undecided;
         static bool IsNil(CleanupCandidate c) => c.Eligibility == CleanupEligibility.NotInLibrary;
         bool Deletable(CleanupCandidate c) => c.Eligibility == CleanupEligibility.Evidence || (on && IsNil(c) && Row(c) == RowState.Delete);
+        bool InWalk(CleanupCandidate c) => c.Eligibility == CleanupEligibility.Evidence || (on && IsNil(c) && Row(c) != RowState.Keep);
 
         var space = inputs.Space;
         bool[] inRange;
@@ -35,7 +36,10 @@ public static partial class CleanupPlanner
                 inRange = [.. ordered.Select(c => c.LocalDate < before)];     // strictly before; the chosen day is kept
                 break;
             case CleanupMode.FreeSpace:
-                throw new NotSupportedException("Free-space mode is added in Task 08.6.");
+                var goal = request.Goal ?? throw new ArgumentException("Free-space mode needs a goal.", nameof(request));
+                (inRange, cutoffIndex, var reached) = FreeSpaceWalk(ordered, InWalk, space.FreeBytes, goal.TargetFreeBytes(space));
+                if (!reached) shortfall = Shortfall(ordered, InWalk, LooseFiles(inputs, candidates));
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(request), request.Mode, "Unknown cleanup mode.");
         }
@@ -97,6 +101,31 @@ public static partial class CleanupPlanner
         }
         return new CleanupCutoff(before, last.CaptureUtc, last.LocalTime, last.TzId, deletedOnDay, onDay, continues);
     }
+
+    /// <summary>Shortest prefix S₁…S_k of the walk with free + Σ allocated ≥ target (Ref §10.6 Mode 2).</summary>
+    private static (bool[] InRange, int CutoffIndex, bool Reached) FreeSpaceWalk(ImmutableArray<CleanupCandidate> ordered,
+        Func<CleanupCandidate, bool> inWalk, long freeBytes, long target)
+    {
+        var inRange = new bool[ordered.Length];
+        if (freeBytes >= target) return (inRange, -1, true);               // k = 0: nothing to delete
+        var acc = freeBytes;
+        var last = -1;
+        for (var i = 0; i < ordered.Length; i++)
+        {
+            if (!inWalk(ordered[i])) continue;                              // Never units and Keep rows are passed over
+            acc += ordered[i].AllocatedBytes;
+            last = i;
+            if (acc >= target) break;
+        }
+        for (var i = 0; i <= last; i++) inRange[i] = true;
+        return (inRange, last, acc >= target);
+    }
+
+    private static FreeSpaceShortfall Shortfall(ImmutableArray<CleanupCandidate> ordered, Func<CleanupCandidate, bool> inWalk,
+                                                ImmutableArray<CleanupKept> loose)
+        => new(ordered.Where(inWalk).Sum(c => c.AllocatedBytes),
+               ordered.Where(c => c.Eligibility == CleanupEligibility.NotInLibrary && !inWalk(c)).Sum(c => c.AllocatedBytes),
+               ordered.Where(c => c.Eligibility == CleanupEligibility.Never).Sum(c => c.AllocatedBytes) + loose.Sum(k => k.Bytes));
 
     private static CleanupCutoff FreeSpaceCutoff(ImmutableArray<CleanupCandidate> ordered, int cutoffIndex,
                                                  ImmutableArray<CleanupCandidate> delete)
