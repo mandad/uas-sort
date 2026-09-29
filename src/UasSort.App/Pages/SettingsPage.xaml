@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Pages/SettingsPage.xaml — Ref §9.14 -->
+<Page
+    x:Class="UasSort.App.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ctk="using:CommunityToolkit.WinUI.Controls"
+    xmlns:ui="using:UasSort.App.Services"
+    xmlns:rv="using:UasSort.Review">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal" Spacing="8" Padding="24,12,24,4">
+            <Button Click="OnClose" Style="{StaticResource SubtleButtonStyle}" ToolTipService.ToolTip="Back">
+                <FontIcon Glyph="&#xE72B;" FontSize="14" />
+            </Button>
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1">
+            <StackPanel MaxWidth="900" Padding="24,4,24,24" Spacing="4">
+                <TextBlock Text="Folders" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,8,0,4" />
+                <ctk:SettingsCard Header="Video folder" Description="{x:Bind Vm.VideoFreeText, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Vm.VideoRoot, Mode=OneWay}" VerticalAlignment="Center" MaxWidth="420" TextTrimming="CharacterEllipsis" />
+                        <Button Content="Change…" Click="OnPickVideoRoot" />
+                    </StackPanel>
+                </ctk:SettingsCard>
+                <InfoBar IsOpen="True" Severity="Warning" IsClosable="False" Title="No history in the new video folder"
+                         Message="{x:Bind Vm.NoHistoryPrompt, Mode=OneWay}" Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.NoHistoryPrompt), Mode=OneWay}">
+                    <InfoBar.Content>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+                            <Button Content="Copy" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind Vm.CopyLedgerCommand}" />
+                            <Button Content="Start empty" Command="{x:Bind Vm.StartEmptyCommand}" />
+                        </StackPanel>
+                    </InfoBar.Content>
+                </InfoBar>
+                <ctk:SettingsCard Header="Photo folder" Description="{x:Bind Vm.PhotoFreeText, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Vm.PhotoRoot, Mode=OneWay}" VerticalAlignment="Center" MaxWidth="420" TextTrimming="CharacterEllipsis" />
+                        <Button Content="Change…" Click="OnPickPhotoRoot" />
+                    </StackPanel>
+                </ctk:SettingsCard>
+                <TextBlock Text="The photo folder is inside the video folder; that is supported." Style="{StaticResource CaptionText}"
+                           Margin="16,0,0,4" Visibility="{x:Bind ui:UiFormat.VisibleIfInside(Vm.PhotoRoot, Vm.VideoRoot), Mode=OneWay}" />
+                <ctk:SettingsExpander Header="Previous photo folders" Description="Still checked for photos you already imported">
+                    <ctk:SettingsExpander.ItemsHeader>
+                        <ItemsControl ItemsSource="{x:Bind Vm.PreviousPhotoRoots, Mode=OneWay}" Margin="16,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="rv:PreviousRootVm">
+                                    <Grid ColumnSpacing="8" Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Path}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="1" Content="Forget" Command="{x:Bind ForgetCommand}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ctk:SettingsExpander.ItemsHeader>
+                </ctk:SettingsExpander>
+
+                <TextBlock Text="History (ledger)" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="History folder" Description="{x:Bind Vm.LedgerFolder, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Keep on this device" Command="{x:Bind Vm.KeepOnDeviceCommand}"
+                                Visibility="{x:Bind ui:UiFormat.Visible(Vm.CanKeepOnDevice), Mode=OneWay}" />
+                        <Button Content="Open" Command="{x:Bind Vm.OpenLedgerCommand}" />
+                    </StackPanel>
+                </ctk:SettingsCard>
+                <InfoBar IsOpen="True" IsClosable="False" Severity="{x:Bind ui:UiFormat.BarSeverity(Vm.LedgerSeverity), Mode=OneWay}"
+                         Message="{x:Bind Vm.LedgerStatus, Mode=OneWay}" />
+                <ctk:SettingsCard Header="Local backup of the history" Description="{x:Bind Vm.BackupFolder, Mode=OneWay}">
+                    <Button Content="Open" Command="{x:Bind Vm.OpenBackupCommand}" />
+                </ctk:SettingsCard>
+
+                <TextBlock Text="Grouping" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="Default radius (miles)" Description="Clips farther apart than this start a new group">
+                    <NumberBox Value="{x:Bind Vm.RadiusMiles, Mode=TwoWay}" Minimum="5" Maximum="100" SmallChange="1"
+                               SpinButtonPlacementMode="Compact" Width="140" />
+                </ctk:SettingsCard>
+                <ctk:SettingsCard Header="Default day gap" Description="Days without flights that still keep one group">
+                    <!-- GapDays is an int: shown through ToDouble, written back by OnGapChanged -->
+                    <NumberBox x:Name="GapBox" Value="{x:Bind ui:UiFormat.ToDouble(Vm.GapDays), Mode=OneWay}" Minimum="0" Maximum="7"
+                               SmallChange="1" SpinButtonPlacementMode="Compact" Width="140" ValueChanged="OnGapChanged" />
+                </ctk:SettingsCard>
+
+                <TextBlock Text="Drone clock" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="The RC 2 clock" Description="{x:Bind Vm.ClockLearnedText, Mode=OneWay}">
+                    <StackPanel Spacing="8">
+                        <RadioButtons x:Name="ClockModeButtons" SelectedIndex="{x:Bind ui:UiFormat.ClockModeIndex(Vm.IsSiteLocal), Mode=OneWay}"
+                                      SelectionChanged="OnClockModeChanged">
+                            <x:String>Follows local time at each site</x:String>
+                            <x:String>Fixed zone</x:String>
+                        </RadioButtons>
+                        <ComboBox x:Name="ZoneBox" ItemsSource="{x:Bind ZoneIds, Mode=OneTime}" SelectionChanged="OnZoneChanged"
+                                  MinWidth="240" IsEnabled="{x:Bind ui:UiFormat.Not(Vm.IsSiteLocal), Mode=OneWay}" />
+                    </StackPanel>
+                </ctk:SettingsCard>
+
+                <TextBlock Text="Photos" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="Copy the JPG twin" Description="Copy the JPG that the drone saves next to each DNG">
+                    <ToggleSwitch IsOn="{x:Bind Vm.CopyJpgTwin, Mode=TwoWay}" />
+                </ctk:SettingsCard>
+
+                <TextBlock Text="Map" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="Default base map">
+                    <RadioButtons x:Name="BaseButtons" SelectedIndex="{x:Bind ui:UiFormat.BaseIndex(Vm.MapBase), Mode=OneWay}" MaxColumns="3"
+                                  SelectionChanged="OnBaseChanged">
+                        <x:String>Streets</x:String>
+                        <x:String>Satellite</x:String>
+                        <x:String>Off</x:String>
+                    </RadioButtons>
+                </ctk:SettingsCard>
+                <ctk:SettingsExpander Header="Advanced" Description="Base map addresses (OpenFreeMap, Esri, USGS)">
+                    <ctk:SettingsExpander.Items>
+                        <ctk:SettingsCard Header="Streets style URL">
+                            <TextBox Text="{x:Bind Vm.StreetsUrl, Mode=TwoWay}" MinWidth="420" />
+                        </ctk:SettingsCard>
+                        <ctk:SettingsCard Header="Dark streets style URL">
+                            <TextBox Text="{x:Bind Vm.StreetsDarkUrl, Mode=TwoWay}" MinWidth="420" />
+                        </ctk:SettingsCard>
+                        <ctk:SettingsCard Header="Satellite tile URL">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBox Text="{x:Bind Vm.SatelliteUrl, Mode=TwoWay}" MinWidth="420" />
+                                <!-- SatellitePresets is a name → URL dictionary; the menu is built in OnNavigatedTo -->
+                                <DropDownButton Content="Presets">
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout x:Name="PresetMenu" Placement="BottomEdgeAlignedRight" />
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
+                            </StackPanel>
+                        </ctk:SettingsCard>
+                    </ctk:SettingsExpander.Items>
+                </ctk:SettingsExpander>
+
+                <TextBlock Text="About" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
+                <ctk:SettingsCard Header="uas-sort">
+                    <TextBlock Text="{x:Bind Vm.AboutText, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="520" />
+                </ctk:SettingsCard>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

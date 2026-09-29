@@ -11,6 +11,8 @@ public sealed partial class ShellPage : Page
     /// <summary>Stage → page type. Tasks 11.5–11.16 each add their line.</summary>
     public static readonly Dictionary<Stage, Type> StagePages = new()
     {
+        [Stage.Setup] = typeof(SetupPage),
+        [Stage.Settings] = typeof(SettingsPage),
     };
 
     private MainWindow _window = null!;

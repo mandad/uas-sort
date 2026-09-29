@@ -60,6 +60,9 @@ public static class UiFormat
 
     public static string BaseAt(int index) => MapBases[Math.Clamp(index, 0, MapBases.Count - 1)];
 
+    /// <summary>SettingsPageVm.IsSiteLocal as the index of the drone-clock radio buttons (0 site-local, 1 fixed zone).</summary>
+    public static int ClockModeIndex(bool siteLocal) => siteLocal ? 0 : 1;
+
     public static int ModeIndex(CleanupMode mode) => mode == CleanupMode.FreeSpace ? 1 : 0;
 
     public static int FreeKindIndex(FreeSpaceKind kind) => kind == FreeSpaceKind.FreeUp ? 1 : 0;

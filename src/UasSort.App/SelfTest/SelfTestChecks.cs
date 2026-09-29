@@ -14,6 +14,7 @@ internal static partial class SelfTestChecks
         ("probe.timeZone", ProbeTimeZone),
         ("json.planEdit", JsonPlanEdit),
         ("placeholderVisibility", PlaceholderVisibility),
+        ("page.settings", PageSettings),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)
