@@ -127,4 +127,47 @@ public sealed class CliPlanRunTests : IDisposable
         Assert.Empty(stdout);
         Assert.Contains("refused: This is part of your library", stderr, StringComparison.Ordinal);
     }
+
+    private string WriteExpected(string relPath, params string[] clips)
+    {
+        string path = Path.Combine(_settingsDir, "first-card-expected.json");
+        string clipList = string.Join(", ", clips.Select(c => $"\"{c}\""));
+        File.WriteAllText(path, $$"""{ "folders": [ { "relPath": "{{relPath.Replace(@"\", @"\\", StringComparison.Ordinal)}}", "clips": [ {{clipList}} ] } ] }""");
+        return path;
+    }
+
+    [Fact]
+    public async Task Expect_WithJson_ReportsOnStderr_KeepsStdoutPureJson_AndWritesNothing()
+    {
+        // The plan's folder is 2026\2026-09\2026-09-27 plus whatever description the place index suggests; the user expects
+        // "Zachar Bay". With no place index that is one rename; with it, zero. Either way the dry run passes (<= 2).
+        string expected = WriteExpected(@"2026\2026-09\2026-09-27 Zachar Bay", CliTestCard.Clips);
+        var before = Snapshot();
+
+        var (code, stdout, stderr) = await Run(Args("--json", "--expect", expected));
+
+        Assert.True(code == 0, $"exit {code}; stderr:\n{stderr}");
+        AssertNothingWritten(before);
+        using var _ = JsonDocument.Parse(stdout);   // stdout is still exactly one JSON document
+        Assert.Matches(@"EXPECT edits: [01] \(passes at <= 2\): PASS", stderr);
+        Assert.DoesNotContain("EXPECT", stdout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Expect_WithoutJson_ReportsOnStdout_AndCountsASplit()
+    {
+        // The user expects the first clip on its own: one split, plus a rename for each folder whose path differs.
+        string path = Path.Combine(_settingsDir, "two-folders.json");
+        File.WriteAllText(path, $$"""
+            { "folders": [
+                { "relPath": "2026\\2026-09\\2026-09-27 Zachar Bay", "clips": [ "{{CliTestCard.Clips[0]}}" ] },
+                { "relPath": "2026\\2026-09\\2026-09-27 Zachar Bay 2", "clips": [ "{{CliTestCard.Clips[1]}}", "{{CliTestCard.Clips[2]}}" ] } ] }
+            """);
+
+        var (code, stdout, _) = await Run(Args("--expect", path));
+
+        Assert.Equal(0, code);
+        Assert.Contains("EXPECT split/move:", stdout, StringComparison.Ordinal);
+        Assert.Matches(@"EXPECT edits: [23] \(passes at <= 2\): (PASS|FAIL)", stdout);
+    }
 }
