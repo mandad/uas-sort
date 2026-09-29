@@ -1286,7 +1286,7 @@ public static class CompositionRoot
             var services = new ReviewServices(_ui, _dialogs, _p.Shell, Thumbnails, _p.Drafts, _space, _p.Clock, _log);
             var decisions = new LedgerDecisionService(_p.LedgerFor(s.VideoRoot), _p.Clock, _p.Machine);
             return new ReviewVm(new PlanSession(b, _planner, new Tuning(s.RadiusMiles, s.GapDays), _p.Clock), services, decisions,
-                                DraftOffers.Find(b, _p.Drafts, _planner));
+                                DraftOffers.Find(b, _p.Drafts, _planner, _p.Clock));
         }
 
         private PreflightVm CreatePreflight(ReviewVm review)

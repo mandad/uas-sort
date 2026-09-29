@@ -5,6 +5,7 @@ internal sealed class ReviewHarness : IDisposable
 {
     private ReviewHarness(PlanBase b, Tuning tuning, ImmutableArray<Suggestion> suggestions, DraftOffer? offer, FakeDraftStore? drafts)
     {
+        Time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("America/Anchorage"));
         Base = b;
         Deriver = new GatedPlanDeriver(new ScriptedDeriver(suggestions));
         Session = new PlanSession(b, Deriver, tuning, Time);
