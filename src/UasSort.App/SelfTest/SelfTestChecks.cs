@@ -17,6 +17,7 @@ internal static partial class SelfTestChecks
         ("page.settings", PageSettings),
         ("page.card", PageCard),
         ("probe.still", ProbeStill), ("json.ledger", JsonLedger), ("review.scan", ReviewScan),
+        ("review.layout", ReviewLayout), ("review.clock", ReviewClock), ("review.tuning", ReviewTuning), ("review.map", ReviewMap),
         ("map.mime", MapMime), ("map.ready", MapReady),
         ("map.draw", MapDraw),
     ];

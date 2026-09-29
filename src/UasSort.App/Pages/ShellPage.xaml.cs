@@ -15,6 +15,7 @@ public sealed partial class ShellPage : Page
         [Stage.Settings] = typeof(SettingsPage),
         [Stage.Card] = typeof(CardPage),
         [Stage.Scan] = typeof(ScanPage),
+        [Stage.Review] = typeof(ReviewPage),
     };
 
     private MainWindow _window = null!;

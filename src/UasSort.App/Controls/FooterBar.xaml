@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ref §9.10: per-drive totals, issue counters + flyout, Offload -->
+<UserControl
+    x:Class="UasSort.App.Controls.FooterBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:UasSort.App.Services"
+    xmlns:rv="using:UasSort.Review">
+    <Grid Padding="12,8" ColumnSpacing="12" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="Totals" Text="{x:Bind Review.FooterText, Mode=OneWay}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        <DropDownButton x:Name="IssuesButton" Grid.Column="1" AutomationProperties.Name="Issues">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock><Run Text="&#x26D4;" /> <Run Text="{x:Bind ui:UiFormat.Count(Review.Issues.BlockingCount), Mode=OneWay}" /></TextBlock>
+                <TextBlock><Run Text="&#x26A0;" /> <Run Text="{x:Bind ui:UiFormat.Count(Review.Issues.WarningCount), Mode=OneWay}" /></TextBlock>
+                <TextBlock><Run Text="&#x24D8;" /> <Run Text="{x:Bind ui:UiFormat.Count(Review.Issues.InfoCount), Mode=OneWay}" /></TextBlock>
+            </StackPanel>
+            <DropDownButton.Flyout>
+                <Flyout x:Name="IssuesFlyout" Placement="TopEdgeAlignedRight">
+                    <ScrollViewer MaxHeight="420" Width="520">
+                        <ItemsControl ItemsSource="{x:Bind Review.Issues.Entries, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="rv:IssueVm">
+                                    <Grid ColumnSpacing="8" Padding="0,6" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Glyph}" />
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <!-- click → ReviewVm.GoTo(issue.Anchor) (OnIssueClick) -->
+                                            <HyperlinkButton Padding="0" Click="OnIssueClick">
+                                                <TextBlock Text="{x:Bind Message}" TextWrapping="Wrap" />
+                                            </HyperlinkButton>
+                                            <TextBlock Text="{x:Bind ui:UiFormat.IssueCodeText(Code)}" Style="{StaticResource CaptionText}" />
+                                            <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(QuickFixes)}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="rv:QuickFixVm">
+                                                        <Button Content="{x:Bind Label}" Command="{x:Bind Command}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Flyout>
+            </DropDownButton.Flyout>
+        </DropDownButton>
+        <Button x:Name="OffloadButton" Grid.Column="2" Content="Offload ▶" Style="{StaticResource AccentButtonStyle}"
+                Command="{x:Bind Review.OffloadCommand, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Review.OffloadDisabledReason, Mode=OneWay}" />
+    </Grid>
+</UserControl>

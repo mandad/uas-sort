@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ref §9.7: under the map; base toggle, R 5–100 mi, G 0–7 days, live group count -->
+<UserControl
+    x:Class="UasSort.App.Controls.TuningStrip"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:UasSort.App.Services">
+    <Grid ColumnSpacing="16" Padding="8,4">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" MinWidth="220" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <!-- ReviewVm.MapBase ("streets" / "satellite" / "none"); its setter sends MapSetBase through ReviewVm.Map -->
+        <RadioButtons x:Name="BaseToggle" MaxColumns="3" SelectedIndex="{x:Bind ui:UiFormat.BaseIndex(Review.MapBase), Mode=OneWay}"
+                      SelectionChanged="OnBaseChanged" VerticalAlignment="Center">
+            <x:String>Streets</x:String>
+            <x:String>Satellite</x:String>
+            <x:String>Off</x:String>
+        </RadioButtons>
+        <StackPanel Grid.Column="1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="R" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Bind Review.Tuning.RadiusText, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+            </StackPanel>
+            <Slider x:Name="RadiusSlider" x:FieldModifier="internal" Minimum="5" Maximum="100" StepFrequency="1" SmallChange="1" LargeChange="5"
+                    TickPlacement="None" Value="{x:Bind Review.Tuning.RadiusMiles, Mode=TwoWay}"
+                    AutomationProperties.Name="Grouping radius in miles" />
+            <!-- tick labels at 10 / 25 / 50 / 75 / 100 mi on the 5–100 scale -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*" />
+                    <ColumnDefinition Width="15*" />
+                    <ColumnDefinition Width="25*" />
+                    <ColumnDefinition Width="25*" />
+                    <ColumnDefinition Width="25*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="1" Text="10" Style="{StaticResource CaptionText}" />
+                <TextBlock Grid.Column="2" Text="25" Style="{StaticResource CaptionText}" />
+                <TextBlock Grid.Column="3" Text="50" Style="{StaticResource CaptionText}" />
+                <TextBlock Grid.Column="4" Text="75" Style="{StaticResource CaptionText}" />
+                <TextBlock Grid.Column="4" Text="100" Style="{StaticResource CaptionText}" HorizontalAlignment="Right" />
+            </Grid>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Width="150">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="G" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Bind Review.Tuning.GapText, Mode=OneWay}" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+            </StackPanel>
+            <!-- TuningVm.GapDays is an int: shown through ToDouble, written back by OnGapChanged -->
+            <Slider x:Name="GapSlider" x:FieldModifier="internal" Minimum="0" Maximum="7" StepFrequency="1" SmallChange="1" TickFrequency="1" TickPlacement="BottomRight"
+                    Value="{x:Bind ui:UiFormat.ToDouble(Review.Tuning.GapDays), Mode=OneWay}" ValueChanged="OnGapChanged"
+                    AutomationProperties.Name="Day gap" />
+        </StackPanel>
+        <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="4">
+            <TextBlock x:Name="GroupCount" Text="{x:Bind Review.Tuning.GroupCountText, Mode=OneWay}" FontWeight="SemiBold" />
+            <HyperlinkButton Content="{x:Bind Review.Tuning.ResetText, Mode=OneWay}" Command="{x:Bind Review.Tuning.ResetCommand, Mode=OneWay}" Padding="0" />
+        </StackPanel>
+    </Grid>
+</UserControl>

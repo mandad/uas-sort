@@ -24,6 +24,10 @@ public static class UiFormat
     public static string Count(int value) => value.ToString(System.Globalization.CultureInfo.CurrentCulture);
     public static double ToDouble(int value) => value;
 
+    /// <summary>Ruling P11-C6: an IReadOnlyList-typed VM member as a List of VM objects for ItemsSource (Ref §2.7 #4).
+    /// One non-generic function, because x:Bind does not resolve generic functions.</summary>
+    public static List<object> Items(System.Collections.IEnumerable? source) => source is null ? [] : [.. source.Cast<object>()];
+
     /// <summary>Rows that can't be used (not a DJI card) are dimmed, not hidden (Ref §9.1 Card).</summary>
     public static double EnabledOpacity(bool enabled) => enabled ? 1.0 : 0.55;
 
