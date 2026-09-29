@@ -192,13 +192,18 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
         }
     }
 
-    // Completed in Task 07.9 (retry once on a mismatch).
+    /// <summary>Steps 4–7; on a mismatch the temp is deleted and the file copied once more from step 4.</summary>
     private static CopyResult CopyVerified(OffloadBatch batch, CopyJob job, ICardReader card, IFileOps files, ProgressMeter meter,
                                     CancellationToken ct, ref CopyPhase phase, ref string? temp)
     {
-        var once = CopyOnce(batch, job, card, files, meter, ct, ref phase, ref temp);
-        if (!once.Mismatch) return once;
-        return new CopyResult(default, default, false, new Step(new Failed(job, CopyPhase.Verify, "The copy didn't match the card"), null));
+        var first = CopyOnce(batch, job, card, files, meter, ct, ref phase, ref temp);
+        if (!first.Mismatch) return first;
+        files.DeleteOwnTemp(temp!);
+        temp = null;
+        var second = CopyOnce(batch, job, card, files, meter, ct, ref phase, ref temp);
+        if (!second.Mismatch) return second;
+        return new CopyResult(default, default, false,
+                              new Step(new Failed(job, CopyPhase.Verify, "The copy didn't match the card twice"), null));
     }
 
     /// <summary>Steps 4–7 once: create the temp, copy through the hash, flush, verify.</summary>
@@ -321,9 +326,22 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
         return new Step(whenPresent, null);
     }
 
-    // Completed in Task 07.9 (disk full → DestinationFull; volume gone → DestinationLost).
+    /// <summary>A destination failure: disk full stops (DestinationFull); a vanished volume stops (DestinationLost);
+    /// anything else fails only this file.</summary>
     private static Step DestinationError(CopyJob job, IFileOps files, CopyPhase phase, Exception error)
-        => new(new Failed(job, phase, error.Message), null);
+    {
+        var failed = new Failed(job, phase, error.Message);
+        if (Failures.IsDiskFull(error)) return new Step(failed, StopReason.DestinationFull);
+        try
+        {
+            files.FreeBytes(OffloadPaths.VolumeRoot(job.DestPath));
+        }
+        catch (Exception probe) when (Failures.IsIo(probe))
+        {
+            return new Step(failed, StopReason.DestinationLost);
+        }
+        return new Step(failed, null);
+    }
 
     // Completed in Task 07.10 (non-NTFS / removable destinations).
     private static ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed) => [];
