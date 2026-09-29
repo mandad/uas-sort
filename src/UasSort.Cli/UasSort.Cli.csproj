@@ -1,13 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
-    <RootNamespace>UasSort.Cli</RootNamespace>
     <AssemblyName>uas-sort-cli</AssemblyName>
+    <RootNamespace>UasSort.Cli</RootNamespace>
   </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\UasSort.Core\UasSort.Core.csproj" />
     <ProjectReference Include="..\UasSort.Platform\UasSort.Platform.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UasSort.Platform.Tests" />
+  </ItemGroup>
+
+  <!-- The offline place index, so dry-run descriptions match the app's (Ref §8.7). Read-only, from the exe folder. -->
+  <ItemGroup Condition="Exists('..\UasSort.App\places.bin.gz')">
+    <None Include="..\UasSort.App\places.bin.gz" Link="places.bin.gz" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
