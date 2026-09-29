@@ -1,0 +1,7 @@
+{
+  "engine": "maplibre",
+  "version": "6.11.2",
+  "entry": "maplibre-gl.mjs",
+  "worker": null,
+  "integrity": "sha512-Xh06pxoipjX/Ad1sUPGhiNh9go9naCNGZZ1IJm3sIeqK1kYGuMaMDSTIGDQ2igOLfVyukJU7kvEOA089VO7Z7g=="
+}

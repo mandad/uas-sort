@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/MapHost/MapPane.xaml -->
+<UserControl
+    x:Class="UasSort.App.MapHost.MapPane"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <WebView2 x:Name="MapView" />
+        <StackPanel x:Name="UnavailablePanel" Visibility="Collapsed" Spacing="8" Padding="24"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="Map unavailable" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="UnavailableReason" Style="{StaticResource CaptionText}" TextWrapping="Wrap" MaxWidth="360" HorizontalAlignment="Center" />
+            <Button x:Name="OpenInBrowserButton" Content="Open in browser" HorizontalAlignment="Center" Click="OnOpenInBrowser" />
+        </StackPanel>
+    </Grid>
+</UserControl>

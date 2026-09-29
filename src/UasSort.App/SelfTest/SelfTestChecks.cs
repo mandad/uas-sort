@@ -16,6 +16,7 @@ internal static partial class SelfTestChecks
         ("placeholderVisibility", PlaceholderVisibility),
         ("page.settings", PageSettings),
         ("page.card", PageCard),
+        ("map.mime", MapMime), ("map.ready", MapReady),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)
