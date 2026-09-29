@@ -202,3 +202,123 @@ function Test-AotPublishOutput {
     }
     [pscustomobject]@{ Ok = ($reasons.Count -eq 0); Reasons = $reasons.ToArray(); SizeMB = $sizeMB }
 }
+
+function Test-PathUnder {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Root)
+    $p = [System.IO.Path]::GetFullPath($Path).TrimEnd('\') + '\'
+    $r = [System.IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    $p.StartsWith($r, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Assert-DeployTargetSafe {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    # User data first: settings, drafts, reports, logs, ledger backups, and every synced library.
+    $deny = @(Join-Path $env:LOCALAPPDATA 'uas-sort')
+    foreach ($v in 'OneDrive', 'OneDriveConsumer', 'OneDriveCommercial') {
+        $val = [Environment]::GetEnvironmentVariable($v)
+        if ($val) { $deny += $val }
+    }
+    foreach ($d in $deny) {
+        if (Test-PathUnder -Path $full -Root $d) {
+            throw "Refusing '$full': it is under '$d' (user data; deploy never writes there)"
+        }
+    }
+    $allow = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs'),
+        [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs),
+        [System.IO.Path]::GetTempPath()
+    )
+    foreach ($a in $allow) {
+        if (Test-PathUnder -Path $full -Root $a) { return }
+    }
+    throw "Refusing '$full': deploy writes only under %LOCALAPPDATA%\Programs, the Start-menu Programs folder or %TEMP%"
+}
+
+function Copy-UasSortBuild {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$PublishDir,
+        [Parameter(Mandatory)][string]$InstallRoot,
+        [Parameter(Mandatory)][string]$Version,
+        [switch]$Force
+    )
+    Assert-DeployTargetSafe -Path $InstallRoot
+    $dest = Join-Path $InstallRoot $Version
+    if (Test-Path -LiteralPath $dest) {
+        if (-not $Force) {
+            throw "Version $Version is already installed at '$dest'; pass a higher -Version (or -Force to replace it)"
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $dest 'uas-sort.exe') -PathType Leaf)) {
+            throw "Refusing to replace '$dest': it holds no uas-sort.exe"
+        }
+        Remove-Item -LiteralPath $dest -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $dest -Force | Out-Null
+    Copy-Item -Path (Join-Path $PublishDir '*') -Destination $dest -Recurse -Force
+    $a = Get-FolderStats -Path $PublishDir
+    $b = Get-FolderStats -Path $dest
+    if ($a.Files -ne $b.Files -or $a.Bytes -ne $b.Bytes) {
+        throw "Copy check failed: '$PublishDir' has $($a.Files) files / $($a.Bytes) bytes, '$dest' has $($b.Files) / $($b.Bytes)"
+    }
+    $dest
+}
+
+function Get-VersionsToPrune {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$InstallRoot,
+        [Parameter(Mandatory)][string]$Current,
+        [ValidateRange(1, 100)][int]$Keep = 2
+    )
+    if (-not (Test-Path -LiteralPath $InstallRoot -PathType Container)) { return }
+    $currentVersion = [version]$Current
+    $others = foreach ($d in Get-ChildItem -LiteralPath $InstallRoot -Directory) {
+        $v = $null
+        if (-not [version]::TryParse($d.Name, [ref]$v)) { continue }
+        if ($v -eq $currentVersion) { continue }
+        if (-not (Test-Path -LiteralPath (Join-Path $d.FullName 'uas-sort.exe') -PathType Leaf)) { continue }
+        [pscustomobject]@{ Version = $v; Path = $d.FullName }
+    }
+    @($others) | Where-Object { $null -ne $_ } | Sort-Object Version -Descending |
+        Select-Object -Skip ($Keep - 1) | ForEach-Object { $_.Path }
+}
+
+function Remove-OldVersions {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$InstallRoot,
+        [Parameter(Mandatory)][string]$Current,
+        [ValidateRange(1, 100)][int]$Keep = 2
+    )
+    Assert-DeployTargetSafe -Path $InstallRoot
+    foreach ($dir in @(Get-VersionsToPrune -InstallRoot $InstallRoot -Current $Current -Keep $Keep)) {
+        try {
+            Remove-Item -LiteralPath $dir -Recurse -Force
+            $dir
+        }
+        catch { Write-Warning "Could not remove '$dir' (is that version running?): $($_.Exception.Message)" }
+    }
+}
+
+function New-UasSortShortcut {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ShortcutPath,
+        [Parameter(Mandatory)][string]$TargetPath,
+        [Parameter(Mandatory)][string]$Description
+    )
+    Assert-DeployTargetSafe -Path $ShortcutPath
+    $shell = New-Object -ComObject WScript.Shell
+    try {
+        $lnk = $shell.CreateShortcut($ShortcutPath)
+        $lnk.TargetPath = $TargetPath
+        $lnk.WorkingDirectory = Split-Path -Parent $TargetPath
+        $lnk.IconLocation = "$TargetPath,0"
+        $lnk.Description = $Description
+        $lnk.Save()
+    }
+    finally { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
+}
