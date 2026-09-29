@@ -31,6 +31,16 @@ internal static partial class SelfTestChecks
         pane.Close();
     }
 
+    /// <summary>Closes every MapPane still open (the standalone one and the Review page's) before the selftest exits.
+    /// Environment.Exit with a live WebView2 makes Chromium print "Failed to unregister class Chrome_WidgetWin_0.
+    /// Error = 1412" (ERROR_CLASS_HAS_WINDOWS) on stderr, because its host window still exists at teardown.</summary>
+    public static void CloseMapPanes(SelfTestContext ctx)
+    {
+        RemoveStandaloneMapPane(ctx);
+        if (ctx.Window.Shell is { } shell)
+            foreach (var pane in VisualTree.FindAll<MapPane>(shell)) pane.Close();
+    }
+
     private static async Task<SelfTestCheck> MapMime(SelfTestContext ctx)
     {
         var pane = await StandaloneMapPaneAsync(ctx);

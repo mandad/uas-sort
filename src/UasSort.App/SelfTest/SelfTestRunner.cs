@@ -49,7 +49,18 @@ internal static class SelfTestRunner
 #pragma warning restore CA1031
             lock (checks) checks.Add(result);
         }
+        CloseWebViews(ctx, checks);
         lock (checks) Finish(ctx, checks);
+    }
+
+    /// <summary>On the UI thread, before exit: closes the map WebView2s so the run log has no Chromium teardown line.
+    /// The watchdog path (a timer thread) skips this; a timed-out run may still print the line.</summary>
+    private static void CloseWebViews(SelfTestContext ctx, List<SelfTestCheck> checks)
+    {
+        try { SelfTestChecks.CloseMapPanes(ctx); }
+#pragma warning disable CA1031 // selftest: a close failure is recorded, and the result file is still written
+        catch (Exception ex) { lock (checks) checks.Add(SelfTestCheck.Fail("closeWebViews", ex.GetType().Name + ": " + ex.Message)); }
+#pragma warning restore CA1031
     }
 
     private static void Finish(SelfTestContext ctx, List<SelfTestCheck> checks)
