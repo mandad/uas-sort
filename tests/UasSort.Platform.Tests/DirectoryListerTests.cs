@@ -89,7 +89,9 @@ public sealed class DirectoryListerTests
         var missing = Path.Join(t.Path, "gone");
         var r = _lister.Enumerate(missing, recurse: true, NoExclusions);
         Assert.Empty(r.Entries);
-        Assert.Equal(missing, Assert.Single(r.Errors).Path);
+        var error = Assert.Single(r.Errors);
+        Assert.Equal(missing, error.Path);
+        Assert.True(Kernel32.IsNotFound(error.Win32Error));
     }
 
     [Fact]
@@ -101,6 +103,47 @@ public sealed class DirectoryListerTests
         Directory.CreateDirectory(Path.Join(t.Path, "root"));
         Assert.Equal(0, Cmd.Run($"mklink /J \"{link}\" \"{Path.Join(t.Path, "target")}\""));
         var r = _lister.Enumerate(Path.Join(t.Path, "root"), recurse: true, NoExclusions);
+        Assert.Empty(r.Errors);   // the junction's tag was read (a failed read is an error)
         Assert.Equal("link", Assert.Single(r.Entries).RelPath);
+    }
+
+    [Fact]
+    public void ReparseTag_OfAJunction_IsReadFromItsParentListing()
+    {
+        using var t = new TempDir();
+        var target = t.Sub("target");
+        var link = Path.Join(t.Path, "link");
+        Assert.Equal(0, Cmd.Run($"mklink /J \"{link}\" \"{target}\""));
+        using var hold = new FileStream(t.File(@"target\held.MP4"), FileMode.Open, FileAccess.Read, FileShare.None);
+        Assert.Equal(0xA0000003u, WindowsDirectoryLister.TryReadReparseTag(link, out var error));
+        Assert.Equal(0, error);
+        Assert.Null(WindowsDirectoryLister.TryReadReparseTag(Path.Join(t.Path, "gone"), out error));
+        Assert.True(Kernel32.IsNotFound(error));
+    }
+
+    [Theory]
+    [InlineData(0x10u, null, true)]                  // plain directory
+    [InlineData(0x10u, 0xA0000003u, true)]           // no reparse bit: the tag is irrelevant
+    [InlineData(0x410u, 0xA0000003u, false)]         // junction / mount point
+    [InlineData(0x410u, 0xA000000Cu, false)]         // symbolic link
+    [InlineData(0x410u, 0xA0000027u, false)]         // another name surrogate (WCI link)
+    [InlineData(0x410u, 0x20000001u, false)]         // any tag with the name-surrogate bit
+    [InlineData(0x410u, 0x9000001Au, true)]          // IO_REPARSE_TAG_CLOUD (OneDrive placeholder folder)
+    [InlineData(0x410u, 0x9000601Au, true)]          // IO_REPARSE_TAG_CLOUD_6
+    [InlineData(0x410u, 0x9000101Au, true)]          // IO_REPARSE_TAG_CLOUD_1
+    [InlineData(0x80410u, 0x9000601Au, true)]        // pinned cloud folder
+    [InlineData(0x410u, null, false)]                // reparse point whose tag could not be read
+    public void ShouldDescend_SkipsOnlyNameSurrogates(uint attributes, uint? reparseTag, bool expected)
+        => Assert.Equal(expected, WindowsDirectoryLister.ShouldDescend(attributes, reparseTag));
+
+    [Fact]
+    public void FileRoot_IsAnError_AndIsNeverOpened()
+    {
+        using var t = new TempDir();
+        var path = t.File("DJI_0128.MP4");
+        using var hold = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+        var r = _lister.Enumerate(path, recurse: false, NoExclusions);
+        Assert.Empty(r.Entries);
+        Assert.Equal([(Path.GetFullPath(path), 267)], r.Errors.ToArray());
     }
 }

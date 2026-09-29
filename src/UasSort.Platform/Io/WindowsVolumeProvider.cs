@@ -12,9 +12,10 @@ public sealed class WindowsVolumeProvider : IVolumeProvider
             var type = drive.DriveType.ToString();
             var ready = drive.IsReady;
 #pragma warning restore RS0030
+            var probe = ProbesVolume(ready, type);
             var info = ready ? VolumeQuery.Information(root) : null;
             var space = ready ? VolumeQuery.Space(root) : null;
-            var bus = type is "Network" or "CDRom" or "NoRootDirectory" || !ready ? null : VolumeQuery.Bus(root);
+            var bus = probe ? VolumeQuery.Bus(root) : null;
             var busType = bus?.BusType ?? "Unknown";
             list.Add(new VolumeInfo(
                 Root: root,
@@ -27,8 +28,16 @@ public sealed class WindowsVolumeProvider : IVolumeProvider
                 FreeBytes: space?.Free ?? 0,
                 BusType: busType,
                 RemovableMedia: bus?.RemovableMedia ?? false,
-                IsSystemBootOrPaging: VolumeQuery.IsSystemBootOrPaging(root)));
+                IsSystemBootOrPaging: probe && VolumeQuery.IsSystemBootOrPaging(root)));
         }
         return list;
     }
+
+    /// <summary>
+    /// Whether the bus and system/boot/paging probes may touch this drive: never an unready drive (an empty card-reader
+    /// slot could raise "There is no disk in the drive") nor a Network/CDRom/NoRootDirectory one (SMB reconnect stalls).
+    /// A system, boot or paging volume is always a ready local drive, so skipping the rest loses nothing.
+    /// </summary>
+    internal static bool ProbesVolume(bool ready, string driveType)
+        => ready && driveType is not ("Network" or "CDRom" or "NoRootDirectory");
 }

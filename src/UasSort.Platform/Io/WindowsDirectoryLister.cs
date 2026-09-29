@@ -2,7 +2,12 @@ using System.IO.Enumeration;
 
 namespace UasSort.Platform.Io;
 
-/// <summary>Listing only (Ref §4.1, §5): explicit options, errors collected per directory, never opens a file.</summary>
+/// <summary>
+/// Listing only (Ref §4.1, §5): explicit options, errors collected per directory, never opens a file. Each directory's
+/// attributes are read before a directory handle is opened; a path that is not a directory is ERROR_DIRECTORY (267).
+/// Name-surrogate reparse directories (junctions, mount points, symbolic links) are returned but not entered; other
+/// reparse directories (OneDrive / cloud-file placeholder folders) are entered. The tag comes from the parent's listing.
+/// </summary>
 public sealed class WindowsDirectoryLister : IDirectoryLister
 {
     private static readonly EnumerationOptions Options = new()
@@ -20,19 +25,44 @@ public sealed class WindowsDirectoryLister : IDirectoryLister
         pending.Enqueue(fullRoot);
         while (pending.TryDequeue(out var directory))
         {
+            // Attributes first (Ref §4.3): the enumerator opens a handle, and that open succeeds on a file.
+            if (Kernel32.TryGetAttributes(directory, out var attrError) is not { } attrs) { errors.Add((directory, attrError)); continue; }
+            if ((attrs & Kernel32.FILE_ATTRIBUTE_DIRECTORY) == 0) { errors.Add((directory, Kernel32.ERROR_DIRECTORY)); continue; }
             using var one = new OneDirectory(directory, fullRoot, exclude);
             while (one.MoveNext())
             {
                 var e = one.Current;
                 entries.Add(e);
-                if (recurse && e.IsDirectory && (e.RawAttributes & (uint)FileAttributes.ReparsePoint) == 0) pending.Enqueue(e.FullPath);
+                if (recurse && e.IsDirectory && ShouldEnter(e, errors)) pending.Enqueue(e.FullPath);
             }
             foreach (var code in one.Errors) errors.Add((directory, code));
         }
         return new ListingResult(entries.ToImmutable(), errors.ToImmutable());
     }
 
-#pragma warning disable RS0030 // IO layer: the one lister; FileSystemEnumerator never opens files, only directory handles
+    /// <summary>
+    /// Descend into a directory unless it is a name-surrogate reparse point (IsReparseTagNameSurrogate: junction,
+    /// mount point, symlink) or a reparse point whose tag is unknown. Cloud placeholder tags (0x9000xxxA) are entered.
+    /// </summary>
+    internal static bool ShouldDescend(uint attributes, uint? reparseTag)
+        => (attributes & Kernel32.FILE_ATTRIBUTE_REPARSE_POINT) == 0
+           || reparseTag is { } tag && (tag & NameSurrogateBit) == 0;
+
+    /// <summary>The reparse tag of <paramref name="fullPath"/>, read without opening it; null when unreadable.</summary>
+    internal static uint? TryReadReparseTag(string fullPath, out int error)
+        => Kernel32.TryFindEntry(fullPath, out var data, out error) ? data.Reserved0 : null;
+
+    private const uint NameSurrogateBit = 0x20000000;
+
+    private static bool ShouldEnter(FsEntry e, ImmutableArray<(string Path, int Win32Error)>.Builder errors)
+    {
+        if ((e.RawAttributes & Kernel32.FILE_ATTRIBUTE_REPARSE_POINT) == 0) return true;
+        var tag = TryReadReparseTag(e.FullPath, out var error);
+        if (tag is null) errors.Add((e.FullPath, error));   // not entered, and the listing says it is incomplete
+        return ShouldDescend(e.RawAttributes, tag);
+    }
+
+#pragma warning disable RS0030 // IO layer: the one lister; FileSystemEnumerator opens only directory handles (attributes checked first)
     private sealed class OneDirectory(string directory, string root, HashSet<string> exclude)
         : FileSystemEnumerator<FsEntry>(directory, Options)
 #pragma warning restore RS0030

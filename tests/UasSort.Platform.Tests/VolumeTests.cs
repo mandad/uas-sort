@@ -42,6 +42,17 @@ public sealed class VolumeTests
     [InlineData(99u, "Unknown")]
     public void BusName_MapsStorageBusType(uint value, string expected) => Assert.Equal(expected, VolumeQuery.BusName(value));
 
+    [Theory]
+    [InlineData(false, "Removable", false)]
+    [InlineData(false, "Fixed", false)]
+    [InlineData(true, "Network", false)]
+    [InlineData(true, "CDRom", false)]
+    [InlineData(true, "NoRootDirectory", false)]
+    [InlineData(true, "Removable", true)]
+    [InlineData(true, "Fixed", true)]
+    public void ProbesVolume_SkipsUnreadyAndNonLocalDrives(bool ready, string driveType, bool expected)
+        => Assert.Equal(expected, WindowsVolumeProvider.ProbesVolume(ready, driveType));
+
     [Fact]
     public void MissingDrive_HasNoFacts()
     {
