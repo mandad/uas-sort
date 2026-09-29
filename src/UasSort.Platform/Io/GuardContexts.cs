@@ -20,4 +20,12 @@ public static class GuardContexts
                SystemVolumeRoot: KnownFolders.SystemVolumeRoot(),
                CardIsVerifiedCardVolume: false,
                Cleanup: null);
+
+    /// <summary>For Platform's own stores: the store folder is the only place the policy allows (rule 5).</summary>
+    public static GuardContext ForAppData(string appDataDir, string machine, IPathFacts facts)
+    {
+        var root = facts.Canonical(appDataDir);
+        var noLibrary = Path.Join(root, ".no-library");     // never created; keeps rules 3–4 away from the store
+        return new(noLibrary, noLibrary, [], null, root, machine, None, None, None, KnownFolders.SystemVolumeRoot(), false, null);
+    }
 }
