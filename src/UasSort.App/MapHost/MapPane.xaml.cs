@@ -5,6 +5,8 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
+using Windows.Foundation;
+using Windows.Networking.Connectivity;
 
 namespace UasSort.App.MapHost;
 
@@ -73,6 +75,7 @@ public sealed partial class MapPane : UserControl
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("type", out var t)) type = t.GetString();
+            RaiseUiEvents(type, doc.RootElement.Clone());
             if (type == "ready" && doc.RootElement.TryGetProperty("webgl2", out var w)) webgl2 = w.ValueKind == JsonValueKind.True;
         }
         catch (JsonException) { _services?.Platform.Log.Warn("map: unparseable message " + json); }
@@ -130,14 +133,88 @@ public sealed partial class MapPane : UserControl
 
     private void OnOpenInBrowser(object sender, RoutedEventArgs e)
     {
-        var uri = OpenInBrowserUri?.Invoke() ?? new Uri("https://www.openstreetmap.org/");
+        var uri = OpenInBrowserUri?.Invoke() ?? OsmUri(null);
         _services?.Platform.Shell.OpenHttps(uri);
     }
 
     public void Close()
     {
+        Detach();
+        if (_networkHooked)
+        {
+            NetworkInformation.NetworkStatusChanged -= OnNetworkStatusChanged;
+            _networkHooked = false;
+        }
         _readyTimer?.Stop();
         MapView.Close();
+    }
+
+    private MapBridge? _bridge;
+    private bool _networkHooked;
+
+    /// <summary>The raw contextMenu message as a point in this pane (CSS px = DIPs at WebView2 zoom 1; zoom control is off).
+    /// The Review page shows its menu from ReviewVm.MapContextMenuRequested; this event serves hosts without a ReviewVm.</summary>
+    public event Action<IReadOnlyList<string>, Point>? ContextMenuRequested;
+
+    /// <summary>Ref §9.6: after a map click (click or clickEmpty) the host moves focus back to the clip list (UNVERIFIED with WebView2 focus).</summary>
+    public event Action? FocusReturnRequested;
+
+    /// <summary>Connectivity changed; the owner re-sends MapProjection.Init with the new online flag (Ref §9.6 offline).</summary>
+    public event Action<bool>? OnlineChanged;
+
+    public string ThemeName => ActualTheme == ElementTheme.Dark ? "dark" : "light";
+
+    public static bool IsOnline() =>
+        NetworkInformation.GetInternetConnectionProfile()?.GetNetworkConnectivityLevel() == NetworkConnectivityLevel.InternetAccess;
+
+    /// <summary>Feeds every map→host message to this bridge (MapBridge.Dispatch parses it and raises Received).</summary>
+    public void Attach(MapBridge bridge)
+    {
+        Detach();
+        _bridge = bridge;
+        MessageReceived += bridge.Dispatch;
+        ActualThemeChanged += OnThemeChanged;
+        if (!_networkHooked)
+        {
+            NetworkInformation.NetworkStatusChanged += OnNetworkStatusChanged;
+            _networkHooked = true;
+        }
+    }
+
+    public void Detach()
+    {
+        if (_bridge is not { } b) return;
+        MessageReceived -= b.Dispatch;
+        ActualThemeChanged -= OnThemeChanged;
+        _bridge = null;
+    }
+
+    /// <summary>The "Open in browser" address for a centre point (OpenStreetMap at zoom 12; world view without one).</summary>
+    public static Uri OsmUri(GeoPoint? center) => center is { } c
+        ? new Uri(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                                $"https://www.openstreetmap.org/?mlat={c.Lat:F5}&mlon={c.Lon:F5}#map=12/{c.Lat:F5}/{c.Lon:F5}"))
+        : new Uri("https://www.openstreetmap.org/");
+
+    private void OnThemeChanged(FrameworkElement sender, object args)
+    {
+        if (MapView.CoreWebView2 is { } core)
+            core.Profile.PreferredColorScheme = ThemeName == "dark" ? CoreWebView2PreferredColorScheme.Dark : CoreWebView2PreferredColorScheme.Light;
+        _bridge?.Send(new MapSetTheme(ThemeName));
+    }
+
+    private void OnNetworkStatusChanged(object sender) =>
+        DispatcherQueue.TryEnqueue(() => OnlineChanged?.Invoke(IsOnline()));
+
+    /// <summary>UI events for the click and contextMenu messages (called from OnWebMessageReceived, on the UI thread).</summary>
+    private void RaiseUiEvents(string? type, JsonElement root)
+    {
+        if (type is "click" or "clickEmpty") FocusReturnRequested?.Invoke();
+        if (type == "contextMenu" && root.TryGetProperty("itemIds", out var ids) && root.TryGetProperty("x", out var x)
+            && root.TryGetProperty("y", out var y))
+        {
+            var list = ids.EnumerateArray().Select(i => i.GetString() ?? "").ToList();
+            ContextMenuRequested?.Invoke(list, new Point(x.GetDouble(), y.GetDouble()));
+        }
     }
 }
 

@@ -17,6 +17,7 @@ internal static partial class SelfTestChecks
         ("page.settings", PageSettings),
         ("page.card", PageCard),
         ("map.mime", MapMime), ("map.ready", MapReady),
+        ("map.draw", MapDraw),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)
