@@ -280,7 +280,7 @@ public sealed partial class Planner : IPlanDeriver
                 issues.Add(new Issue(IssueSeverity.Warning, IssueCode.PinMembershipChanged,
                     $"{ChoiceLabel(rt.Choice)} chosen for {rt.PinnedMembers.Length} clips; group now has {memberIds.Length}", anchor,
                     [new QuickFix("Keep", [rt with { PinnedMembers = memberIds }]),
-                     new QuickFix("Reset to Auto", [new Retarget(anchor, new AutoTarget(), false, [])])], true));
+                     new QuickFix("Reset to Auto", [new Retarget(anchor, new AutoTarget(), false, memberIds)])], true));
         }
         if (rn is not null)
         {
@@ -293,7 +293,7 @@ public sealed partial class Planner : IPlanDeriver
                 issues.Add(new Issue(IssueSeverity.Warning, IssueCode.PinMembershipChanged,
                     $"'{rn.Description}' chosen for {rn.PinnedMembers.Length} clips; group now has {memberIds.Length}", anchor,
                     [new QuickFix("Keep", [rn with { PinnedMembers = memberIds }]),
-                     new QuickFix("Reset to Auto", [new Rename(anchor, null, [])])], true));
+                     new QuickFix("Reset to Auto", [new Rename(anchor, null, memberIds)])], true));
         }
 
         var foldable = target is AlreadyImported

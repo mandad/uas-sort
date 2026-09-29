@@ -94,6 +94,43 @@ public sealed class PlannerDeriveTests
         Assert.IsType<AutoTarget>(Assert.IsType<Retarget>(Assert.Single(w.QuickFixes[1].Edits)).Choice);
     }
 
+    [Fact] // [Reset to Auto] clears a pin whose group gained an earlier clip (new anchor outside the old pin set)
+    public void RetargetPin_ResetToAuto_AfterGroupGainsEarlierClips_ReturnsToAuto()
+    {
+        var b = new PlanScenario().Card(C117, C118, A1, A2).Prepare();
+        var pin = new Retarget(A1.Id(), new SkipTarget(), false, [A1.Id(), A2.Id()]);
+        var auto = PlanScenario.Derive(b, new Tuning(50, 1));
+        var grown = PlanScenario.Derive(b, new Tuning(50, 1), [pin]);
+        var g = Assert.Single(grown.Groups);
+        Assert.Equal(C117.Id(), g.Id.Anchor);
+        Assert.IsType<SkipGroup>(g.Target);
+        var w = Assert.Single(Of(grown, IssueCode.PinMembershipChanged));
+
+        var reset = PlanScenario.Derive(b, new Tuning(50, 1), [pin, .. w.QuickFixes[1].Edits]);
+        Assert.Equal(auto.Groups[0].Target, reset.Groups[0].Target);
+        Assert.Null(reset.Groups[0].TargetPin);
+        Assert.Empty(Of(reset, IssueCode.PinMembershipChanged));
+    }
+
+    [Fact] // [Reset to Auto] clears a name pin whose group gained an earlier clip
+    public void RenamePin_ResetToAuto_AfterGroupGainsEarlierClips_ReturnsToAuto()
+    {
+        var b = new PlanScenario().Card(C117, C118, A1, A2).Prepare();
+        var pin = new Rename(A1.Id(), "Anvil Mountain", [A1.Id(), A2.Id()]);
+        var auto = PlanScenario.Derive(b, new Tuning(50, 1));
+        var grown = PlanScenario.Derive(b, new Tuning(50, 1), [pin]);
+        var g = Assert.Single(grown.Groups);
+        Assert.Equal(C117.Id(), g.Id.Anchor);
+        Assert.Equal("Anvil Mountain", g.Description);
+        var w = Assert.Single(Of(grown, IssueCode.PinMembershipChanged));
+
+        var reset = PlanScenario.Derive(b, new Tuning(50, 1), [pin, .. w.QuickFixes[1].Edits]);
+        Assert.Equal((auto.Groups[0].Target, auto.Groups[0].Description, auto.Groups[0].DescSource),
+                     (reset.Groups[0].Target, reset.Groups[0].Description, reset.Groups[0].DescSource));
+        Assert.Null(reset.Groups[0].NamePin);
+        Assert.Empty(Of(reset, IssueCode.PinMembershipChanged));
+    }
+
     [Fact] // two pins after a merge → Blocking [Use first]/[Use second]
     public void TwoRenamesAfterMerge_AreConflictingPins()
     {
