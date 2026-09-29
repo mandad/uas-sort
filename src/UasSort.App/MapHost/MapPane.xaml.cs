@@ -36,19 +36,44 @@ public sealed partial class MapPane : UserControl
     public event Action<string>? MessageReceived;
     public event Action? Ready;
 
-    public Task InitializeAsync(AppServices services) => _init ??= InitCoreAsync(services);
+    /// <summary>Every pane whose WebView2 was started and not yet closed (UI thread only). The window's Closed and the selftest's
+    /// exit close them all, including the cached Review page's pane that is not in the visual tree (F19).</summary>
+    private static readonly List<MapPane> Live = [];
+
+    /// <summary>Starts the map in the WebView2 user-data folder <see cref="AppServices.WebView2DataDir"/> (always explicit and writable:
+    /// %LOCALAPPDATA%\uas-sort\WebView2, or the selftest sandbox's).</summary>
+    public Task InitializeAsync(AppServices services) => _init ??= InitCoreAsync(services, CreateEnvironmentAsync, StartTimeout);
+
+    /// <summary>Selftest seam (F15): the environment factory and start budget are injected, so a start-up failure or hang is
+    /// simulated without starting any Edge process (never a real bad user-data folder, which makes Edge show its own dialog).</summary>
+    internal Task InitializeAsync(AppServices services, Func<string, Task<CoreWebView2Environment>> createEnvironment, TimeSpan startTimeout)
+        => _init ??= InitCoreAsync(services, createEnvironment, startTimeout);
+
+    private static async Task<CoreWebView2Environment> CreateEnvironmentAsync(string userDataFolder)
+        => await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, new CoreWebView2EnvironmentOptions());
+
+    /// <summary>The browser process IDs of every live pane (the selftest waits for them before deleting its sandbox).</summary>
+    internal static uint[] LiveBrowserProcessIds()
+        => [.. Live.Select(p => p.Core?.BrowserProcessId).OfType<uint>().Distinct()];
+
+    /// <summary>Closes every live pane's WebView2 (window close, selftest exit), so no browser process outlives its host.</summary>
+    public static void CloseAll()
+    {
+        foreach (var pane in Live.ToList()) pane.Close();
+    }
 
     /// <summary>Ref §9.6 / §12 "Map fails → fallback panel… Everything else works": any start-up failure (runtime missing or broken,
     /// user-data folder unusable, blocked by policy) is logged and shows the Map unavailable panel; the task completes normally, so
     /// the Review page (which awaits it on every entry) carries on and never re-raises it.</summary>
-    private async Task InitCoreAsync(AppServices services)
+    private async Task InitCoreAsync(AppServices services, Func<string, Task<CoreWebView2Environment>> createEnvironment, TimeSpan startTimeout)
     {
         _services = services;
-        StartReadyTimer(StartTimeout);
+        Live.Add(this);
+        StartReadyTimer(startTimeout);
 #pragma warning disable CA1031 // the map is optional: every start-up failure becomes the fallback panel, never the crash dialog
         try
         {
-            await StartCoreAsync(services);
+            await StartCoreAsync(services, createEnvironment);
         }
         catch (Exception ex)
         {
@@ -59,9 +84,9 @@ public sealed partial class MapPane : UserControl
 #pragma warning restore CA1031
     }
 
-    private async Task StartCoreAsync(AppServices services)
+    private async Task StartCoreAsync(AppServices services, Func<string, Task<CoreWebView2Environment>> createEnvironment)
     {
-        _env = await CoreWebView2Environment.CreateWithOptionsAsync(null, services.WebView2DataDir, new CoreWebView2EnvironmentOptions());
+        _env = await createEnvironment(services.WebView2DataDir);
         await MapView.EnsureCoreWebView2Async(_env);
         var core = MapView.CoreWebView2;
         var s = core.Settings;
@@ -194,6 +219,7 @@ public sealed partial class MapPane : UserControl
             _networkHooked = false;
         }
         _readyTimer?.Stop();
+        Live.Remove(this);
         MapView.Close();
     }
 

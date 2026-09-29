@@ -40,9 +40,25 @@ public sealed partial class SelfTestSandbox : IDisposable
 #pragma warning restore RS0030
     }
 
-    /// <summary>Deletes the sandbox; retries while WebView2's child processes release their files (up to 3 s).</summary>
+    /// <summary>How long this run's WebView2 processes get to exit before only they are terminated (F19).</summary>
+    public static readonly TimeSpan BrowserExitWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>Why the last TryDelete left the sandbox in place (null after a clean delete).</summary>
+    public string? CleanupProblem { get; private set; }
+
+    /// <summary>Deletes the sandbox only once no msedgewebview2.exe of this run (its --user-data-dir under Root) is alive: they get
+    /// <see cref="BrowserExitWait"/> to exit, then only those are terminated. A survivor leaves the sandbox in place (never pulled
+    /// from under a live Edge process, which shows Edge's "can't read and write to its data directory" dialog); so does a folder
+    /// that still can't be deleted after 3 s of retries. <see cref="CleanupProblem"/> then says why.</summary>
     public bool TryDelete()
     {
+        CleanupProblem = null;
+        var alive = WebView2Processes.Stop(Root, BrowserExitWait);
+        if (alive > 0)
+        {
+            CleanupProblem = $"{alive} WebView2 process(es) using {WebView2Folder} are still running; the sandbox {Root} was left in place";
+            return false;
+        }
         for (var attempt = 0; attempt < 10; attempt++)
         {
             if (!Directory.Exists(Root))
@@ -67,7 +83,9 @@ public sealed partial class SelfTestSandbox : IDisposable
             }
         }
 
-        return !Directory.Exists(Root);
+        if (!Directory.Exists(Root)) return true;
+        CleanupProblem = $"the sandbox {Root} couldn't be deleted (a file in it is still in use); it was left in place";
+        return false;
     }
 
     public void Dispose() => TryDelete();

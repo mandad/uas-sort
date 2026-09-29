@@ -33,7 +33,11 @@ public sealed partial class MainWindow : Window
         CompositionTarget.Rendering += OnFirstRendering;
         RootFrame.Loaded += (_, _) => { ApplyMinimumSize(); RootFrame.XamlRoot.Changed += (_, _) => ApplyMinimumSize(); };
         RootFrame.Navigate(typeof(ShellPage), this);
-        Closed += (_, _) => Services.Sandbox?.Dispose();
+        Closed += (_, _) =>
+        {
+            MapPane.CloseAll();                                          // F19: no WebView2 browser process outlives the window
+            Services.Sandbox?.Dispose();
+        };
     }
 
     public AppServices Services { get; }

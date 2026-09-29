@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Web.WebView2.Core;
 
 namespace UasSort.App.SelfTest;
 
@@ -39,6 +40,7 @@ internal static partial class SelfTestChecks
         RemoveStandaloneMapPane(ctx);
         if (ctx.Window.Shell is { } shell)
             foreach (var pane in VisualTree.FindAll<MapPane>(shell)) pane.Close();
+        MapPane.CloseAll();                                              // the cached Review page's pane is not in the tree (F19)
     }
 
     private static async Task<SelfTestCheck> MapMime(SelfTestContext ctx)
@@ -98,9 +100,22 @@ internal static partial class SelfTestChecks
         finally { RemoveStandaloneMapPane(ctx); }
     }
 
-    /// <summary>F15 (Ref §9.6 Degradation, §12 "Map fails → fallback panel… Everything else works"): a WebView2 that can't start
-    /// (here its user-data folder is a file, the running exe) shows the Map unavailable panel; nothing reaches the unhandled path.</summary>
+    /// <summary>F15 (Ref §9.6 Degradation, §12 "Map fails → fallback panel… Everything else works"): a WebView2 environment that
+    /// can't be created, or whose creation hangs, shows the Map unavailable panel and nothing reaches the unhandled path. The failure
+    /// is injected through MapPane's factory seam, so no Edge process starts (a real bad user-data folder makes Edge show its own
+    /// "can't read and write to its data directory" dialog on the desktop).</summary>
     private static async Task<SelfTestCheck> MapUnavailable(SelfTestContext ctx)
+    {
+        var failed = await UnavailableAfterAsync(ctx, _ => Task.FromException<CoreWebView2Environment>(
+            new UnauthorizedAccessException("Access to the WebView2 user-data folder is denied (selftest)")), MapPane.StartTimeout);
+        if (failed.Error is { } e1) return SelfTestCheck.Fail("map.unavailable", "failing start: " + e1);
+        var hung = await UnavailableAfterAsync(ctx, _ => new TaskCompletionSource<CoreWebView2Environment>().Task, TimeSpan.FromSeconds(1));
+        if (hung.Error is { } e2) return SelfTestCheck.Fail("map.unavailable", "hanging start: " + e2);
+        return SelfTestCheck.Pass("map.unavailable", $"failing start → \"{failed.Text}\"; hanging start → \"{hung.Text}\"");
+    }
+
+    private static async Task<(string? Text, string? Error)> UnavailableAfterAsync(SelfTestContext ctx,
+        Func<string, Task<CoreWebView2Environment>> factory, TimeSpan startTimeout)
     {
         var pane = new MapPane { Width = 320, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
         var root = (Grid)ctx.Window.Shell!.Content;
@@ -108,18 +123,17 @@ internal static partial class SelfTestChecks
         root.Children.Add(pane);
         try
         {
-            var notAFolder = Environment.ProcessPath ?? throw new InvalidOperationException("no process path");
-            var init = pane.InitializeAsync(ctx.Services with { WebView2DataDir = notAFolder });   // a hang ends in the panel too
-            bool shown = await WaitUntilAsync(() => pane.IsUnavailable, MapPane.StartTimeout + TimeSpan.FromSeconds(3));
-            if (init.IsFaulted) return SelfTestCheck.Fail("map.unavailable", "InitializeAsync faulted: " + init.Exception!.GetBaseException().Message);
-            return shown && !pane.IsReady
-                ? SelfTestCheck.Pass("map.unavailable", "WebView2 start-up failure shows the Map unavailable panel: " + pane.UnavailableText)
-                : SelfTestCheck.Fail("map.unavailable", $"unavailable={pane.IsUnavailable}, ready={pane.IsReady}");
+            var init = pane.InitializeAsync(ctx.Services, factory, startTimeout);
+            bool shown = await WaitUntilAsync(() => pane.IsUnavailable, startTimeout + TimeSpan.FromSeconds(3));
+            if (init.IsFaulted) return (null, "InitializeAsync faulted: " + init.Exception!.GetBaseException().Message);
+            if (!shown || pane.IsReady) return (null, $"unavailable={pane.IsUnavailable}, ready={pane.IsReady}");
+            if (pane.Core is not null) return (null, "a WebView2 was created");
+            return (pane.UnavailableText, null);
         }
         finally
         {
-            root.Children.Remove(pane);
             pane.Close();
+            root.Children.Remove(pane);
         }
     }
 

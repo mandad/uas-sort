@@ -84,7 +84,9 @@ internal static class SelfTestRunner
         {
             List<MapPane> panes = ctx.Window.Shell is { } shell ? [.. VisualTree.FindAll<MapPane>(shell)] : [];
             if (ctx.Shared.TryGetValue("mapPane", out var standalone)) panes.Add((MapPane)standalone);
-            foreach (var pid in panes.Select(p => p.Core?.BrowserProcessId).OfType<uint>().Distinct())
+            // every live pane, also the cached Review page's that is not in the visual tree now (F19)
+            var pids = panes.Select(p => p.Core?.BrowserProcessId).OfType<uint>().Concat(MapPane.LiveBrowserProcessIds()).Distinct();
+            foreach (var pid in pids)
             {
                 try { browsers.Add(Process.GetProcessById((int)pid)); }
                 catch (ArgumentException) { }                             // already exited
@@ -130,12 +132,17 @@ internal static class SelfTestRunner
     private static void Finish(SelfTestContext ctx, List<SelfTestCheck> checks)
     {
         if (Interlocked.Exchange(ref _finished, 1) != 0) return;         // the watchdog and the normal end never both write
+        // F19: the sandbox (with the WebView2 user-data folder) goes before the result is written, only once no msedgewebview2.exe
+        // of this run is alive; the check records that nothing was left behind (never a folder pulled from under Edge).
+        if (ctx.Services.Sandbox is { } sandbox)
+            checks.Add(sandbox.TryDelete()
+                ? SelfTestCheck.Pass("sandbox.cleanup", "no WebView2 process of this run left; sandbox deleted")
+                : SelfTestCheck.Fail("sandbox.cleanup", sandbox.CleanupProblem ?? "the sandbox was left in place"));
         bool ok = checks.Count > 0 && checks.TrueForAll(c => c.Status != "fail");
         var json = JsonSerializer.SerializeToUtf8Bytes(new SelfTestResult(ok, Math.Round(ctx.FirstFrameMs), checks.ToArray()),
                                                        SelfTestJsonContext.Default.SelfTestResult);
         try { SelfTestSandbox.WriteResult(ctx.Options.ResultPath, json); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { ok = false; }
-        ctx.Services.Sandbox?.Dispose();
         Environment.Exit(ok ? 0 : 1);
     }
 }
