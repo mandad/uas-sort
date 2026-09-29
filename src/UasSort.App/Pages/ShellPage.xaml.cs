@@ -19,6 +19,7 @@ public sealed partial class ShellPage : Page
         [Stage.Preflight] = typeof(PreflightPage),
         [Stage.Copy] = typeof(CopyPage),
         [Stage.Verdict] = typeof(VerdictPage),
+        [Stage.Cleanup] = typeof(CleanupPage),
     };
 
     private MainWindow _window = null!;

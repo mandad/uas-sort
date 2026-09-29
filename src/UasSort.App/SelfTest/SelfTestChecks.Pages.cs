@@ -56,6 +56,7 @@ internal static partial class SelfTestChecks
     [
         () => new SetupPage(), () => new CardPage(), () => new ScanPage(), () => new SettingsPage(),
         () => new PreflightPage(), () => new CopyPage(), () => new VerdictPage(),
+        () => new CleanupPage(),
     ];
 
     private static Task<SelfTestCheck> PagesConstruct(SelfTestContext ctx)
@@ -67,5 +68,18 @@ internal static partial class SelfTestChecks
             built.Add(page.GetType().Name);
         }
         return Task.FromResult(SelfTestCheck.Pass("pages.construct", "loaded " + string.Join(", ", built)));
+    }
+
+    /// <summary>Ref §10.6: the selftest card came from Browse to folder, so [Clean up card…] must be disabled with that reason.</summary>
+    private static async Task<SelfTestCheck> CleanupEntry(SelfTestContext ctx)
+    {
+        await ReviewPageAsync(ctx);
+        var shell = ctx.Services.Shell;
+        const string reason = "Cleanup works only on a detected card. A browsed folder could be a backup copy.";
+        var button = VisualTree.FindDescendant<Button>(ctx.Window.Shell!, b => b.Name == "CleanUpButton");
+        bool ok = !shell.CleanupEnabled && shell.CleanupTooltip == reason && button is { IsEnabled: false }
+                  && (ToolTipService.GetToolTip(button) as string) == reason;
+        return ok ? SelfTestCheck.Pass("cleanup.entry", "title-bar [Clean up card…] disabled: " + reason)
+                  : SelfTestCheck.Fail("cleanup.entry", $"enabled {shell.CleanupEnabled}, tooltip '{shell.CleanupTooltip}', button enabled {button?.IsEnabled}");
     }
 }
