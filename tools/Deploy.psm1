@@ -112,3 +112,93 @@ function Test-SelftestGate {
         Reasons            = $reasons.ToArray()
     }
 }
+
+function Invoke-SelftestProcess {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string[]]$ArgumentList,
+        [Parameter(Mandatory)][int]$TimeoutSec
+    )
+    $psi = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
+    foreach ($a in $ArgumentList) { $psi.ArgumentList.Add($a) }   # proper per-argument quoting
+    $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = Split-Path -Parent $FilePath
+    $p = [System.Diagnostics.Process]::Start($psi)
+    try {
+        $id = $p.Id
+        if ($p.WaitForExit($TimeoutSec * 1000)) {
+            $p.WaitForExit()
+            return [pscustomobject]@{ ExitCode = $p.ExitCode; TimedOut = $false; ProcessId = $id }
+        }
+        $p.Kill($true)   # the whole tree: the selftest's WebView2 processes too
+        $p.WaitForExit()
+        return [pscustomobject]@{ ExitCode = $null; TimedOut = $true; ProcessId = $id }
+    }
+    finally { $p.Dispose() }
+}
+
+function Get-UasSortRid {
+    [CmdletBinding()]
+    param()
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    if ($arch -eq [System.Runtime.InteropServices.Architecture]::X64) { return 'win-x64' }
+    throw "uas-sort is published for x64 only (user decision 2026-09-28); this machine is $arch"
+}
+
+function Get-PeMachine {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    $buf = [byte[]]::new(4096)
+    $fs = [System.IO.File]::OpenRead($Path)
+    try { $n = $fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+    if ($n -lt 64 -or $buf[0] -ne 0x4D -or $buf[1] -ne 0x5A) { throw "'$Path' is not a PE file (no MZ header)" }
+    $pe = [System.BitConverter]::ToInt32($buf, 0x3C)
+    if ($pe -lt 64 -or ($pe + 6) -gt $n -or $buf[$pe] -ne 0x50 -or $buf[$pe + 1] -ne 0x45 -or
+        $buf[$pe + 2] -ne 0 -or $buf[$pe + 3] -ne 0) {
+        throw "'$Path' is not a PE file (no PE signature)"
+    }
+    $machine = [int][System.BitConverter]::ToUInt16($buf, $pe + 4)
+    if ($machine -eq 0x8664) { return 'x64' }
+    if ($machine -eq 0x014C) { return 'x86' }
+    'unknown'
+}
+
+function Get-FolderStats {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    $files = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force)
+    $bytes = [long]0
+    foreach ($f in $files) { $bytes += $f.Length }
+    [pscustomobject]@{ Files = $files.Count; Bytes = $bytes; MB = [math]::Round($bytes / 1MB, 1) }
+}
+
+function Test-AotPublishOutput {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$PublishDir,
+        [Parameter(Mandatory)][ValidateSet('win-x64')][string]$Rid
+    )
+    $reasons = [System.Collections.Generic.List[string]]::new()
+    $sizeMB = 0.0
+    if (-not (Test-Path -LiteralPath $PublishDir -PathType Container)) {
+        $reasons.Add("the publish folder '$PublishDir' does not exist")
+    }
+    else {
+        $exe = Join-Path $PublishDir 'uas-sort.exe'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { $reasons.Add("uas-sort.exe missing in '$PublishDir'") }
+        else {
+            $want = 'x64'
+            $got = Get-PeMachine -Path $exe
+            if ($got -ne $want) { $reasons.Add("uas-sort.exe is $got, expected $want for $Rid") }
+        }
+        foreach ($m in @(Get-ChildItem -LiteralPath $PublishDir -Filter 'UasSort.*.dll' -File)) {
+            $reasons.Add("managed assembly $($m.Name) in the output: this is not a Native AOT publish")
+        }
+        if (@(Get-ChildItem -LiteralPath $PublishDir -Filter '*.pri' -File).Count -eq 0) {
+            $reasons.Add('no .pri resource file in the output (EnableMsixTooling must stay true, else startup fails with 0xC000027B)')
+        }
+        $sizeMB = (Get-FolderStats -Path $PublishDir).MB
+    }
+    [pscustomobject]@{ Ok = ($reasons.Count -eq 0); Reasons = $reasons.ToArray(); SizeMB = $sizeMB }
+}
