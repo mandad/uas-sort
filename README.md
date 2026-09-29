@@ -4,8 +4,8 @@ A small Windows desktop app that offloads a drone's SD card into an organised li
 
 Built for the DJI Air 3S workflow, but the rules are general enough for other DJI Fly-era drones.
 
-> **Status: design complete, implementation not started.**
-> The approved design spec lives in [`docs/superpowers/specs/`](docs/superpowers/specs/). The initial, feature-complete version is built in one pass (see [Build approach](#build-approach)).
+> **Status: initial version built; the first-real-card acceptance is next.**
+> The approved design spec lives in [`docs/superpowers/specs/`](docs/superpowers/specs/) and the implementation plan in [`docs/superpowers/plans/`](docs/superpowers/plans/). The initial, feature-complete version was built in one pass (see [Build approach](#build-approach)); the user's acceptance on a real card follows (dry run, rehearsal, real offload, card cleanup).
 
 ## What it does
 
