@@ -79,8 +79,9 @@
 
                 <TextBlock Text="Grouping" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
                 <ctk:SettingsCard Header="Default radius (miles)" Description="Clips farther apart than this start a new group">
-                    <NumberBox Value="{x:Bind Vm.RadiusMiles, Mode=TwoWay}" Minimum="5" Maximum="100" SmallChange="1"
-                               SpinButtonPlacementMode="Compact" Width="140" />
+                    <!-- OneWay + OnRadiusChanged: an emptied box (NaN) is ignored, like the gap box -->
+                    <NumberBox x:Name="RadiusBox" Value="{x:Bind Vm.RadiusMiles, Mode=OneWay}" Minimum="5" Maximum="100" SmallChange="1"
+                               SpinButtonPlacementMode="Compact" Width="140" ValueChanged="OnRadiusChanged" />
                 </ctk:SettingsCard>
                 <ctk:SettingsCard Header="Default day gap" Description="Days without flights that still keep one group">
                     <!-- GapDays is an int: shown through ToDouble, written back by OnGapChanged -->

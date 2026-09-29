@@ -224,7 +224,10 @@ bridge.addEventListener('message', async (ev) => {
   const m = ev.data;
   if (!m || m.v !== PROTOCOL) { post('error', { base: null, message: 'bad protocol version' }); return; }
   switch (m.type) {
-    case 'init':
+    case 'init':                                       // a new session (a new MapBridge: rescan, new card, or re-init)
+      data = { rev: 0, items: [], groups: [], jumps: [] }; // before the await: the next bridge's setData starts again at rev 1
+      selection = { groupId: null, itemIds: [] };
+      refreshSources();
       cfg = m.config; radiusMiles = m.radiusMiles; theme = m.theme; online = m.online;
       document.body.dataset.theme = theme;
       setBadge(online || m.base === 'none' ? '' : 'Offline: base map unavailable');

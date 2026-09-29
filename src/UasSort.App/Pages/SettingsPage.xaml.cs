@@ -44,6 +44,11 @@ public sealed partial class SettingsPage : Page
         if (await FolderPickerService.PickFolderAsync(_window, Vm.PhotoRoot) is { } path) Vm.ChangePhotoRoot(path);
     }
 
+    private void OnRadiusChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (Vm is not null && !double.IsNaN(args.NewValue)) Vm.RadiusMiles = args.NewValue;
+    }
+
     private void OnGapChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
         if (Vm is not null && !double.IsNaN(args.NewValue)) Vm.GapDays = (int)Math.Round(args.NewValue);

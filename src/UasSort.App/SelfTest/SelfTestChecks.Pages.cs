@@ -1,6 +1,8 @@
 // src/UasSort.App/SelfTest/SelfTestChecks.Pages.cs
 using CommunityToolkit.WinUI.Controls;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace UasSort.App.SelfTest;
 
@@ -30,11 +32,16 @@ internal static partial class SelfTestChecks
         var video = VisualTree.FindDescendant<SettingsCard>(page, c => (c.Header as string) == "Video folder");
         var rootShown = VisualTree.FindDescendant<TextBlock>(page, t => t.Text == ctx.Sandbox.VideoRoot) is not null;
         var about = VisualTree.FindDescendant<TextBlock>(page, t => t.Text.Contains("GeoNames", StringComparison.Ordinal)) is not null;
+        // Clearing the radius box makes its Value NaN: it must never reach the settings.
+        var radiusBefore = page.Vm.Current.RadiusMiles;
+        var radius = VisualTree.FindDescendant<NumberBox>(page, n => n.Name == "RadiusBox");
+        if (radius is not null) radius.Value = double.NaN;
+        bool nanIgnored = radius is not null && !double.IsNaN(page.Vm.RadiusMiles) && page.Vm.Current.RadiusMiles == radiusBefore;
         shell.CloseSettings();
         await WaitUntilAsync(() => shell.Stage == before, TimeSpan.FromSeconds(5));
-        return video is not null && rootShown && about
-            ? SelfTestCheck.Pass("page.settings", "Video folder card shows the sandbox root; About credits GeoNames")
-            : SelfTestCheck.Fail("page.settings", $"card={video is not null} root={rootShown} about={about}");
+        return video is not null && rootShown && about && nanIgnored
+            ? SelfTestCheck.Pass("page.settings", "Video folder card shows the sandbox root; About credits GeoNames; a cleared radius box is ignored")
+            : SelfTestCheck.Fail("page.settings", $"card={video is not null} root={rootShown} about={about} nanIgnored={nanIgnored} (vm {page.Vm.RadiusMiles}, saved {page.Vm.Current.RadiusMiles})");
     }
 
     private static async Task<SelfTestCheck> PageCard(SelfTestContext ctx)
@@ -97,5 +104,43 @@ internal static partial class SelfTestChecks
                   && (enabled ? watcher.Refreshes == r0 + 1 && watcher.Suppressed == s0 : watcher.Refreshes == r0 && watcher.Suppressed == s0 + 1);
         return ok ? SelfTestCheck.Pass("device.hook", $"2 notifications → {(enabled ? "1 refresh" : "suppressed")}")
                   : SelfTestCheck.Fail("device.hook", $"notifications {watcher.Notifications - n0}, refreshes {watcher.Refreshes - r0}, suppressed {watcher.Suppressed - s0}");
+    }
+
+    /// <summary>An undecided cleanup row for clip A of the synthetic card (Decision stays Undecided: Update is Review-internal).</summary>
+    public static CleanupRowVm SelfTestCleanupRow(Action<CleanupRowVm, RowDecision> set)
+    {
+        var t = new DateTime(2026, 7, 26, 3, 50, 0, DateTimeKind.Utc);
+        var candidate = new CleanupCandidate(new ItemId(SelfTestFixture.ClipA), [], 0, t, new DateOnly(2026, 7, 25), "America/Anchorage",
+            CleanupEligibility.NotInLibrary, AuditCategory.Unaccounted, "selftest row", null, null, null, ItemKind.Video, t.AddHours(-8),
+            NotInLibraryReason.New, null, null, [], null, false, []);
+        return new CleanupRowVm(candidate, set);
+    }
+
+    /// <summary>The Cleanup page's Keep/Delete ToggleButtons: a click whose command leaves the decision as it was (SetRow re-sets
+    /// the same decision) must not leave the button in the state the click flipped it to. Uses the page's own row template.</summary>
+    private static async Task<SelfTestCheck> CleanupToggleResync(SelfTestContext ctx)
+    {
+        await EnsureReviewAsync(ctx);                                   // the card files exist, so the row's thumbnail can load
+        var decisions = new List<RowDecision>();
+        var row = SelfTestCleanupRow((_, d) => decisions.Add(d));       // the decision never changes: Undecided stays
+        var owner = new CleanupPage();
+        var view = new ItemsView { Height = 200, Width = 600, ItemTemplate = owner.ReviewList.ItemTemplate, ItemsSource = new List<CleanupRowVm> { row } };
+        var popup = new Popup { XamlRoot = ctx.Window.Content.XamlRoot, Child = view, IsOpen = true };
+        try
+        {
+            ToggleButton? Find(string tag) => VisualTree.FindDescendant<ToggleButton>(view, b => (b.Tag as string) == tag);
+            if (!await WaitUntilAsync(() => Find("Delete") is not null && Find("Keep") is not null, TimeSpan.FromSeconds(5)))
+                return SelfTestCheck.Fail("cleanup.toggleResync", "row buttons not realised");
+            var delete = Find("Delete")!;
+            var keep = Find("Keep")!;
+            new ToggleButtonAutomationPeer(delete).Toggle();            // OnClick: flips IsChecked, raises Click, runs DeleteCommand
+            new ToggleButtonAutomationPeer(keep).Toggle();
+            await Task.Delay(100);
+            bool ok = decisions.SequenceEqual((RowDecision[])[RowDecision.Delete, RowDecision.Keep]) && row.Decision == RowDecision.Undecided
+                      && delete.IsChecked == false && keep.IsChecked == false;
+            return ok ? SelfTestCheck.Pass("cleanup.toggleResync", "clicks that left the row undecided left both buttons off")
+                      : SelfTestCheck.Fail("cleanup.toggleResync", $"commands [{string.Join(",", decisions)}], decision {row.Decision}, delete {delete.IsChecked}, keep {keep.IsChecked}");
+        }
+        finally { popup.IsOpen = false; }
     }
 }

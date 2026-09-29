@@ -28,8 +28,7 @@ public sealed partial class PhotosTab : UserControl
         SyncDay();
     }
 
-    public ItemContainer? ContainerFor(PhotoTileVm tile) =>
-        VisualTree.FindDescendant<ItemContainer>(Wall, c => ReferenceEquals(c.DataContext, tile));
+    public ItemContainer? ContainerFor(PhotoTileVm tile) => VisualTree.RealizedContainer(Wall, tile);
 
     public PhotoTileVm? FocusedTile() =>
         VisualTree.FindAncestor<ItemContainer>(FocusManager.GetFocusedElement(XamlRoot) as DependencyObject)?.DataContext as PhotoTileVm;
@@ -37,7 +36,7 @@ public sealed partial class PhotosTab : UserControl
     private void OnWallPreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
         e.Handled = HandleKey(e.Key, KeyRouting.Modifiers(), FocusManager.GetFocusedElement(XamlRoot));
 
-    /// <summary>Space on a photo tile toggles it through ReviewVm.HandleKey (ReviewVm.FocusedTile). A focused CheckBox keeps Space.</summary>
+    /// <summary>Space on a photo tile toggles it through ReviewVm.HandleKey (ReviewVm.FocusedTile). A focused button or CheckBox keeps Space.</summary>
     public bool HandleKey(VirtualKey key, KeyMods mods, object? focused)
     {
         if (_review is null || key != VirtualKey.Space || KeyRouting.IsCheckBox(focused)) return false;

@@ -135,7 +135,7 @@ public sealed partial class ShellVm : ObservableObject
         Go(Stage.Copy, copy);
         var result = await copy.RunAsync().ConfigureAwait(true);
         _lastResult = result;
-        ShowVerdict(review, result);
+        ShowVerdict(review, result, copy.ErrorText);
     }
 
     /// <summary>Remembers the splitter positions (Ref §9.2): Settings.Layout is saved at once through ShellDeps.SaveSettings.</summary>
@@ -213,7 +213,11 @@ public sealed partial class ShellVm : ObservableObject
         Source = null;
         CardChipText = null;
         var card = _deps.CreateCard();
-        card.CardChosen += s => _ = UseCardAsync(s);
+        // A stale Card VM (the stage moved on while a folder picker was open, or a newer Card VM replaced it) never starts a scan.
+        card.CardChosen += s =>
+        {
+            if (Stage == Stage.Card && ReferenceEquals(Card, card)) _ = UseCardAsync(s);
+        };
         Card = card;
         Go(Stage.Card, card);
         card.Refresh();
@@ -245,9 +249,11 @@ public sealed partial class ShellVm : ObservableObject
         return review;
     }
 
-    private void ShowVerdict(ReviewVm review, CommitResult? result)
+    /// <summary>stopText: why the Commit stopped before it finished (CopyVm.ErrorText); the Verdict page shows it at the top.</summary>
+    private void ShowVerdict(ReviewVm review, CommitResult? result, string? stopText = null)
     {
         var verdict = _deps.CreateVerdict(review, result);
+        verdict.StopText = stopText;
         Preflight?.Dispose();   // disposes the CommitSession: releases the offload lock and the thumbnail pause
         Preflight = null;
         verdict.DoneRequested += ShowCard;

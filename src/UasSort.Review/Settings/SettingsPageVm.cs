@@ -133,9 +133,14 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         ScheduleSave();
     }
 
-    public void Dispose() => StopSave();
+    /// <summary>Closing the page flushes a save still waiting for its 500 ms debounce, so an edit made just before closing is kept.</summary>
+    public void Dispose() => SaveNow();
 
-    partial void OnRadiusMilesChanged(double value) => Edit(s => s with { RadiusMiles = Math.Clamp(Math.Round(value), 5, 100) });
+    partial void OnRadiusMilesChanged(double value)
+    {
+        if (!double.IsFinite(value)) return;                        // an emptied NumberBox writes NaN: keep the last good radius
+        Edit(s => s with { RadiusMiles = Math.Clamp(Math.Round(value), 5, 100) });
+    }
     partial void OnGapDaysChanged(int value) => Edit(s => s with { GapDays = Math.Clamp(value, 0, 7) });
     partial void OnIsSiteLocalChanged(bool value) => Edit(s => s with { DroneClockMode = value ? StoredClockMode.SiteLocal : StoredClockMode.Zone });
     partial void OnClockZoneChanged(string value) => Edit(s => s with { DroneClockZone = value });
@@ -160,7 +165,8 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         _saveTimer = _time.CreateTimer(_ => _ui.Post(SaveNow), null, SaveDelay, Timeout.InfiniteTimeSpan);
     }
 
-    /// <summary>A save posted before StopSave (the video-root save of Ref §9.14 already wrote Current, or the page closed) is dropped.</summary>
+    /// <summary>Saves Current once when a save is pending (the debounce timer, or Dispose when the page closes). A save posted
+    /// before StopSave (the video-root save of Ref §9.14 already wrote Current) or already flushed by Dispose is dropped.</summary>
     private void SaveNow()
     {
         if (_saveTimer is null) return;

@@ -2,6 +2,7 @@
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Windows.System;
 using Windows.UI.Core;
 
@@ -15,7 +16,9 @@ public static class KeyRouting
                                               || VisualTree.FindAncestor<TextBox>(d) is not null
                                               || VisualTree.FindAncestor<NumberBox>(d) is not null));
 
-    public static bool IsCheckBox(object? focused) => focused is CheckBox;
+    /// <summary>A focused CheckBox or any other button (Split before, Split here, a tile's Undo) keeps Space for itself: the
+    /// list keys act only when the item container itself has focus (Ref §9.12). CheckBox is a ToggleButton, hence a ButtonBase.</summary>
+    public static bool IsCheckBox(object? focused) => focused is ButtonBase;
 
     public static bool IsInItemContainer(object? focused) =>
         focused is DependencyObject d && !IsTextInput(focused) && VisualTree.FindAncestor<ItemContainer>(d) is not null;

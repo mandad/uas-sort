@@ -3,10 +3,12 @@ using System.Text;
 using System.Text.Json;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
+using Popup = Microsoft.UI.Xaml.Controls.Primitives.Popup;   // the Primitives namespace would make Thumb ambiguous
 
 namespace UasSort.App.SelfTest;
 
@@ -253,10 +255,24 @@ internal static partial class SelfTestChecks
         bool status = VisualTree.FindDescendant<TextBlock>(c, t => t.Text == tile.StatusText && t.Text.Length > 0) is not null;
         bool dayRow = VisualTree.FindDescendant<TextBlock>(photos.DayList, t => t.Text == page.Vm.Photos.Days[0].DayText) is not null;
         bool layout = photos.Wall.Layout is LinedFlowLayout;
+        // A click the plan ignores (here: a read-only session) must not leave the include box showing a state the plan lacks.
+        var box = VisualTree.FindDescendant<CheckBox>(c, b => b.Name == "TileInclude");
+        bool snapBack = false;
+        if (box is not null)
+        {
+            page.Vm.IsReadOnly = true;
+            try
+            {
+                new CheckBoxAutomationPeer(box).Toggle();                   // OnClick: flips the box, then runs ToggleCommand
+                await Task.Delay(300);
+                snapBack = box.IsChecked == tile.IsIncluded;
+            }
+            finally { page.Vm.IsReadOnly = false; }
+        }
         page.Vm.SelectedTab = 0;
-        return thumb && status && dayRow && layout
-            ? SelfTestCheck.Pass("template.photoTile", $"day '{page.Vm.Photos.Days[0].DayText}', tile '{tile.StatusText}' on a LinedFlowLayout wall")
-            : SelfTestCheck.Fail("template.photoTile", $"thumb {thumb} status {status} day {dayRow} lined {layout}");
+        return thumb && status && dayRow && layout && snapBack
+            ? SelfTestCheck.Pass("template.photoTile", $"day '{page.Vm.Photos.Days[0].DayText}', tile '{tile.StatusText}' on a LinedFlowLayout wall; an ignored click snaps the box back")
+            : SelfTestCheck.Fail("template.photoTile", $"thumb {thumb} status {status} day {dayRow} lined {layout} snapBack {snapBack} (box {box?.IsChecked}, plan {tile.IsIncluded})");
     }
 
     private static async Task<SelfTestCheck> TemplateOtherTab(SelfTestContext ctx)
@@ -309,9 +325,29 @@ internal static partial class SelfTestChecks
         bool handled = list.HandleKey(VirtualKey.Space, KeyMods.None, FocusManager.GetFocusedElement(page.XamlRoot));
         bool toggled = await WaitUntilAsync(() => page.Vm.Videos.Clips.Count == 2 && page.Vm.Videos.Clips[1].IsIncluded != before[1], TimeSpan.FromSeconds(3));
         if (toggled) list.HandleKey(VirtualKey.Space, KeyMods.None, FocusManager.GetFocusedElement(page.XamlRoot));   // restore
-        bool ok = !t && !c && afterText.SequenceEqual(before) && handled && toggled;
-        return ok ? SelfTestCheck.Pass("keys.spaceInRenameBox", "space in the rename box changed nothing; space on a clip row toggled it")
-                  : SelfTestCheck.Fail("keys.spaceInRenameBox", $"timeline {t} list {c} unchanged {afterText.SequenceEqual(before)} rowHandled {handled} toggled {toggled}");
+        await WaitUntilAsync(() => page.Vm.Videos.Clips.Select(x => x.IsIncluded).SequenceEqual(before), TimeSpan.FromSeconds(3));
+
+        // Ctrl/Shift+Space are the list's own multi-select: row A stays the selection while row B has focus.
+        var selection = page.Vm.Videos.SelectedClipIds;
+        var rowA = page.Vm.Videos.Clips[0];
+        bool ctrl, shift, keptSelection, onButton, buttonLeftAlone;
+        try
+        {
+            list.SelectRows((ItemId[])[rowA.Id]);                  // explicit array: CsWinRT1032
+            var focusedB = list.ContainerFor(rowB);                    // row B's container has the keyboard focus
+            ctrl = list.HandleKey(VirtualKey.Space, KeyMods.Ctrl, focusedB);
+            shift = list.HandleKey(VirtualKey.Space, KeyMods.Shift, focusedB);
+            keptSelection = page.Vm.Videos.SelectedClipIds.SequenceEqual((ItemId[])[rowA.Id]);
+            // Space on a button inside a row (Split before) is the button's, never an Include toggle.
+            var split = VisualTree.FindDescendant<Button>(list.ContainerFor(rowB)!, b => b.Name == "SplitBeforeButton");
+            onButton = split is not null && list.HandleKey(VirtualKey.Space, KeyMods.None, split);
+            await Task.Delay(300);
+            buttonLeftAlone = split is not null && page.Vm.Videos.Clips.Select(x => x.IsIncluded).SequenceEqual(before);
+        }
+        finally { list.SelectRows(selection); }
+        bool ok = !t && !c && afterText.SequenceEqual(before) && handled && toggled && !ctrl && !shift && keptSelection && !onButton && buttonLeftAlone;
+        return ok ? SelfTestCheck.Pass("keys.spaceInRenameBox", "space in the rename box changed nothing; space on a clip row toggled it; Ctrl/Shift+Space kept the selection; space on Split before was the button's")
+                  : SelfTestCheck.Fail("keys.spaceInRenameBox", $"timeline {t} list {c} unchanged {afterText.SequenceEqual(before)} rowHandled {handled} toggled {toggled} ctrl {ctrl} shift {shift} keptSelection {keptSelection} onButton {onButton} buttonLeftAlone {buttonLeftAlone}");
     }
 
     private static async Task<SelfTestCheck> KeysAccelerators(SelfTestContext ctx)
@@ -330,5 +366,82 @@ internal static partial class SelfTestChecks
                   && !unmodifiedLetters && !undoInText && tab;
         return ok ? SelfTestCheck.Pass("keys.accelerators", $"{page.KeyboardAccelerators.Count} accelerators; Ctrl+Z left to the TextBox; Ctrl+2 → Photos")
                   : SelfTestCheck.Fail("keys.accelerators", $"actions [{string.Join(",", actions)}] unmodified {unmodifiedLetters} undoInText {undoInText} tab {tab}");
+    }
+
+    private static (int Rev, int Items) MapStats(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return (-1, -1);
+        using var doc = JsonDocument.Parse(json);
+        return (doc.RootElement.GetProperty("rev").GetInt32(), doc.RootElement.GetProperty("items").GetInt32());
+    }
+
+    /// <summary>A rescan hands the cached ReviewPage a new ReviewVm and a new MapBridge whose setData starts again at rev 1:
+    /// the map must show the new session's data, not keep the previous scan's (a higher rev) and drop the new one.</summary>
+    private static async Task<SelfTestCheck> ReviewMapNewSession(SelfTestContext ctx)
+    {
+        var page = await ReviewPageAsync(ctx);
+        if (!await WaitUntilAsync(() => page.Map.IsReady && page.Vm.Map is not null, TimeSpan.FromSeconds(15)))
+            return SelfTestCheck.Fail("review.map.newSession", "map not ready");
+        const string Stats = "JSON.stringify(window.__uas.stats())";
+        var first = page.Vm;
+        var bridgeA = first.Map!;
+        for (int i = 0; i < 4; i++)                                     // raise the old session's rev (throttle: 100 ms)
+        {
+            bridgeA.SendData(first.Plan);
+            await Task.Delay(150);
+        }
+        var a = MapStats(await PollEvaluateAsync(page.Map, Stats, s => MapStats(s).Rev == bridgeA.Rev, TimeSpan.FromSeconds(5)));
+        var shell = ctx.Services.Shell;
+        await shell.RescanAsync();                                      // F5: a new scan, a new ReviewVm on the cached page
+        if (!await WaitUntilAsync(() => CurrentPage<ReviewPage>(ctx) is { } p && p.Vm is { Map: not null } r && !ReferenceEquals(r, first),
+                                  TimeSpan.FromSeconds(15)))
+            return SelfTestCheck.Fail("review.map.newSession", $"rescan did not reach a new Review (stage {shell.Stage})");
+        page = CurrentPage<ReviewPage>(ctx)!;
+        var bridgeB = page.Vm.Map!;
+        var b = MapStats(await PollEvaluateAsync(page.Map, Stats, s => MapStats(s) is var m && m.Rev == bridgeB.Rev && m.Items == 3,
+                                                 TimeSpan.FromSeconds(8)));
+        bool ok = a.Rev >= 5 && b.Rev == bridgeB.Rev && b.Rev < a.Rev && b.Items == 3;
+        return ok ? SelfTestCheck.Pass("review.map.newSession", $"old session rev {a.Rev}; after the rescan the map shows the new session at rev {b.Rev} with {b.Items} items")
+                  : SelfTestCheck.Fail("review.map.newSession", $"old rev {a.Rev}; map rev {b.Rev} items {b.Items}; new bridge rev {bridgeB.Rev}");
+    }
+
+    /// <summary>ContainerFor (VisualTree.RealizedContainer) returns only realised containers. With an x:Bind template whose root
+    /// sets DataContext="{x:Bind}" (the Timeline, clip list, photo wall and cleanup rows) a recycled container stays a child of
+    /// the ItemsRepeater, off-screen, still holding its last item; it must not be returned for that item. Uses the Cleanup
+    /// page's row template, which needs no ReviewVm.</summary>
+    private static async Task<SelfTestCheck> TemplateRealizedOnly(SelfTestContext ctx)
+    {
+        await EnsureReviewAsync(ctx);                                   // the card files exist, so the rows' thumbnails can load
+        var items = Enumerable.Range(0, 120).Select(_ => SelfTestCleanupRow((_, _) => { })).ToList();
+        var owner = new CleanupPage();
+        var view = new ItemsView { Height = 300, Width = 600, ItemTemplate = owner.ReviewList.ItemTemplate, ItemsSource = items };
+        var popup = new Popup { XamlRoot = ctx.Window.Content.XamlRoot, Child = view, IsOpen = true };
+        try
+        {
+            if (!await WaitUntilAsync(() => VisualTree.RealizedContainer(view, items[0]) is not null, TimeSpan.FromSeconds(5)))
+                return SelfTestCheck.Fail("template.realizedOnly", "first row not realised");
+            view.StartBringItemIntoView(items.Count - 1, new BringIntoViewOptions());
+            await WaitUntilAsync(() => VisualTree.RealizedContainer(view, items[^1]) is not null, TimeSpan.FromSeconds(5));
+            view.Height = 60;                                           // fewer rows needed: the rest go to the recycle pool
+            view.StartBringItemIntoView(0, new BringIntoViewOptions());
+            await WaitUntilAsync(() => VisualTree.RealizedContainer(view, items[0]) is not null, TimeSpan.FromSeconds(5));
+            await Task.Delay(200);
+            var repeater = VisualTree.FindDescendant<ItemsRepeater>(view)!;
+            bool lastGone = VisualTree.RealizedContainer(view, items[^1]) is null;
+            // what the old depth-first DataContext walk returned: a pooled container still holding a scrolled-away row
+            int pooled = VisualTree.FindAll<ItemContainer>(view, c => c.DataContext is CleanupRowVm && repeater.GetElementIndex(c) < 0).Count;
+            int realised = 0;
+            bool indexesMatch = true;
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (VisualTree.RealizedContainer(view, items[i]) is not { } c) continue;
+                realised++;
+                indexesMatch &= repeater.GetElementIndex(c) == i;
+            }
+            bool ok = lastGone && indexesMatch && realised > 0 && realised < items.Count;
+            return ok ? SelfTestCheck.Pass("template.realizedOnly", $"{realised} realised containers, each at its row's index; {pooled} pooled containers still hold a row and are skipped")
+                      : SelfTestCheck.Fail("template.realizedOnly", $"lastGone {lastGone} indexesMatch {indexesMatch} realised {realised} pooled {pooled}");
+        }
+        finally { popup.IsOpen = false; }
     }
 }

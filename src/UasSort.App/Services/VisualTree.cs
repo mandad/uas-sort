@@ -1,5 +1,6 @@
 // src/UasSort.App/Services/VisualTree.cs
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
 namespace UasSort.App.Services;
@@ -33,6 +34,18 @@ public static class VisualTree
         }
         Walk(root);
         return list;
+    }
+
+    /// <summary>The realised ItemContainer that shows this item, or null. A recycled container stays a child of the ItemsView's
+    /// ItemsRepeater (arranged off-screen) and keeps its last DataContext, so only elements with an index count.</summary>
+    public static ItemContainer? RealizedContainer(ItemsView view, object item)
+    {
+        if (FindDescendant<ItemsRepeater>(view) is not { } repeater) return null;
+        int n = VisualTreeHelper.GetChildrenCount(repeater);
+        for (int i = 0; i < n; i++)
+            if (VisualTreeHelper.GetChild(repeater, i) is ItemContainer c && ReferenceEquals(c.DataContext, item) && repeater.GetElementIndex(c) >= 0)
+                return c;
+        return null;
     }
 
     public static T? FindAncestor<T>(DependencyObject? start) where T : DependencyObject

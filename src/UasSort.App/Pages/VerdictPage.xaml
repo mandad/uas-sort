@@ -20,6 +20,9 @@
                                    Style="{StaticResource SubtitleTextBlockStyle}" />
                     </StackPanel>
                 </Border>
+                <!-- Why the offload stopped before it finished (CopyVm.ErrorText, handed over as VerdictVm.StopText) -->
+                <InfoBar x:Name="StopBar" IsOpen="True" IsClosable="False" Severity="Error" Message="{x:Bind Vm.StopText, Mode=OneWay}"
+                         Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.StopText), Mode=OneWay}" />
                 <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{x:Bind Vm.SafeRemovalNote, Mode=OneWay}"
                          Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.SafeRemovalNote), Mode=OneWay}">
                     <InfoBar.Content>

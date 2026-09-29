@@ -22,8 +22,7 @@ public sealed partial class ClipListView : UserControl
         review.Videos.ClipSelectionChanged += SyncSelectionFromVm;   // map clicks (Ctrl adds) change the selection
     }
 
-    public ItemContainer? ContainerFor(ClipRowVm row) =>
-        VisualTree.FindDescendant<ItemContainer>(Items, c => ReferenceEquals(c.DataContext, row));
+    public ItemContainer? ContainerFor(ClipRowVm row) => VisualTree.RealizedContainer(Items, row);
 
     /// <summary>Selects these clips in the VM (which highlights their dots, Ref §9.6 Sync) and in the list.</summary>
     public void SelectRows(IReadOnlyList<ItemId> ids)
@@ -52,8 +51,9 @@ public sealed partial class ClipListView : UserControl
     private void OnItemsPreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
         e.Handled = HandleKey(e.Key, KeyRouting.Modifiers(), FocusManager.GetFocusedElement(XamlRoot));   // synchronous: Handled counts
 
-    /// <summary>Clip-list keys (Ref §9.12) through ReviewVm.HandleKey: Space toggles the selected clips (the focused row is
-    /// selected first), Ctrl+Shift+S splits before ReviewVm.FocusedClip. A focused CheckBox keeps Space; a text box keeps every key.</summary>
+    /// <summary>Clip-list keys (Ref §9.12) through ReviewVm.HandleKey: plain Space toggles the selected clips (the focused row is
+    /// selected first; Ctrl/Shift+Space are the list's own multi-select), Ctrl+Shift+S splits before ReviewVm.FocusedClip.
+    /// A focused button or CheckBox keeps its keys; a text box keeps every key.</summary>
     public bool HandleKey(VirtualKey key, KeyMods mods, object? focused)
     {
         if (_review is null || KeyRouting.IsCheckBox(focused)
@@ -62,7 +62,7 @@ public sealed partial class ClipListView : UserControl
         if (focus == KeyFocus.ClipItem && VisualTree.FindAncestor<ItemContainer>(focused as DependencyObject)?.DataContext is ClipRowVm row)
         {
             _review.FocusedClip = row;
-            if (k == ReviewKey.Space && !_review.Videos.SelectedClipIds.Contains(row.Id)) SelectRows((ItemId[])[row.Id]);   // explicit array: CsWinRT1032
+            if (k == ReviewKey.Space && mods == KeyMods.None && !_review.Videos.SelectedClipIds.Contains(row.Id)) SelectRows((ItemId[])[row.Id]);   // explicit array: CsWinRT1032
         }
         return _review.HandleKey(k, mods, focus);
     }

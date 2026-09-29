@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace UasSort.App.SelfTest;
 
@@ -37,9 +38,24 @@ internal static partial class SelfTestChecks
         ("template.otherTab", TemplateOtherTab),
         ("keys.spaceInRenameBox", KeysSpaceInRenameBox),
         ("keys.accelerators", KeysAccelerators),
+        ("review.map.newSession", ReviewMapNewSession),
+        ("template.realizedOnly", TemplateRealizedOnly),
+        ("cleanup.toggleResync", CleanupToggleResync),
         ("cleanup.entry", CleanupEntry),
         ("debug.hang", DebugHang),                                       // never in the default run
+        ("debug.throw", DebugThrow),                                     // never in the default run
     ];
+
+    /// <summary>An exception in a XAML event handler (here Loaded, raised by the framework) reaches App.UnhandledException,
+    /// which must end the run with an "unhandled" failed check, the result file and exit code 1.</summary>
+    private static async Task<SelfTestCheck> DebugThrow(SelfTestContext ctx)
+    {
+        var probe = new Border { Width = 1, Height = 1 };
+        probe.Loaded += (_, _) => throw new InvalidOperationException("debug.throw");
+        _ = new Popup { XamlRoot = ctx.Window.Content.XamlRoot, Child = probe, IsOpen = true };
+        await Task.Delay(Timeout.InfiniteTimeSpan);
+        return SelfTestCheck.Pass("debug.throw", "unreachable");
+    }
 
     private static async Task<SelfTestCheck> DebugHang(SelfTestContext ctx)
     {

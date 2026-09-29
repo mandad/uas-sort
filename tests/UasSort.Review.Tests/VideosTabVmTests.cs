@@ -68,6 +68,33 @@ public class VideosTabVmTests
     }
 
     [Fact]
+    public void VideosTab_MapContextMenu_OnAnotherGroupsDot_SelectsThatCardAndTheClickedClip()
+    {
+        var tab = new VideosTabVm(new RecordingActions());
+        var plan = Derive(TestPlans.CouncilAnvil(), r: 25);
+        tab.Update(new PlanIndex(plan));
+        var clipEvents = new List<IReadOnlyList<ItemId>>();
+        tab.ClipSelectionChanged += clipEvents.Add;
+        var c1 = TestPlans.Id(TestPlans.CouncilAnvil()[0].Name);
+        var c2 = TestPlans.Id(TestPlans.CouncilAnvil()[1].Name);
+        var a1 = TestPlans.Id(TestPlans.CouncilAnvil()[2].Name);
+        tab.SelectedEntry = tab.Timeline[0];                         // the Council card, both clips selected
+        tab.SetSelectedClips([c1, c2]);
+
+        var ids = tab.OnMapContextMenu(new MapContextMenu([a1.CardRelPath], 10, 10));   // right-click on an Anvil dot
+
+        Assert.Same(tab.Timeline[1], tab.SelectedEntry);
+        Assert.Equal<ItemId>([a1], tab.SelectedClipIds);
+        Assert.Equal<ItemId>([a1], ids);
+        Assert.Equal<ItemId>([a1], Assert.Single(clipEvents));       // the clip list mirrors it
+
+        var unknown = tab.OnMapContextMenu(new MapContextMenu(["DCIM/DJI_001/nowhere.MP4"], 10, 10));
+        Assert.Empty(unknown);                                       // no card holds it: no menu, selection unchanged
+        Assert.Same(tab.Timeline[1], tab.SelectedEntry);
+        Assert.Equal<ItemId>([a1], tab.SelectedClipIds);
+    }
+
+    [Fact]
     public void VideosTab_MapClick_SelectsGroupAndClip_CtrlAdds_GridSelectionHighlights()
     {
         var tab = new VideosTabVm(new RecordingActions());

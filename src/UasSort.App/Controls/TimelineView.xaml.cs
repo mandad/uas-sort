@@ -43,8 +43,7 @@ public sealed partial class TimelineView : UserControl
         return key == VirtualKey.F2 && _review.HandleKey(ReviewKey.F2, mods, KeyFocus.TimelineItem);
     }
 
-    public ItemContainer? ContainerFor(TimelineEntryVm vm) =>
-        VisualTree.FindDescendant<ItemContainer>(Items, c => ReferenceEquals(c.DataContext, vm));
+    public ItemContainer? ContainerFor(TimelineEntryVm vm) => VisualTree.RealizedContainer(Items, vm);
 
     private void OnSelectionChanged(ItemsView sender, ItemsViewSelectionChangedEventArgs args)
     {

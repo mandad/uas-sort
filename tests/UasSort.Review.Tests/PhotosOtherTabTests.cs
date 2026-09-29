@@ -15,14 +15,15 @@ public class PhotosOtherTabTests
                         null, null, ItemFlags.NoGps, newness);
     }
 
-    private static (PlanIndex Ix, List<Item> Photos) PhotoPlan(IReadOnlyList<PlanEdit>? edits = null)
-    {
-        List<Item> photos =
+    private static (PlanIndex Ix, List<Item> Photos) PhotoPlan(IReadOnlyList<PlanEdit>? edits = null) => DayPlan(
         [
             Photo("DJI_20260725200000_0101_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 0), new IsNew(NewReason.DayHasNewVideos, null)),
             Photo("DJI_20260725200100_0102_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 1), new ProbablyImported("videos from this day are already in the library")),
             Photo("DJI_20260725200200_0103_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 2), new Decided(DecisionKind.AssumedImported, TestPlans.Utc(2026, 10, 4, 18, 0), "PC1")),
-        ];
+        ], edits);
+
+    private static (PlanIndex Ix, List<Item> Photos) DayPlan(List<Item> photos, IReadOnlyList<PlanEdit>? edits = null)
+    {
         var day = new PhotoDay(Jul25, TestPlans.Anchorage, [.. photos.Select(p => p.Raw.Unit.Id)], "probably imported: videos from this day already in library");
         var b = TestPlans.Base(TestPlans.CouncilAnvil(), extraItems: photos, photoDays: [day]);
         var plan = new ScriptedDeriver().Derive(b, new Tuning(), edits ?? [], new SessionFlags(false), 1, TestContext.Current.CancellationToken);
@@ -53,6 +54,57 @@ public class PhotosOtherTabTests
         var tab = new PhotosTabVm(_ => Task.CompletedTask, _ => Task.CompletedTask);
         tab.Update(PhotoPlan([new SetDayIncluded(Jul25, true)]).Ix);
         Assert.True(tab.Days[0].IsIncluded);
+    }
+
+    /// <summary>A day of one new photo and one confirmed-by-you photo: only the new one can be included (Planner.Derive's
+    /// Includable), so with it included the box reads checked and the next click excludes the day.</summary>
+    [Fact]
+    public async Task PhotosTab_MixedDay_AllIncludableIncluded_IsChecked_AndTheToggleExcludes()
+    {
+        var applied = new List<PlanEdit>();
+        var tab = new PhotosTabVm(e => { applied.Add(e); return Task.CompletedTask; }, _ => Task.CompletedTask);
+        tab.Update(DayPlan(
+        [
+            Photo("DJI_20260725200000_0101_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 0), new IsNew(NewReason.DayHasNewVideos, null)),
+            Photo("DJI_20260725200200_0103_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 2), new Decided(DecisionKind.AssumedImported, TestPlans.Utc(2026, 10, 4, 18, 0), "PC1")),
+        ]).Ix);
+
+        var day = Assert.Single(tab.Days);
+        Assert.True(day.IsIncluded);
+        await day.ToggleCommand.ExecuteAsync(null);
+        Assert.Equal(new SetDayIncluded(Jul25, false), Assert.Single(applied));
+    }
+
+    [Fact]
+    public void PhotosTab_DayOfOnlyConfirmedPhotos_IsUnchecked()
+    {
+        var tab = new PhotosTabVm(_ => Task.CompletedTask, _ => Task.CompletedTask) { ShowImportedDays = true };
+        tab.Update(DayPlan(
+        [
+            Photo("DJI_20260725200200_0103_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 2), new Decided(DecisionKind.AssumedImported, TestPlans.Utc(2026, 10, 4, 18, 0), "PC1")),
+        ]).Ix);
+        Assert.False(Assert.Single(tab.Days).IsIncluded);
+    }
+
+    /// <summary>A click the plan ignores (a tile that can't be included, a read-only session) still re-raises IsIncluded, so the
+    /// box the click flipped goes back to the plan's value.</summary>
+    [Fact]
+    public async Task PhotosTab_ToggleThatChangesNothing_ReRaisesIsIncluded()
+    {
+        var tab = new PhotosTabVm(_ => Task.CompletedTask, _ => Task.CompletedTask);
+        tab.Update(PhotoPlan().Ix);
+        tab.SelectedDay = tab.Days[0];
+        var tile = Assert.Single(tab.Tiles, t => t.CanUndo);         // the confirmed-by-you photo: not includable
+        var day = tab.Days[0];
+        var raised = new List<string>();
+        tile.PropertyChanged += (_, e) => raised.Add("tile." + e.PropertyName);
+        day.PropertyChanged += (_, e) => raised.Add("day." + e.PropertyName);
+
+        await tile.ToggleCommand.ExecuteAsync(null);
+        await day.ToggleCommand.ExecuteAsync(null);
+
+        Assert.Equal<string>(["tile.IsIncluded", "day.IsIncluded"], raised);
+        Assert.False(tile.IsIncluded);
     }
 
     [Fact]

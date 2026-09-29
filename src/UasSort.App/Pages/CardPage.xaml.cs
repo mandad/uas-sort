@@ -35,6 +35,7 @@ public sealed partial class CardPage : Page
 
     private async void OnBrowse(object sender, RoutedEventArgs e)
     {
-        if (await FolderPickerService.PickFolderAsync(_window, null) is { } path) Vm.Browse(path);
+        // The picker is modal but the message loop runs: a device change can move the shell on (or replace the Card VM) meanwhile.
+        if (await FolderPickerService.PickFolderAsync(_window, null) is { } path && Shell.CanBrowse && ReferenceEquals(Shell.Card, Vm)) Vm.Browse(path);
     }
 }

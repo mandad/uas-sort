@@ -133,6 +133,25 @@ public sealed partial class VideosTabVm : ObservableObject
         if (SelectedGroupId() is { } g) MapSelectRequested?.Invoke(g, SelectedClipIds, false);
     }
 
+    /// <summary>The map's contextMenu (Ref §9.6): selects the card that holds the right-clicked dots (a dot of any group can be
+    /// clicked) and makes the clicked clips the selection, so the menu acts on them. Returns that selection; [] when no card
+    /// holds the dots (the selection is left alone and no menu opens).</summary>
+    public IReadOnlyList<ItemId> OnMapContextMenu(MapContextMenu m)
+    {
+        ArgumentNullException.ThrowIfNull(m);
+        var clicked = m.ItemIds.Select(s => new ItemId(s)).ToList();
+        var entry = clicked.Count > 0 ? Timeline.FirstOrDefault(e => Contains(e, [clicked[0]])) : null;
+        if (entry is null) return [];
+        if (!ReferenceEquals(entry, SelectedEntry)) SelectedEntry = entry;
+        var present = Clips.Select(c => c.Id).ToHashSet();
+        List<ItemId> hit = [.. clicked.Where(present.Contains)];
+        if (hit.Count == 0) return [];
+        SelectedClipIds = hit;
+        ClipSelectionChanged?.Invoke(SelectedClipIds);
+        if (SelectedGroupId() is { } g) MapSelectRequested?.Invoke(g, SelectedClipIds, false);
+        return SelectedClipIds;
+    }
+
     public void OnMapClickEmpty()
     {
         SelectedClipIds = [];

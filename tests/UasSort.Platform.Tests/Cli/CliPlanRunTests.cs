@@ -38,7 +38,9 @@ public sealed class CliPlanRunTests : IDisposable
         ["video"] = TreeSnapshot.Take(_video),
         ["photo"] = TreeSnapshot.Take(_photo),
         ["settings"] = TreeSnapshot.Take(_settingsDir),
-        ["appData"] = TreeSnapshot.Take(_appData),
+        // WebView2\ is the App's browser profile (App.xaml.cs, CompositionRoot): a running or lingering App or msedgewebview2
+        // writes there at any time, and the CLI never does. Every other path under %LOCALAPPDATA%\uas-sort stays strict.
+        ["appData"] = TreeSnapshot.Take(_appData, skipTopFolder: "WebView2"),
     };
 
     private static async Task<(int Code, string Out, string Err)> Run(string[] args)

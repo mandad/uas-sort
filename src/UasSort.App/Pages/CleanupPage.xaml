@@ -73,7 +73,8 @@
                     <ItemsView x:Name="ReviewList" x:FieldModifier="internal" SelectionMode="None" MaxHeight="520">
                         <ItemsView.ItemTemplate>
                             <DataTemplate x:DataType="rv:CleanupRowVm">
-                                <ItemContainer>
+                                <!-- ItemsView leaves DataContext unset for an x:Bind template; OnDecisionClick reads the row from it -->
+                                <ItemContainer DataContext="{x:Bind}">
                                     <Grid ColumnSpacing="10" Padding="4,4">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="104" />
@@ -96,8 +97,10 @@
                                         </StackPanel>
                                         <!-- RowDecision Undecided / Keep / Delete: both buttons unchecked while undecided -->
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                            <ToggleButton Content="Keep" IsChecked="{x:Bind ui:UiFormat.IsKeep(Decision), Mode=OneWay}" Command="{x:Bind KeepCommand}" />
-                                            <ToggleButton Content="Delete" IsChecked="{x:Bind ui:UiFormat.IsDelete(Decision), Mode=OneWay}" Command="{x:Bind DeleteCommand}" />
+                                            <ToggleButton Content="Keep" Tag="Keep" IsChecked="{x:Bind ui:UiFormat.IsKeep(Decision), Mode=OneWay}" Command="{x:Bind KeepCommand}"
+                                                          Click="OnDecisionClick" />
+                                            <ToggleButton Content="Delete" Tag="Delete" IsChecked="{x:Bind ui:UiFormat.IsDelete(Decision), Mode=OneWay}" Command="{x:Bind DeleteCommand}"
+                                                          Click="OnDecisionClick" />
                                         </StackPanel>
                                     </Grid>
                                 </ItemContainer>

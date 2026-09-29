@@ -10,7 +10,11 @@ public sealed partial class PhotoDayVm : ObservableObject, IKeyed
     {
         Date = date;
         _apply = apply;
-        ToggleCommand = new AsyncRelayCommand(() => _apply(new SetDayIncluded(Date, IsIncluded != true)));
+        ToggleCommand = new AsyncRelayCommand(async () =>
+        {
+            await _apply(new SetDayIncluded(Date, IsIncluded != true)).ConfigureAwait(true);
+            OnPropertyChanged(nameof(IsIncluded));                  // a no-op edit leaves the box the click flipped: snap it back
+        });
     }
 
     public DateOnly Date { get; }
@@ -48,8 +52,11 @@ public sealed partial class PhotoDayVm : ObservableObject, IKeyed
         if (confirmed > 0) status.Add(Fmt.Count(confirmed, "confirmed by you", "confirmed by you"));
         StatusText = string.Join(" · ", status);
         Reason = day.Reason;
-        var inc = items.Count(i => included.Contains(i.Raw.Unit.Id));
-        IsIncluded = inc == 0 ? false : inc == items.Count ? true : null;
+        // Only items the plan can include count (Planner.Derive's Includable): a day of new photos plus imported or
+        // confirmed-by-you ones reads checked once its new photos are included, so the next click can exclude it.
+        var includable = items.Where(i => i.Newness is IsNew or Conflict or ProbablyImported).ToList();
+        var inc = includable.Count(i => included.Contains(i.Raw.Unit.Id));
+        IsIncluded = inc == 0 ? false : inc == includable.Count ? true : null;
         IsAllImported = items.All(i => i.Newness is Imported or Decided);
     }
 
@@ -62,7 +69,11 @@ public sealed partial class PhotoTileVm : ObservableObject, IKeyed
     public PhotoTileVm(Item item, Func<PlanEdit, Task> apply, Func<IReadOnlyList<Item>, Task> undo)
     {
         Item = item;
-        ToggleCommand = new AsyncRelayCommand(() => apply(new SetIncluded([Item.Raw.Unit.Id], !IsIncluded)));
+        ToggleCommand = new AsyncRelayCommand(async () =>
+        {
+            await apply(new SetIncluded([Item.Raw.Unit.Id], !IsIncluded)).ConfigureAwait(true);
+            OnPropertyChanged(nameof(IsIncluded));                  // a no-op edit (not includable, read-only) snaps the box back
+        });
         UndoCommand = new AsyncRelayCommand(() => undo([Item]), () => CanUndo);
     }
 

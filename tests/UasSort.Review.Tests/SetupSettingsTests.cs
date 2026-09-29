@@ -199,4 +199,44 @@ public class SetupSettingsTests
         var saved = Assert.Single(store.Saved);    // the stale posted save is skipped: nothing lands after the Ref 9.14 save
         Assert.Equal((NewRoot, 30.0), (saved.VideoRoot, saved.RadiusMiles));
     }
+
+    [Fact]
+    public void Settings_ClearedRadius_IsIgnored()
+    {
+        var (vm, store, _, _, _, time, ui) = Page();
+        var before = vm.Current.RadiusMiles;
+        vm.RadiusMiles = double.NaN;                 // an emptied NumberBox writes NaN
+        time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
+        Assert.Equal(before, vm.Current.RadiusMiles);
+        Assert.Empty(store.Saved);
+
+        vm.RadiusMiles = 30;                         // later edits still save
+        time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
+        Assert.Equal(30.0, store.Saved.Single().RadiusMiles);
+    }
+
+    [Fact]
+    public void Settings_Dispose_FlushesAPendingDebouncedSave()
+    {
+        var (vm, store, _, _, _, time, ui) = Page();
+        vm.RadiusMiles = 30;                         // closed before the 500 ms debounce ran
+        vm.Dispose();
+
+        Assert.Equal(30.0, Assert.Single(store.Saved).RadiusMiles);
+        time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
+        Assert.Single(store.Saved);                  // the timer was stopped: no second save
+    }
+
+    [Fact]
+    public void Settings_Dispose_WithNothingPending_DoesNotSave()
+    {
+        var (vm, store, _, _, _, time, ui) = Page();
+        vm.Dispose();
+        time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
+        Assert.Empty(store.Saved);
+    }
 }

@@ -25,7 +25,7 @@ public sealed partial class ReviewPage : Page
         RegisterAccelerators();
         Map.FocusReturnRequested += () => ClipListSlot.FocusList();
         Map.Ready += ConnectMap;
-        Map.OnlineChanged += _ => SendMapInit();                // Ref §9.6 offline: re-send init with the new online flag
+        Map.OnlineChanged += _ => ResendMapInit();              // Ref §9.6 offline: re-send init with the new online flag
     }
 
     public ReviewVm Vm { get; private set; } = null!;
@@ -115,12 +115,13 @@ public sealed partial class ReviewPage : Page
     }
 
     // Ref §9.6: the map's contextMenu (through ReviewVm.MapContextMenuRequested) → a WinUI MenuFlyout at the pointer
-    // (CSS px = DIPs at WebView2 zoom 1); the clicked dots become the clip selection first.
+    // (CSS px = DIPs at WebView2 zoom 1). The card holding the clicked dots is selected and the dots become the clip selection
+    // first (the clip list follows through ClipSelectionChanged); no menu opens when no card holds them.
     private void OnMapContextMenu(MapContextMenu menu)
     {
         if (Vm is null) return;
-        var ids = Vm.Videos.Clips.Where(r => menu.ItemIds.Contains(r.Id.CardRelPath)).Select(r => r.Id).ToList();
-        if (ids.Count > 0) ClipListSlot.SelectRows(ids);
+        var ids = Vm.Videos.OnMapContextMenu(menu);
+        if (ids.Count == 0) return;
         var row = Vm.Videos.Clips.FirstOrDefault(r => ids.Contains(r.Id));
         ClipMenu.Build(Vm, row).ShowAt(Map, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
         {
@@ -142,6 +143,13 @@ public sealed partial class ReviewPage : Page
         _bridgeFor = Vm;
         SendMapInit();
         Vm.Map = bridge;
+    }
+
+    /// <summary>init starts a new map session (map.js clears its data), so a re-init on the same bridge sends the plan again.</summary>
+    private void ResendMapInit()
+    {
+        SendMapInit();
+        if (_bridge is not null && Vm is not null && ReferenceEquals(_bridgeFor, Vm)) _bridge.SendData(Vm.Plan);
     }
 
     private void SendMapInit()

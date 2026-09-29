@@ -160,6 +160,7 @@ public class ShellVmTests
         Assert.Equal((0, 0), (rig.Offload.Lock.Holds, rig.Offload.Thumbnails.Paused));   // the shell disposed the session
         Assert.Single(rig.Offload.Reports.Offload);
         Assert.True(shell.Verdict!.CleanupCommand.CanExecute(null));
+        Assert.Null(shell.Verdict.StopText);                        // a finished run has nothing to explain
         rig.Cards.Clear();
         shell.Verdict.DoneCommand.Execute(null);
         Assert.Equal(Stage.Card, shell.Stage);
@@ -243,6 +244,7 @@ public class ShellVmTests
         Assert.StartsWith("The offload stopped before it could finish", shell.Copy!.ErrorText, StringComparison.Ordinal);
         Assert.Equal(Stage.Verdict, shell.Stage);
         Assert.NotNull(shell.Verdict);
+        Assert.Equal(shell.Copy.ErrorText, shell.Verdict.StopText);   // the Verdict page says why the run stopped
         Assert.Null(shell.Preflight);
         Assert.Equal((0, 0), (rig.Offload.Lock.Holds, rig.Offload.Thumbnails.Paused));
         Assert.True(shell.CleanupEnabled);
@@ -287,5 +289,40 @@ public class ShellVmTests
         rig.Cards.Clear();
         verdict.DoneCommand.Execute(null);
         Assert.Equal(Stage.Card, shell.Stage);
+    }
+
+    [Fact]
+    public async Task Shell_HistoryFileCannotBeOpened_TheVerdictCarriesTheStopText()
+    {
+        var rig = new Rig();
+        rig.Offload.Ledger.EnsureFolderThrows = true;
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+
+        shell.BeginOffload();
+        await shell.StartCopyAsync();
+
+        Assert.Equal(Stage.Verdict, shell.Stage);
+        Assert.StartsWith("Couldn't create or open the history file", shell.Verdict!.StopText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Shell_StaleCardVmChoosingAfterTheStageMoved_DoesNotStartASecondScan()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        var stale = shell.Card!;                                    // the Card VM that auto-chose the single DJI card
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        var review = shell.Review;
+        Assert.Equal(1, rig.Scans);
+
+        stale.Browse(@"E:\");                                       // a folder picked after a device change moved the stage on
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        rig.Ui.RunAll();
+
+        Assert.Equal((Stage.Review, 1), (shell.Stage, rig.Scans));
+        Assert.Same(review, shell.Review);
     }
 }

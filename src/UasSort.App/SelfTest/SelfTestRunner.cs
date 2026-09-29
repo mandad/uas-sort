@@ -22,10 +22,14 @@ internal static class SelfTestRunner
     private static readonly TimeSpan BrowserExit = TimeSpan.FromSeconds(5);
     private static int _finished;
     private static IDisposable? _cardPause;                               // held until exit (ReleaseCard)
+    private static SelfTestContext? _ctx;                                 // the running selftest, for FailUnhandled
+    private static List<SelfTestCheck>? _checks;
 
     public static async Task RunAsync(SelfTestContext ctx)
     {
         var checks = new List<SelfTestCheck>();
+        _checks = checks;
+        _ctx = ctx;
         using var watchdog = new Timer(_ =>
         {
             lock (checks) { checks.Add(SelfTestCheck.Fail("watchdog", "selftest did not finish within 55 s")); Finish(ctx, checks); }
@@ -97,6 +101,30 @@ internal static class SelfTestRunner
         {
             foreach (var browser in browsers) browser.Dispose();
         }
+    }
+
+    /// <summary>App.UnhandledException under --selftest (Ref §13 Result): adds an "unhandled" failed check and finishes (result
+    /// file, sandbox deleted, exit 1). An exception before RunAsync started (MainWindow ctor, OnLaunched) writes a result
+    /// holding only that check.</summary>
+    internal static void FailUnhandled(LaunchOptions options, SelfTestSandbox? sandbox, Exception ex)
+    {
+        var failed = SelfTestCheck.Fail("unhandled", ex.GetType().Name + ": " + ex.Message);
+        if (_ctx is { } ctx && _checks is { } checks)
+        {
+            lock (checks)
+            {
+                checks.Add(failed);
+                Finish(ctx, checks);
+            }
+            return;
+        }
+        if (Interlocked.Exchange(ref _finished, 1) != 0) return;
+        var json = JsonSerializer.SerializeToUtf8Bytes(new SelfTestResult(false, -1, (SelfTestCheck[])[failed]),   // explicit array: CsWinRT1032
+                                                   SelfTestJsonContext.Default.SelfTestResult);
+        try { SelfTestSandbox.WriteResult(options.ResultPath, json); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }
+        sandbox?.Dispose();
+        Environment.Exit(1);
     }
 
     private static void Finish(SelfTestContext ctx, List<SelfTestCheck> checks)

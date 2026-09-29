@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Globalization.NumberFormatting;
 
@@ -61,6 +62,24 @@ public sealed partial class CleanupPage : Page
         if (ModeBar.SelectedItem != ModeBar.Items[index]) ModeBar.SelectedItem = ModeBar.Items[index];
         BeforeDatePanel.Visibility = mode == CleanupMode.BeforeDate ? Visibility.Visible : Visibility.Collapsed;
         FreeSpacePanel.Visibility = mode == CleanupMode.FreeSpace ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>A ToggleButton un-toggles itself on click before its Command runs; when the command sets the decision the row
+    /// already has (clicking the lit Delete), Decision raises no change and the button would show the row as undecided.
+    /// So each click re-syncs IsChecked from the row: correct whether Click runs before or after the Command, since a real
+    /// change then re-sets both buttons through their x:Bind.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "XAML event handler: the generated Connect code wires it as this.OnDecisionClick, so it must be an instance method.")]
+    private void OnDecisionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton b) ResyncDecision(b);
+    }
+
+    /// <summary>Sets a row's Keep (Tag "Keep") or Delete (Tag "Delete") button to the row's current Decision.</summary>
+    internal static void ResyncDecision(ToggleButton b)
+    {
+        if (b.DataContext is CleanupRowVm row)
+            b.IsChecked = string.Equals(b.Tag as string, "Keep", StringComparison.Ordinal) ? row.Decision == RowDecision.Keep : row.Decision == RowDecision.Delete;
     }
 
     private void OnDateChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args) => Vm?.PickDate(args.NewDate);

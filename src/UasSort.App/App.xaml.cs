@@ -48,7 +48,14 @@ public partial class App : Application
     {
         Trace.WriteLine("UNHANDLED " + e.Exception);
         _window?.Services.Platform.Log.Error("unhandled exception", e.Exception);
-        if (_options.SelfTest || _window is null) return;           // the selftest records it as a failed check instead
+        if (_options.SelfTest)
+        {
+            // The selftest writes an "unhandled" failed check to its result file, deletes its sandbox and exits 1.
+            e.Handled = true;
+            SelfTestRunner.FailUnhandled(_options, _sandbox, e.Exception);
+            return;
+        }
+        if (_window is null) return;
         e.Handled = true;
         _ = _window.Services.Dialogs.ShowAsync(new DialogRequest(
             "Something went wrong",
