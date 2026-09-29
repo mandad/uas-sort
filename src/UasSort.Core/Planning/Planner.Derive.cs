@@ -40,11 +40,21 @@ public sealed partial class Planner : IPlanDeriver
         var groups = ImmutableArray.CreateBuilder<VideoGroup>(cr.Groups.Length);
         var color = 0;
         foreach (var g in cr.Groups)
-            groups.Add(BuildGroup(g, auto[g.Id], edits, included, decider, settings, lib, issues, ref color));
+            groups.Add(BuildGroup(g, auto[g.Id], decider.Excluded(g, pass1), edits, included, decider, settings, lib, issues, ref color));
         SharedTargets(groups, issues);
         ItemIssues(b, issues);
         PlanIssues(b, flags, roots, included, issues);
         return new Plan(revision, b, t, groups.MoveToImmutable(), cr.Boundaries, included.ToImmutableHashSet(), issues.ToImmutable());
+    }
+
+    /// <summary>Append candidates for a group of an existing plan (the target dropdown, Ref §9.4). Never re-clusters.</summary>
+    public static IReadOnlyList<LibraryFolder> AppendCandidates(Plan plan, GroupId id, int max = 8)
+    {
+        var byId = plan.Base.Items.ToDictionary(i => i.Raw.Unit.Id);
+        var drafts = plan.Groups.Select(g => new GroupDraft(g.Id, [.. g.Videos.Select(v => byId[v])], g.Centroid, g.Start, g.End, g.Wall, null))
+                                .ToList();
+        var draft = drafts.First(d => d.Id == id);
+        return new FolderDecider(plan.Base.Scan.Library, drafts, plan.Tuning).AppendCandidates(draft, max);
     }
 
     private static Roots RootState(PlanBase b)
@@ -146,7 +156,7 @@ public sealed partial class Planner : IPlanDeriver
             : new LibraryFolderRef(p, fallback, leaf);
     }
 
-    private VideoGroup BuildGroup(GroupDraft g, GroupTarget auto, IReadOnlyList<PlanEdit> edits, HashSet<ItemId> included,
+    private VideoGroup BuildGroup(GroupDraft g, GroupTarget auto, HashSet<string> excluded, IReadOnlyList<PlanEdit> edits, HashSet<ItemId> included,
                                   FolderDecider decider, Settings s, LibraryIndex lib, ImmutableArray<Issue>.Builder issues, ref int color)
     {
         var anchor = g.Id.Anchor;
@@ -184,7 +194,13 @@ public sealed partial class Planner : IPlanDeriver
         {
             case NewFolder:
             {
-                var top = suggestions.FirstOrDefault(x => DescriptionSuggester.Prefills(x.Source));
+                // after a UserSplit, never prefill a name whose path is a folder excluded from this group (Ref §8.7 Prefill, §8.9 step 4)
+                bool Excluded(Suggestion x)
+                {
+                    var path = Path.Join(s.VideoRoot, FolderNamer.NewFolderRel(g.Start, FolderNamer.Clean(x.Text)));
+                    return excluded.Any(e => PathCmp.Equals(e.TrimEnd('\\'), path));
+                }
+                var top = suggestions.FirstOrDefault(x => DescriptionSuggester.Prefills(x.Source) && !Excluded(x));
                 (description, descSource) = rn is not null ? (FolderNamer.Clean(rn.Description!), DescSource.User)
                                           : top is not null ? (FolderNamer.Clean(top.Text), top.Source)
                                           : ("", DescSource.None);

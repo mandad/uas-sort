@@ -1496,7 +1496,7 @@ Each suggestion is computed at **each local day's centroid**, in day order. That
 4. A GeoNames populated place within 3 mi.
 5. "near &lt;town>", for the nearest town with population ≥ 1,000 within 30 mi.
 
-- **Prefill:** a NewFolder group is prefilled with the top suggestion from rules 1–4, shown in italics as a suggestion. It is not blocking, and accepting it is a no-op. With no suggestion, the box stays blank, which is blocking.
+- **Prefill:** a NewFolder group is prefilled with the top suggestion from rules 1–4, shown in italics as a suggestion. It is not blocking, and accepting it is a no-op. With no suggestion, the box stays blank, which is blocking. After a UserSplit, a suggestion whose folder path equals a folder excluded from this group (§8.9 step 4) is skipped; with none left the box stays blank. A name the user types that equals that folder still becomes an explicit Append.
 - **Data** (`tools/places/build-places.cs` writes `src/UasSort.App/places.bin.gz`; `PlaceIndex.Load` reads it):
   - **Sources**, from the GeoNames dump of 2026-09-27: `US.zip` (every US record of the classes below) plus `cities5000.zip` as the worldwide fallback (populated places only). About 7.7 MB gzipped.
   - **Kept records:** class P (populated places; population from the dump) and these feature codes, mapping the words of rule 3: mountain `MT`, peak `PK`, hill `HLL`, valley `VAL`, pass `PASS`, cape `CAPE`, island `ISL`, peninsula `PEN`, point `PT`, bay `BAY`, lake `LK`, glacier `GLCR`, fjord `FJD`, cove `COVE`, lagoon `LGN`, inlet `INLT`, sound `SD`, strait `STRT`, harbor `HBR`, falls `FLLS`, park `PRK`.
@@ -2806,7 +2806,7 @@ Every row of the §10.3 outcome table, including:
    - Tests: synthetic MP4/DNG, incl. the ≤ 16-read budget.
 4. **Time and geo.**
    - Builds: the DroneClock learner (SiteLocal, then zones, NearestSample with `ClockChange` runs), TimeResolver (incl. `ClockMismatch`), GpsPlausibility, GeoTimeZoneResolver; PlaceIndex and the GeoNames extract tool `tools/places/build-places.cs` (writes `places.bin.gz`).
-   - Tests: the time and clock-learner cases (§13); the PlaceIndex round-trip (§8.7: "Anvil Mountain" ≤ 0.2 mi, "Zachar Bay" ≤ 0.4 mi).
+   - Tests: the time and clock-learner cases (§13); the PlaceIndex round-trip (§8.7: "Anvil Mountain" ≤ 0.2 mi, "Zachar Bay" ≤ 1.5 mi (user decision 2026-09-28)).
 5. **Library index, ledger and settings.**
    - Builds: LibraryIndex (all roots, `previousPhotoRoots`, fixed watermark; `.uas-sort` excluded via `excludeDirNames`); ledger reading (derived `<videoRoot>\.uas-sort` location via `LedgerPaths`, multi-file union, dedupe, parse issues, `torn` markers, revokes, attribute-first `LedgerFolderStatus`); settings with recovery and the read-only load.
    - Tests: newness-ledger (incl. `torn` markers) and settings tests.

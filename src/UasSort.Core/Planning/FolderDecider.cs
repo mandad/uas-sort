@@ -137,7 +137,8 @@ public sealed class FolderDecider
         }
     }
 
-    private HashSet<string> Excluded(GroupDraft g, IReadOnlyDictionary<GroupId, GroupTarget>? pass1)
+    /// <summary>Folders the UserSplit rule excludes for <paramref name="g"/> in pass 2 (Ref §8.9 step 4); empty when <paramref name="pass1"/> is null.</summary>
+    internal HashSet<string> Excluded(GroupDraft g, IReadOnlyDictionary<GroupId, GroupTarget>? pass1)
     {
         var set = new HashSet<string>(PathCmp);
         if (pass1 is null) return set;
