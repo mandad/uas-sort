@@ -26,8 +26,12 @@ public sealed class PlanSession
     private int _published;
     private CancellationTokenSource? _previewCts;
     private Tuning? _previewTuning;
+    private Tuning _publishedTuning;
 
     public event Action<Plan>? Changed;
+
+    /// <summary>A fire-and-forget derive (<see cref="Preview"/>, <see cref="AcceptLedgerIssues"/>) threw; cancellation is not a fault.</summary>
+    public event Action<Exception>? Faulted;
 
     public PlanSession(PlanBase b, IPlanDeriver deriver, Tuning tuning, TimeProvider clock)
         : this(b, deriver, new State(tuning, []), clock, []) { }
@@ -41,6 +45,7 @@ public sealed class PlanSession
         _state = state;
         _current = DeriveNow(state, CancellationToken.None);
         _published = _current.Revision;
+        _publishedTuning = _current.Tuning;
     }
 
     public Plan Current { get { lock (_lock) return _current; } }
@@ -108,7 +113,7 @@ public sealed class PlanSession
         return new Applied(Commit(result));
     }
 
-    public void Preview(Tuning t) => _ = PreviewAsync(t);
+    public void Preview(Tuning t) => Observe(PreviewAsync(t));
 
     public Task PreviewAsync(Tuning t)
     {
@@ -138,6 +143,7 @@ public sealed class PlanSession
                 if (!ReferenceEquals(s.Edits, _state.Edits)) continue;   // superseded by a completed edit: re-run on the new log
                 if (p.Revision <= _published) return;
                 _published = p.Revision;
+                _publishedTuning = p.Tuning;
             }
             Changed?.Invoke(p);
             return;
@@ -153,6 +159,7 @@ public sealed class PlanSession
             {
                 Tuning? t;
                 State s;
+                bool previewShown;
                 lock (_lock)
                 {
                     t = _previewTuning;
@@ -160,8 +167,14 @@ public sealed class PlanSession
                     _previewCts?.Cancel();
                     _previewCts = null;
                     s = _state;
+                    previewShown = _publishedTuning != s.Tuning;
                 }
-                if (t is null || t == s.Tuning) return;
+                if (t is null || t == s.Tuning)
+                {
+                    // Ref §4.2 latest wins: an older preview is still the last published plan, so republish the committed one
+                    if (previewShown) Commit(Current);
+                    return;
+                }
                 var next = s with { Tuning = t };
                 var p = DeriveNow(next, CancellationToken.None);
                 lock (_lock)
@@ -211,7 +224,7 @@ public sealed class PlanSession
         }
     }
 
-    public void AcceptLedgerIssues() => _ = AcceptLedgerIssuesAsync();
+    public void AcceptLedgerIssues() => Observe(AcceptLedgerIssuesAsync());
 
     public async Task AcceptLedgerIssuesAsync()
     {
@@ -221,12 +234,15 @@ public sealed class PlanSession
             await Task.Run(() =>
             {
                 State s;
+                SessionFlags accepted;
                 lock (_lock)
                 {
-                    _flags = new SessionFlags(true);
+                    accepted = _flags with { LedgerIssuesAccepted = true };
                     s = _state;
                 }
-                Commit(DeriveNow(s, CancellationToken.None));
+                var p = DeriveNow(s, accepted, CancellationToken.None);
+                lock (_lock) _flags = accepted;          // only after a successful derive: a fault leaves flags and Current unchanged
+                Commit(p);
             }).ConfigureAwait(false);
         }
         finally
@@ -241,11 +257,35 @@ public sealed class PlanSession
         _gate.Release();
     }
 
+    /// <summary>Observes a fire-and-forget task: a fault is raised as <see cref="Faulted"/>, cancellation is ignored.</summary>
+    private void Observe(Task task) => _ = ObserveAsync(task);
+
+    private async Task ObserveAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // cancellation is not a fault
+        }
+        catch (Exception e)
+        {
+            Faulted?.Invoke(e);
+        }
+    }
+
     private Plan DeriveNow(State s, CancellationToken ct)
     {
-        var rev = Interlocked.Increment(ref _revision);
         SessionFlags flags;
         lock (_lock) flags = _flags;
+        return DeriveNow(s, flags, ct);
+    }
+
+    private Plan DeriveNow(State s, SessionFlags flags, CancellationToken ct)
+    {
+        var rev = Interlocked.Increment(ref _revision);
         var p = _deriver.Derive(_base, s.Tuning, s.Edits, flags, rev, ct);
         return _sessionIssues.IsDefaultOrEmpty ? p : p with { Issues = p.Issues.AddRange(_sessionIssues) };
     }
@@ -256,6 +296,7 @@ public sealed class PlanSession
         {
             if (p.Revision <= _published) p = p with { Revision = Interlocked.Increment(ref _revision) };
             _published = p.Revision;
+            _publishedTuning = p.Tuning;
             _current = p;
         }
         Changed?.Invoke(p);

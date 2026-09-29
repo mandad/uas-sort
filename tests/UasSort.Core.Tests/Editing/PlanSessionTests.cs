@@ -157,4 +157,100 @@ public sealed class PlanSessionTests
         var info = Assert.Single(r2.Current.Issues, i => i.Code == IssueCode.StaleEditsDropped);
         Assert.Equal((IssueSeverity.Info, "2 of 3 edits still apply"), (info.Severity, info.Message));
     }
+
+    [Fact] // Ref §4.2 latest wins: a no-op commit after a newer preview of the committed tuning republishes the committed plan
+    public async Task NoOpCommit_AfterOlderPreviewWasPublished_RepublishesCommittedPlan()
+    {
+        var gated = new GatedPlanDeriver(PlanScenario.CreatePlanner());
+        var s = Session(Base(), gated);
+        var plans = new ConcurrentQueue<Plan>();
+        s.Changed += plans.Enqueue;
+        await s.PreviewAsync(new Tuning(30, 1));
+        var preview30 = plans.Last();
+        Assert.Equal(30, preview30.Tuning.RadiusMiles);
+        var gate = gated.Arm((t, _) => t.RadiusMiles == 50);
+        var inFlight = s.PreviewAsync(new Tuning(50, 1));
+        await gate.Entered;
+        await s.CommitTuningAsync();
+        gate.Release();
+        await inFlight;
+        Assert.Equal(new Tuning(50, 1), s.CommittedTuning);
+        Assert.Equal(0, s.UndoDepth);                                    // still a no-op for undo
+        var last = plans.Last();
+        Assert.Equal(50, last.Tuning.RadiusMiles);
+        Assert.True(last.Revision > preview30.Revision);
+        Assert.Equal(s.Current.Revision, last.Revision);
+    }
+
+    [Fact] // a fire-and-forget preview whose derive throws raises Faulted once; Current is unchanged
+    public async Task Preview_DeriveFault_RaisesFaultedOnce()
+    {
+        var boom = new InvalidOperationException("boom");
+        var s = Session(Base(), new FaultingDeriver(PlanScenario.CreatePlanner(), (t, _) => t.RadiusMiles == 40 ? boom : null));
+        var (faults, first) = Watch(s);
+        var before = s.Current;
+        s.Preview(new Tuning(40, 1));
+        Assert.Same(boom, await first.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct));
+        await s.WhenIdleAsync();
+        Assert.Same(boom, Assert.Single(faults));
+        Assert.Same(before, s.Current);
+    }
+
+    [Fact] // [Accept and continue] whose derive throws: Faulted once, Current and the session flags unchanged
+    public async Task AcceptLedgerIssues_DeriveFault_RaisesFaulted_FlagsAndCurrentUnchanged()
+    {
+        var boom = new InvalidOperationException("boom");
+        var failing = 1;
+        var s = Session(Base(new PlanScenario().LedgerParseIssue("ledger-A.jsonl", 3, "bad")),
+                        new FaultingDeriver(PlanScenario.CreatePlanner(), (_, f) => f.LedgerIssuesAccepted && Volatile.Read(ref failing) == 1 ? boom : null));
+        var (faults, first) = Watch(s);
+        var before = s.Current;
+        s.AcceptLedgerIssues();
+        Assert.Same(boom, await first.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct));
+        await s.WhenIdleAsync();
+        Assert.Same(boom, Assert.Single(faults));
+        Assert.Same(before, s.Current);
+        Volatile.Write(ref failing, 0);
+        Assert.True(await s.ApplyAsync(new SplitBefore(A1.Id()), Ct) is Applied);   // the next derive still runs with the old flags
+        Assert.Equal(IssueSeverity.Blocking, s.Current.Issues.Single(i => i.Code == IssueCode.LedgerParseIssue).Severity);
+    }
+
+    [Fact] // OperationCanceledException from a fire-and-forget derive is not a fault
+    public async Task CancelledFireAndForgetDerives_AreNotFaults()
+    {
+        var boom = new InvalidOperationException("boom");
+        var accepted = 0;
+        var previewCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var s = Session(Base(new PlanScenario().LedgerParseIssue("ledger-A.jsonl", 3, "bad")),
+            new FaultingDeriver(PlanScenario.CreatePlanner(), (t, f) =>
+            {
+                if (t.RadiusMiles == 30) { previewCancelled.TrySetResult(); return new OperationCanceledException(); }
+                if (!f.LedgerIssuesAccepted) return null;
+                return Interlocked.Increment(ref accepted) == 1 ? new OperationCanceledException() : boom;
+            }));
+        var (faults, first) = Watch(s);
+        s.Preview(new Tuning(30, 1));
+        await previewCancelled.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        s.AcceptLedgerIssues();                                          // cancelled
+        s.AcceptLedgerIssues();                                          // faults: flushes the observers of the two cancelled calls
+        Assert.Same(boom, await first.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct));
+        await s.WhenIdleAsync();
+        Assert.Same(boom, Assert.Single(faults));
+        Assert.Equal(2, Volatile.Read(ref accepted));
+    }
+
+    private static (ConcurrentQueue<Exception> Faults, TaskCompletionSource<Exception> First) Watch(PlanSession s)
+    {
+        var faults = new ConcurrentQueue<Exception>();
+        var first = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        s.Faulted += e => { faults.Enqueue(e); first.TrySetResult(e); };
+        return (faults, first);
+    }
+
+    /// <summary>Throws the exception <paramref name="fault"/> returns for a derive, else delegates.</summary>
+    private sealed class FaultingDeriver(IPlanDeriver inner, Func<Tuning, SessionFlags, Exception?> fault) : IPlanDeriver
+    {
+        public Plan Derive(PlanBase b, Tuning t, IReadOnlyList<PlanEdit> edits, SessionFlags flags, int revision, CancellationToken ct) =>
+            fault(t, flags) is { } e ? throw e : inner.Derive(b, t, edits, flags, revision, ct);
+    }
 }

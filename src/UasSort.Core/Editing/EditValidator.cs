@@ -58,13 +58,16 @@ public static class EditValidator
         if (reserved.Any(r => IsUnder(path, r)))
             return new Rejected(RejectReason.RetargetIntoReservedFolder, "That folder is reserved for uas-sort history or photos");
         if (!IsUnder(path, s.VideoRoot) || Norm(path) == Norm(s.VideoRoot))
-            return new Rejected(RejectReason.RetargetOutsideVideoRoot, $"Pick a folder inside {Path.GetFileName(Norm(s.VideoRoot))}");
+            return new Rejected(RejectReason.RetargetOutsideVideoRoot, $"Pick a folder inside {DisplayName(s.VideoRoot)}");
         var f = Planner.FolderRefFor(path, g.Start, current.Base.Scan.Library);
         if (f.NameDate > g.Start && !confirmed)
             return new Rejected(RejectReason.RetargetLaterDatedFolderUnconfirmed,
                                 $"Folder is dated {PlanText.ShortDate(f.NameDate)}; these clips start {PlanText.ShortDate(g.Start)}");
         return null;
     }
+
+    /// <summary>The root's leaf name as the user typed it ("UAS Videos"); a drive root has none, so it is named itself ("D:\").</summary>
+    private static string DisplayName(string root) => PathRules.FileName(root) is { Length: > 0 } leaf ? leaf : PathRules.Normalize(root);
 
     private static string Norm(string p) => p.Replace('/', '\\').TrimEnd('\\').ToUpperInvariant();
 

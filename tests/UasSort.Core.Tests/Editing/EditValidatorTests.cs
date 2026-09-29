@@ -70,6 +70,22 @@ public sealed class EditValidatorTests
         Assert.Equal(expected, Reason(p, new Retarget(Z[0].Id(), new AppendTo(path), false, [])));
     }
 
+    [Fact] // Ref §9: "Pick a folder inside UAS Videos" names the video root as the user typed it
+    public void OutsideVideoRoot_MessageKeepsTheRootsCase()
+    {
+        var p = PlanScenario.Derive(new PlanScenario().Card(Z).Prepare());
+        var r = EditValidator.Validate(p, new Retarget(Z[0].Id(), new AppendTo(@"G:\Elsewhere"), false, []));
+        Assert.Equal((RejectReason.RetargetOutsideVideoRoot, "Pick a folder inside UAS Videos"), (r?.Reason, r?.Message));
+    }
+
+    [Fact] // a drive-root video root has no leaf name: the message names the root itself
+    public void OutsideDriveRootVideoRoot_MessageNamesTheDrive()
+    {
+        var p = PlanScenario.Derive(new PlanScenario { Root = @"F:\" }.Card(Z).Prepare());
+        var r = EditValidator.Validate(p, new Retarget(Z[0].Id(), new AppendTo(@"G:\Elsewhere"), false, []));
+        Assert.Equal((RejectReason.RetargetOutsideVideoRoot, @"Pick a folder inside F:\"), (r?.Reason, r?.Message));
+    }
+
     [Fact]
     public void LaterDatedFolder_AllowedWhenConfirmed()
     {
