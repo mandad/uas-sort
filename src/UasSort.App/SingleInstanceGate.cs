@@ -21,7 +21,14 @@ internal sealed partial class SingleInstanceGate : IDisposable
         Mechanism = mechanism;
         Key = key;
         _mutex = mutex;
+        if (isMain && key is not null)
+        {
+            key.Activated += (_, _) => Activated?.Invoke();
+        }
     }
+
+    /// <summary>Raised on a thread-pool thread in the main instance when a second launch redirects its activation here.</summary>
+    public event Action? Activated;
 
     public bool IsMain { get; }
 

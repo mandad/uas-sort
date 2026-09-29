@@ -40,6 +40,8 @@
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
     <Content Include="MapAssets\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="places.bin.gz" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="SelfTest\*.jpg;SelfTest\*.dng;SelfTest\*.jsonl" LogicalName="UasSort.App.SelfTest.%(Filename)%(Extension)" />
   </ItemGroup>
 
