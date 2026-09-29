@@ -53,4 +53,27 @@ public sealed class SelfTestSandboxTests
     {
         Assert.Throws<ArgumentException>(() => SelfTestSandbox.WriteResult(path, "{}"u8));
     }
+
+    [Fact]
+    public void Create_WithoutArgument_MakesTheFourRootsUnderTemp()
+    {
+        using var sandbox = SelfTestSandbox.Create();
+        Assert.StartsWith(Path.Join(Path.GetTempPath(), SelfTestSandbox.FolderPrefix), sandbox.Root, StringComparison.OrdinalIgnoreCase);
+        foreach (var dir in new[] { sandbox.AppDataDir, sandbox.VideoRoot, sandbox.PhotoRoot, sandbox.CardRoot })
+        {
+            Assert.True(Directory.Exists(dir), dir);
+            Assert.Equal(sandbox.Root, Path.GetDirectoryName(dir));
+        }
+    }
+
+    [Fact]
+    public void WriteFile_WritesUnderTheRoot_AndRefusesAPathThatLeavesIt()
+    {
+        using var temp = new TestTempDir();
+        using var sandbox = SelfTestSandbox.Create(temp.FullPath);
+        sandbox.WriteFile(@"card\DCIM\DJI_001\a.bin", "abc"u8);
+        Assert.Equal("abc", File.ReadAllText(Path.Join(sandbox.Root, @"card\DCIM\DJI_001\a.bin")));
+        Assert.Throws<InvalidOperationException>(() => sandbox.WriteFile(@"..\escape.bin", "x"u8));
+        Assert.False(File.Exists(Path.Join(temp.FullPath, "escape.bin")));
+    }
 }
