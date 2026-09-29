@@ -31,7 +31,9 @@ internal static class SelfTestRunner
         try { ctx.FirstFrameMs = await ctx.Window.FirstFrameMs.WaitAsync(PerCheck); }
         catch (TimeoutException) { lock (checks) checks.Add(SelfTestCheck.Fail("firstFrame", "no frame rendered within 20 s")); }
 
-        var wanted = SelfTestChecks.All.Where(c => ctx.Options.Only is null || ctx.Options.Only.Contains(c.Name)).ToList();
+        var wanted = SelfTestChecks.All
+            .Where(c => ctx.Options.Only is null ? !c.Name.StartsWith("debug.", StringComparison.Ordinal) : ctx.Options.Only.Contains(c.Name))
+            .ToList();
         if (ctx.Options.Only is not null)
             foreach (var name in ctx.Options.Only.Where(n => SelfTestChecks.All.All(c => c.Name != n)))
                 lock (checks) checks.Add(SelfTestCheck.Fail(name, "unknown check"));

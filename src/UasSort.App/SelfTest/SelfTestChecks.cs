@@ -12,22 +12,40 @@ internal static partial class SelfTestChecks
         ("shell.render", ShellRender),
         ("window.minSize", WindowMinSize),
         ("probe.timeZone", ProbeTimeZone),
+        ("probe.still", ProbeStill),
         ("json.planEdit", JsonPlanEdit),
+        ("json.ledger", JsonLedger),
         ("placeholderVisibility", PlaceholderVisibility),
-        ("page.settings", PageSettings),
         ("page.card", PageCard),
-        ("probe.still", ProbeStill), ("json.ledger", JsonLedger), ("review.scan", ReviewScan),
-        ("review.layout", ReviewLayout), ("review.clock", ReviewClock), ("review.tuning", ReviewTuning), ("review.map", ReviewMap),
-        ("map.mime", MapMime), ("map.ready", MapReady),
-        ("map.draw", MapDraw),
-        ("template.groupCard", TemplateGroupCard), ("template.suggestion", TemplateSuggestion), ("template.targetMenu", TemplateTargetMenu),
-        ("template.clipRow", TemplateClipRow), ("thumb.keyRecheck", ThumbKeyRecheck),
-        ("template.photoTile", TemplatePhotoTile), ("template.otherTab", TemplateOtherTab),
-        ("keys.spaceInRenameBox", KeysSpaceInRenameBox), ("keys.accelerators", KeysAccelerators),
-        ("cleanup.entry", CleanupEntry),
-        ("device.hook", DeviceHook),
+        ("page.settings", PageSettings),
         ("pages.construct", PagesConstruct),
+        ("device.hook", DeviceHook),
+        ("map.mime", MapMime),
+        ("map.ready", MapReady),
+        ("map.draw", MapDraw),
+        ("review.scan", ReviewScan),
+        ("review.layout", ReviewLayout),
+        ("review.clock", ReviewClock),
+        ("review.tuning", ReviewTuning),
+        ("review.map", ReviewMap),
+        ("template.groupCard", TemplateGroupCard),
+        ("template.suggestion", TemplateSuggestion),
+        ("template.targetMenu", TemplateTargetMenu),
+        ("template.clipRow", TemplateClipRow),
+        ("thumb.keyRecheck", ThumbKeyRecheck),
+        ("template.photoTile", TemplatePhotoTile),
+        ("template.otherTab", TemplateOtherTab),
+        ("keys.spaceInRenameBox", KeysSpaceInRenameBox),
+        ("keys.accelerators", KeysAccelerators),
+        ("cleanup.entry", CleanupEntry),
+        ("debug.hang", DebugHang),                                       // never in the default run
     ];
+
+    private static async Task<SelfTestCheck> DebugHang(SelfTestContext ctx)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan);
+        return SelfTestCheck.Pass("debug.hang", "unreachable");
+    }
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)
     {
