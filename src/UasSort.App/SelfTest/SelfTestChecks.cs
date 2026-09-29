@@ -16,6 +16,7 @@ internal static partial class SelfTestChecks
         ("placeholderVisibility", PlaceholderVisibility),
         ("page.settings", PageSettings),
         ("page.card", PageCard),
+        ("probe.still", ProbeStill), ("json.ledger", JsonLedger), ("review.scan", ReviewScan),
         ("map.mime", MapMime), ("map.ready", MapReady),
         ("map.draw", MapDraw),
     ];

@@ -1,7 +1,14 @@
 // Writes the checked-in selftest assets into src/UasSort.App/SelfTest/ (Ref §2.3, §13). No user data.
-// usage (from the repo root): dotnet run tools/fixtures/make-selftest-assets.cs -- .
+// usage (from the repo root, on Windows): dotnet run tools/fixtures/make-selftest-assets.cs -- .
+#:property TargetFramework=net11.0-windows10.0.26100.0
+#:project ../../tests/UasSort.Testing/UasSort.Testing.csproj
 using System.Buffers.Binary;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
+using UasSort.Core;
+using UasSort.Testing;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
 
 var repoRoot = Path.GetFullPath(args.Length > 0 ? args[0] : ".");
 var selfTestDir = Path.Join(repoRoot, "src", "UasSort.App", "SelfTest");
@@ -20,13 +27,48 @@ internal static class SelfTestAssets
     private const ushort TypeLong = 4;
     private const ushort TypeRational = 5;
 
-    /// <summary>
-    /// Every asset this tool writes. Part 11 (Task 11.9) extends this list in place with selftest.dng, ledger-v1.jsonl
-    /// and selftest-0001..0003.mp4.
-    /// </summary>
+    private static readonly GeoPoint Anvil = new(64.5627, -165.3696);
+    private static readonly GeoPoint Zachar = new(57.5368, -153.7484);
+
+    /// <summary>Every asset this tool writes: Part 01's stack-exif.jpg, then Part 11's synthetic card and test ledger.</summary>
     public static IEnumerable<(string Name, byte[] Bytes)> All()
     {
         yield return ("stack-exif.jpg", StackExifJpeg());
+
+        // Part 11 (Task 11.9): the synthetic card. Drone clock US Eastern (mvhd = stamp + 4 h), as the RC 2 of the fixture.
+        var thumb = Jpeg160x90();
+        yield return ("selftest-0001.mp4", new SyntheticMp4Builder().WithMvhdUtc(new DateTime(2026, 7, 26, 7, 50, 0, DateTimeKind.Utc))
+            .WithDuration(TimeSpan.FromSeconds(222)).WithDjmdGps("dvtm_Air3s.proto", Anvil).WithThumbnail(thumb).Build());    // Jul 25 23:50 AKDT
+        yield return ("selftest-0002.mp4", new SyntheticMp4Builder().WithMvhdUtc(new DateTime(2026, 7, 26, 8, 10, 0, DateTimeKind.Utc))
+            .WithDuration(TimeSpan.FromSeconds(95)).WithDjmdGps("dvtm_Air3s.proto", Anvil).WithThumbnail(thumb).Build());     // Jul 26 00:10 AKDT
+        yield return ("selftest-0003.mp4", new SyntheticMp4Builder().WithMvhdUtc(new DateTime(2026, 9, 27, 18, 1, 27, DateTimeKind.Utc))
+            .WithDuration(TimeSpan.FromSeconds(3725)).WithDjmdGps("dvtm_Air3s.proto", Zachar).WithThumbnail(thumb).Build());  // Sep 27 10:01 AKDT
+        yield return ("selftest.dng", new SyntheticDngBuilder().WithDateTimeOriginal(new DateTime(2026, 9, 27, 14, 5, 0))
+            .WithGps(Zachar).WithModel("FC9113").WithThumbnail(thumb).Build());
+        yield return ("ledger-v1.jsonl", Encoding.UTF8.GetBytes(string.Join("\n", LedgerSamples.AllRecordKindsV1()) + "\n"));
+    }
+
+    /// <summary>A real, decodable 160×90 JPEG (like a tnal thumbnail): a blue→orange gradient, encoded by WinRT.</summary>
+    public static byte[] Jpeg160x90() => Jpeg160x90Async().GetAwaiter().GetResult();
+
+    private static async Task<byte[]> Jpeg160x90Async()
+    {
+        const int w = 160, h = 90;
+        var px = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                px[i] = (byte)(255 - x * 255 / w); px[i + 1] = (byte)(96 + y); px[i + 2] = (byte)(x * 255 / w); px[i + 3] = 255;   // BGRA
+            }
+        using var stream = new InMemoryRandomAccessStream();
+        var enc = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
+        enc.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore, w, h, 96, 96, px);
+        await enc.FlushAsync();
+        var bytes = new byte[stream.Size];
+        stream.Seek(0);
+        await stream.ReadAsync(bytes.AsBuffer(), (uint)bytes.Length, InputStreamOptions.None);
+        return bytes;
     }
 
     /// <summary>
