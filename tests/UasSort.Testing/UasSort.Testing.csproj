@@ -10,4 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\UasSort.Core\UasSort.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Replay\library-listing.json" LogicalName="UasSort.Testing.Replay.library-listing.json" />
+  </ItemGroup>
 </Project>
