@@ -187,8 +187,10 @@ public sealed class EditInvariantTests
                     var g = groupOf[sb.First];
                     if (g.Id.Anchor == sb.First)                               // the split clip still starts its group, after a UserSplit
                     {
-                        if (p.Boundaries.SingleOrDefault(x => x.Right == g.Id) is { } boundary)
-                            Assert.Equal(BoundaryCause.UserSplit, boundary.Cause);
+                        if (g.Id == p.Groups[0].Id)                            // a split before the card's first clip: no boundary precedes it
+                            Assert.DoesNotContain(p.Boundaries, x => x.Right == g.Id);
+                        else
+                            Assert.Equal(BoundaryCause.UserSplit, Assert.Single(p.Boundaries, x => x.Right == g.Id).Cause);
                     }
                     else                                                      // or only clips a later MoveToGroup brought in precede it
                     {

@@ -133,14 +133,16 @@ public sealed class PlanSession
         while (!token.IsCancellationRequested)
         {
             State s;
-            lock (_lock) s = _state;
+            SessionFlags f;
+            lock (_lock) { s = _state; f = _flags; }
             Plan p;
-            try { p = DeriveNow(s with { Tuning = t }, token); }
+            try { p = DeriveNow(s with { Tuning = t }, f, token); }
             catch (OperationCanceledException) { return; }
             lock (_lock)
             {
                 if (token.IsCancellationRequested) return;
-                if (!ReferenceEquals(s.Edits, _state.Edits)) continue;   // superseded by a completed edit: re-run on the new log
+                // superseded by a completed edit or [Accept and continue]: re-run on the new log and flags
+                if (!ReferenceEquals(s.Edits, _state.Edits) || f != _flags) continue;
                 if (p.Revision <= _published) return;
                 _published = p.Revision;
                 _publishedTuning = p.Tuning;
@@ -260,7 +262,8 @@ public sealed class PlanSession
     /// <summary>Observes a fire-and-forget task: a fault is raised as <see cref="Faulted"/>, cancellation is ignored.</summary>
     private void Observe(Task task) => _ = ObserveAsync(task);
 
-    private async Task ObserveAsync(Task task)
+    /// <summary>The observing continuation of a fire-and-forget call; internal so tests can await it as a barrier.</summary>
+    internal async Task ObserveAsync(Task task)
     {
         try
         {

@@ -137,6 +137,30 @@ public sealed class PlanSessionTests
         Assert.Equal(0, s.UndoDepth);
     }
 
+    [Fact] // Ref §4.2 latest wins: a preview that snapshotted the flags before [Accept and continue] committed is re-derived with the accepted flags
+    public async Task PreviewDuringAccept_PublishesAcceptedFlags()
+    {
+        var gated = new GatedPlanDeriver(PlanScenario.CreatePlanner());
+        var s = Session(Base(new PlanScenario().LedgerParseIssue("ledger-A.jsonl", 3, "bad")), gated);
+        var plans = new ConcurrentQueue<Plan>();
+        s.Changed += plans.Enqueue;
+        var acceptGate = gated.Arm((t, _) => t.RadiusMiles == 50);
+        var previewGate = gated.Arm((t, _) => t.RadiusMiles == 30);
+        var accept = s.AcceptLedgerIssuesAsync();
+        await acceptGate.Entered;
+        var preview = s.PreviewAsync(new Tuning(30, 1));                 // reads the flags while the accept derive is in flight
+        await previewGate.Entered;
+        acceptGate.Release();
+        await accept;                                                    // the accept commits first ...
+        previewGate.Release();
+        await preview;                                                   // ... then the preview publishes
+        var last = plans.Last();
+        Assert.Equal(30, last.Tuning.RadiusMiles);
+        var issue = last.Issues.Single(i => i.Code == IssueCode.LedgerParseIssue);
+        Assert.Equal((IssueSeverity.Warning, true), (issue.Severity, issue.RequiresAckAtPreflight));
+        Assert.Equal(IssueSeverity.Warning, s.Current.Issues.Single(i => i.Code == IssueCode.LedgerParseIssue).Severity);
+    }
+
     [Fact] // drafts: resume replays the same plan; missing-item edits are counted as dropped
     public async Task Draft_ResumeReplays_AndCountsDropped()
     {
@@ -215,26 +239,50 @@ public sealed class PlanSessionTests
         Assert.Equal(IssueSeverity.Blocking, s.Current.Issues.Single(i => i.Code == IssueCode.LedgerParseIssue).Severity);
     }
 
-    [Fact] // OperationCanceledException from a fire-and-forget derive is not a fault
+    [Fact] // OperationCanceledException from a fire-and-forget derive is not a fault; each leg's observer is awaited before asserting
     public async Task CancelledFireAndForgetDerives_AreNotFaults()
     {
         var boom = new InvalidOperationException("boom");
         var accepted = 0;
-        var previewCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var previewCancelledByToken = 0;
+        var previewEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var s = Session(Base(new PlanScenario().LedgerParseIssue("ledger-A.jsonl", 3, "bad")),
-            new FaultingDeriver(PlanScenario.CreatePlanner(), (t, f) =>
+            new HookDeriver(PlanScenario.CreatePlanner(), (t, f, ct) =>
             {
-                if (t.RadiusMiles == 30) { previewCancelled.TrySetResult(); return new OperationCanceledException(); }
-                if (!f.LedgerIssuesAccepted) return null;
-                return Interlocked.Increment(ref accepted) == 1 ? new OperationCanceledException() : boom;
+                if (t.RadiusMiles == 30)
+                {
+                    previewEntered.TrySetResult();
+                    ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(30));         // until a newer preview cancels this one's token
+                    Volatile.Write(ref previewCancelledByToken, ct.IsCancellationRequested ? 1 : 0);
+                    ct.ThrowIfCancellationRequested();
+                }
+                if (!f.LedgerIssuesAccepted) return;
+                if (Interlocked.Increment(ref accepted) == 1) throw new OperationCanceledException();
+                throw boom;
             }));
-        var (faults, first) = Watch(s);
-        s.Preview(new Tuning(30, 1));
-        await previewCancelled.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
-        s.AcceptLedgerIssues();                                          // cancelled
-        s.AcceptLedgerIssues();                                          // faults: flushes the observers of the two cancelled calls
-        Assert.Same(boom, await first.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct));
-        await s.WhenIdleAsync();
+        var (faults, _) = Watch(s);
+        var plans = new ConcurrentQueue<Plan>();
+        s.Changed += plans.Enqueue;
+
+        // preview leg: the in-flight derive is cancelled through its own token by a newer preview
+        var preview30 = s.PreviewAsync(new Tuning(30, 1));
+        var preview30Observed = s.ObserveAsync(preview30);
+        await previewEntered.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        await s.PreviewAsync(new Tuning(40, 1));
+        await preview30Observed.WaitAsync(TimeSpan.FromSeconds(30), Ct);   // barrier: the observer has finished
+        Assert.Equal(1, Volatile.Read(ref previewCancelledByToken));
+        Assert.True(preview30.IsCompletedSuccessfully);                   // a superseded preview ends quietly
+        Assert.DoesNotContain(plans, p => p.Tuning.RadiusMiles == 30);
+        Assert.Empty(faults);
+
+        // accept leg: the derive's OperationCanceledException reaches the observer's cancellation branch
+        var cancelledAccept = s.AcceptLedgerIssuesAsync();
+        await s.ObserveAsync(cancelledAccept).WaitAsync(TimeSpan.FromSeconds(30), Ct);   // barrier: the observer has finished
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelledAccept);
+        Assert.Empty(faults);
+
+        // control: the same observer does raise a real fault, once
+        await s.ObserveAsync(s.AcceptLedgerIssuesAsync()).WaitAsync(TimeSpan.FromSeconds(30), Ct);
         Assert.Same(boom, Assert.Single(faults));
         Assert.Equal(2, Volatile.Read(ref accepted));
     }
@@ -252,5 +300,15 @@ public sealed class PlanSessionTests
     {
         public Plan Derive(PlanBase b, Tuning t, IReadOnlyList<PlanEdit> edits, SessionFlags flags, int revision, CancellationToken ct) =>
             fault(t, flags) is { } e ? throw e : inner.Derive(b, t, edits, flags, revision, ct);
+    }
+
+    /// <summary>Runs <paramref name="hook"/> (which may block or throw) before each derive, then delegates.</summary>
+    private sealed class HookDeriver(IPlanDeriver inner, Action<Tuning, SessionFlags, CancellationToken> hook) : IPlanDeriver
+    {
+        public Plan Derive(PlanBase b, Tuning t, IReadOnlyList<PlanEdit> edits, SessionFlags flags, int revision, CancellationToken ct)
+        {
+            hook(t, flags, ct);
+            return inner.Derive(b, t, edits, flags, revision, ct);
+        }
     }
 }
