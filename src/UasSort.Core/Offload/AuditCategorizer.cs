@@ -13,6 +13,15 @@ public static class AuditCategorizer
 {
     private enum Role { Video, Photo, Twin, SetMember }
 
+    internal const string CardSwappedDetail = "not copied: the card was swapped";
+
+    /// <summary>True for an Unaccounted line no ledger decision can clear: the file was added, removed or changed since the scan
+    /// (the "changed since scan" prefix, also used for ChangedOnCard), or the card was swapped during the offload.</summary>
+    internal static bool NeedsRescan(AuditLine line)
+        => line.Category == AuditCategory.Unaccounted
+           && (line.Detail.StartsWith(CardDiffResult.ChangedDetail, StringComparison.Ordinal)
+               || string.Equals(line.Detail, CardSwappedDetail, StringComparison.Ordinal));
+
     public static AuditUnits Categorize(CardInventory inventory, Plan plan, OffloadResult? offload, LedgerSnapshot ledger, CardDiffResult diff)
     {
         ArgumentNullException.ThrowIfNull(inventory);
@@ -109,7 +118,13 @@ public static class AuditCategorizer
         public (AuditLine Line, UnaccountedKind? Kind) Media(CardEntry e, Item? item, Role role, SetUnit? set)
         {
             if (_diff.Touched(e.RelPath) is { } changed) return Bad(e, changed, UnaccountedKind.ChangedSinceScan);
-            if (_outcomes.TryGetValue(OffloadPaths.NormRel(e.RelPath), out var o)) return FromOutcome(e, o, item);
+            if (_outcomes.TryGetValue(OffloadPaths.NormRel(e.RelPath), out var o))
+            {
+                // a file this run left uncopied stays Unaccounted until copied or individually decided (Ref §10.5)
+                if ((o is Failed or Cancelled or NotStarted or ConflictAtRename) && Decision(e, set) is { } d)
+                    return Line(e, AuditCategory.ConfirmedByYou, DecisionText(d));
+                return FromOutcome(e, o, item);
+            }
             return FromEvidence(e, item, role, set);
         }
 
@@ -119,21 +134,26 @@ public static class AuditCategorizer
             AlreadyThere => Line(e, AuditCategory.NameSizeMatch, "already at the destination with the same size"),
             Failed f => Bad(e, $"failed ({f.Phase}): {f.Error}", UnaccountedKind.Failed),
             ChangedOnCard => Bad(e, CardDiffResult.ChangedDetail + " (during the offload)", UnaccountedKind.ChangedSinceScan),
-            CardSwapped => Bad(e, "not copied: the card was swapped", NotCopied(item)),
+            CardSwapped => Bad(e, CardSwappedDetail, NotCopied(item)),
             Cancelled => Bad(e, "not copied: cancelled", NotCopied(item)),
             NotStarted => Bad(e, "not copied: the offload stopped first", NotCopied(item)),
             ConflictAtRename => Bad(e, "not copied: a file with this name appeared at the destination", NotCopied(item)),
         };
 
+        private static bool Fits(SetUnit? set, string? recordSet)
+            => set is null || string.Equals(recordSet, set.SetName, StringComparison.OrdinalIgnoreCase);
+
+        private LedgerDecision? Decision(CardEntry e, SetUnit? set)
+            => _ledger.Decisions.TryGetValue(OffloadPaths.Key(e.RelPath, e.Size), out var d) && Fits(set, d.Set) ? d : null;
+
         private (AuditLine Line, UnaccountedKind? Kind) FromEvidence(CardEntry e, Item? item, Role role, SetUnit? set)
         {
             var key = OffloadPaths.Key(e.RelPath, e.Size);
-            bool Fits(string? recordSet) => set is null || string.Equals(recordSet, set.SetName, StringComparison.OrdinalIgnoreCase);
 
             _ledger.Files.TryGetValue(key, out var file);
-            if (file is not null && !Fits(file.Set)) file = null;
+            if (file is not null && !Fits(set, file.Set)) file = null;
             if (file is { Verify: VerifyKind.Unbuffered or VerifyKind.Cached }) return Line(e, AuditCategory.InLedger, "in the history, verified");
-            if (_ledger.Decisions.TryGetValue(key, out var d) && Fits(d.Set)) return Line(e, AuditCategory.ConfirmedByYou, DecisionText(d));
+            if (Decision(e, set) is { } d) return Line(e, AuditCategory.ConfirmedByYou, DecisionText(d));
             if (file is { Verify: VerifyKind.NameSize }) return Line(e, AuditCategory.NameSizeMatch, "in the history, matched by name and size");
             if (set is not null)
             {

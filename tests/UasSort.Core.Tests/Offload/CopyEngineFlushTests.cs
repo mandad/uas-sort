@@ -52,6 +52,26 @@ public class CopyEngineFlushTests
     }
 
     [Fact]
+    public async Task AGuardRefusalOfTheFlush_StopsFlushing_WithInternalSafetyStop_AndKeepsTheResult()
+    {
+        var b = new OffloadPlanBuilder().WithPhotoRoot(@"D:\Photos");
+        b.Photo("DJI_20260927140100_0002_D.DNG", 2_000, T0.AddMinutes(1));
+        b.Set("001_0087", [("PANO_0001.DNG", 5), ("PANO_0002.DNG", 6)], T0.AddMinutes(2), SetResolution.Plain);
+        var rig = new OffloadRig(b).Build();
+        rig.Volumes.Add(OffloadVolumes.ExFatD);
+        rig.Files.ThrowOnFlush = new UnsafeIoException("OpenForFlush refused");
+
+        var r = await rig.RunEngineAsync();
+
+        Assert.Equal(["Verified", "Verified", "Verified"], r.Kinds());
+        Assert.Equal(StopReason.InternalSafetyStop, r.Stop);
+        Assert.Equal([@"D:\"], r.VolumesNeedingSafeRemoval.ToArray());
+        Assert.Single(rig.Files.Calls, c => c.StartsWith("FlushDestination ", StringComparison.Ordinal));   // the first refusal ends flushing
+        Assert.Empty(rig.Files.FlushedDestinations);
+        Assert.Equal(3, rig.Writer.Records.Count);
+    }
+
+    [Fact]
     public async Task AnUnknownVolume_IsTreatedAsNeedingSafeRemoval()
     {
         var rig = VideoOnCPhotosOnD(knowD: false);

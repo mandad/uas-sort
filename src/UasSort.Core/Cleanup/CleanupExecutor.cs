@@ -206,18 +206,23 @@ public static partial class CleanupExecutor
             for (var i = 0; i < _units.Length; i++) _outcomes[i] ??= new CleanupNotStarted(_units[i].Unit);
             var stillListed = ImmutableArray<string>.Empty;
             var after = _plan.SpaceBefore;
+            string? closingError = null;                                          // first failed closing read; the Stop stays as it is
             try
             {
-                var listed = _env.Reader.Relist().Entries.Where(e => !e.IsDirectory)
+                var relisted = _env.Reader.Relist();
+                if (!relisted.Errors.IsEmpty)
+                    closingError = $"the card couldn't be listed (Win32 error {relisted.Errors[0].Win32Error})";
+                var listed = relisted.Entries.Where(e => !e.IsDirectory)
                     .Select(e => CleanupPaths.Rel(e.RelPath)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 stillListed = [.. _deleted.Where(listed.Contains)];
             }
-            catch (IOException) { /* card gone: the rescan shows the truth */ }
+            catch (Exception e) when (Failures.IsIo(e)) { closingError = e.Message; }   // card gone: the rescan shows the truth
             try { after = _env.Reader.Space(); }
-            catch (IOException) { /* card gone: keep SpaceBefore */ }
+            catch (Exception e) when (Failures.IsIo(e)) { closingError ??= e.Message; } // card gone: keep SpaceBefore
             Report(null, null, force: true);
             return new CleanupResult(_runId, _confirmed, [.. _outcomes.Select(o => o!)], _stop, after, stillListed,
-                                     _start, _env.Clock.GetUtcNow().UtcDateTime);
+                                     _start, _env.Clock.GetUtcNow().UtcDateTime,
+                                     closingError is null ? null : $"Couldn't re-read {OffloadPaths.DriveLabel(_plan.CardRoot)} after cleanup: {closingError}");
         }
     }
 }

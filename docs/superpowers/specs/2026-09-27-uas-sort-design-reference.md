@@ -884,7 +884,8 @@ public interface IFileOps {                                      // destination 
   bool ConfirmFinal(string finalPath, long size);                                               // metadata only
   void FlushDestination(string dir, IReadOnlyList<string> filesCreatedThisRun);                 // non-NTFS / removable volumes (§10.3)
   void DeleteOwnTemp(string tempPath);
-  void EnsureDirectory(string dir, bool allowCreate);             // allowCreate only for NewFolder paths and their YYYY/YYYY-MM parents;
+  void EnsureDirectory(string dir, bool allowCreate);             // allowCreate only for NewFolder targets (+ their YYYY/YYYY-MM parents)
+                                                                  // and new set folders under the photo root;
                                                                   // never .uas-sort (only ILedgerStore.EnsureFolder creates that)
   bool TryGetSize(string path, out long size);
   long FreeBytes(string anyPathOnVolume); }
@@ -1020,7 +1021,7 @@ public union GuardDecision(GuardAllow, GuardUnsafe, GuardCloudOnly, GuardHydrati
   - our own `*.uas-sort.tmp` files during verification, and our own just-renamed files during the post-run flush. These are tracked in an in-memory set for the run.
   - **The ledger exemption** (below). It is the only exemption for files the app didn't create in this run.
 - Files are created only with `CreateNew`, and only under a configured root. The own ledger file is the one exception: it is opened for append and created if it is missing (§4.1).
-- `IFileOps.EnsureDirectory(allowCreate:true)` is allowed only for NewFolder paths and their `YYYY`/`YYYY-MM` parents. Append targets must already exist (§10.2).
+- `IFileOps.EnsureDirectory(allowCreate:true)` is allowed only for NewFolder targets (and their `YYYY`/`YYYY-MM` parents) and new set folders under the photo root. Append targets must already exist (§10.2).
 - The `<videoRoot>\.uas-sort` folder itself (never anything below it) is created only by `ILedgerStore.EnsureFolder()`.
 - `DeleteOwnTemp` accepts only names ending in `.uas-sort.tmp`.
 
@@ -1905,7 +1906,7 @@ The Setup stage shows the first three cards: video root, photo root, and the rea
   - Sets go to `<photoRoot>\<folder>\member`. `Resume` placements copy only the missing members.
 - **Skipped:** groups with target `SkipGroup` or `NothingToCopy`, Imported items and Decided items.
 - **Ticked conflicts** get their `(n)` name.
-- **`CreatesFolder`** is true only for NewFolder targets.
+- **`CreatesFolder`** is true only for NewFolder targets and new set folders under the photo root (`Plain` and `DateSuffixed` placements; never `Resume`).
 - **`SeenIfNotCopied`** lists every photo or set unit that is New, Conflict, or ticked. Those not copied by the end get `seen` records (§10.4).
 - **Order:** groups by start time; within each group, videos by capture time; then photos by capture time; then sets.
 

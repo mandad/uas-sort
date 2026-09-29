@@ -36,7 +36,10 @@ public static class CommitTailRecords
                     files = [p.Primary];
                     break;
                 case SetUnit s:
-                    files = s.Members;
+                    // a Resume set copies only its missing members; the rest are already in the library (Ref §10.4, §7.3)
+                    files = plan.Base.Sets.TryGetValue(id, out var placement) && placement.Resolution == SetResolution.Resume
+                        ? [.. s.Members.Where(m => placement.MembersToCopy.Contains(OffloadPaths.FileName(m.RelPath), StringComparer.OrdinalIgnoreCase))]
+                        : s.Members;
                     set = s.SetName;
                     break;
                 default:

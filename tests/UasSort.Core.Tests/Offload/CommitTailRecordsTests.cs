@@ -43,6 +43,36 @@ public class CommitTailRecordsTests
         Assert.Equal(conflict, new ItemId(seen[2].Src));
     }
 
+    private static (OffloadBatch Batch, Plan Plan) ResumeSet()
+    {
+        var b = new OffloadPlanBuilder();
+        b.Set("001_0087", [("PANO_0001.DNG", 5), ("PANO_0002.DNG", 6), ("PANO_0003.DNG", 7)], T0, SetResolution.Resume,
+              membersToCopy: ["PANO_0002.DNG", "PANO_0003.DNG"]);
+        var plan = b.Build();
+        return (OffloadCompiler.Compile(plan, "run-1"), plan);
+    }
+
+    [Fact]
+    public void Seen_ForAResumeSet_WhoseMissingMembersWereAllVerified_IsEmpty()
+    {
+        var (batch, plan) = ResumeSet();
+        var result = Result(batch, j => new Verified(j, UInt128.One, VerifyMode.Unbuffered));
+
+        Assert.Empty(CommitTailRecords.Seen(batch, plan, result, "DESKTOP-A", T0.AddMinutes(6)));
+    }
+
+    [Fact]
+    public void Seen_ForAResumeSet_CoversOnlyTheMissingMembersNotCopied()
+    {
+        var (batch, plan) = ResumeSet();
+        var result = Result(batch, j => j.CardRelPath.EndsWith("PANO_0003.DNG", StringComparison.Ordinal)
+                                        ? new NotStarted(j) : new Verified(j, UInt128.One, VerifyMode.Unbuffered), StopReason.Cancelled);
+
+        var seen = Assert.Single(CommitTailRecords.Seen(batch, plan, result, "DESKTOP-A", T0.AddMinutes(6)));
+
+        Assert.Equal(("PANO_0003.DNG", "notStarted", "001_0087"), (seen.Name, seen.Why, seen.Set));
+    }
+
     [Fact]
     public void CardLeftovers_AreTheFolderPlansWithoutJobs()
     {

@@ -42,6 +42,8 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public Action<string, long>? OnTempWrite { get; set; }
     /// <summary>Thrown by FinalizeAttributes before anything else (e.g. an UnsafeIoException for the safety-stop test).</summary>
     public Exception? ThrowOnFinalize { get; set; }
+    /// <summary>Thrown by FlushDestination before anything is flushed (e.g. an UnsafeIoException: the guard refused OpenForFlush).</summary>
+    public Exception? ThrowOnFlush { get; set; }
     /// <summary>Replaces fs.DestinationFreeBytes in FreeBytes (argument: the path asked about).</summary>
     public Func<string, long>? FreeBytesOverride { get; set; }
 
@@ -165,6 +167,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
         ArgumentNullException.ThrowIfNull(filesCreatedThisRun);
         var d = PathRules.Normalize(dir);
         Call("FlushDestination " + d);
+        if (ThrowOnFlush is { } injected) throw injected;
         ThrowIfLost(d);
         foreach (var f in filesCreatedThisRun)
         {

@@ -85,7 +85,8 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
             foreach (var g in landed.Where(g => !folderDone.Contains(g)).ToList())
                 if (!WriteFolder(g)) break;
 
-        var safeRemoval = FlushDestinations(files, renamed);
+        var safeRemoval = FlushDestinations(files, renamed, out bool flushRefused);
+        if (flushRefused) stop ??= StopReason.InternalSafetyStop;
         return new OffloadResult(batch.RunId, [.. outcomes], stop, start, Now(), safeRemoval);
     }
 
@@ -138,7 +139,7 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
                 return new Step(new ConflictAtRename(job), null);
             }
 
-            // step 3: the folder (created only for NewFolder paths; Append targets must exist)
+            // step 3: the folder (created only for NewFolder targets and new set folders; Append targets must exist)
             phase = CopyPhase.CreateTemp;
             var dir = OffloadPaths.DirectoryOf(job.DestPath);
             if (!ensured.Contains(dir))
@@ -344,18 +345,25 @@ public sealed class CopyEngine(TimeProvider clock, CopyEngineOptions options)
     }
 
     /// <summary>After the loop: flush renamed files and their directories on volumes that are not NTFS on a fixed disk, and list
-    /// those volumes for safe removal (Ref §10.3). Durability there comes from the flush plus safe removal, not write-through.</summary>
-    private ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed)
+    /// those volumes for safe removal (Ref §10.3). Durability there comes from the flush plus safe removal, not write-through.
+    /// A guard refusal ends all flushing (refused = true; Run makes it an InternalSafetyStop), but every volume is still listed.</summary>
+    private ImmutableArray<string> FlushDestinations(IFileOps files, List<string> renamed, out bool refused)
     {
+        refused = false;
         var needing = ImmutableArray.CreateBuilder<string>();
         foreach (var volume in renamed.GroupBy(OffloadPaths.VolumeRoot, StringComparer.OrdinalIgnoreCase))
         {
             if (!NeedsSafeRemoval(volume.Key)) continue;
             foreach (var dir in volume.GroupBy(OffloadPaths.DirectoryOf, StringComparer.OrdinalIgnoreCase))
             {
+                if (refused) break;
                 try
                 {
                     files.FlushDestination(dir.Key, [.. dir]);
+                }
+                catch (UnsafeIoException)
+                {
+                    refused = true;   // an internal safety stop (part convention); the ledger records already written stand
                 }
                 catch (Exception e) when (Failures.IsIo(e))
                 {

@@ -62,6 +62,7 @@ public sealed class CleanupExecutorTests : IDisposable
         Assert.Equal(1, h.Erasers.OpenCount);
         Assert.Equal(confirmed.Plan.SpaceBefore.FreeBytes + confirmed.Plan.AllocatedBytes, r.SpaceAfter.FreeBytes);
         Assert.Empty(r.StillListed);
+        Assert.Null(r.ClosingReadError);
         Assert.Same(confirmed, r.Plan);
         Assert.Equal(new DateTime(2026, 10, 12, 19, 30, 5, DateTimeKind.Utc), r.StartUtc);
         var last = h.Progress.Items[^1];

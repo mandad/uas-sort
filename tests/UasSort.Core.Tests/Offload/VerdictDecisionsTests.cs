@@ -113,6 +113,113 @@ public class VerdictDecisionsTests
     }
 
     [Fact]
+    public void ScanTimeRows_AreDecidable()
+    {
+        var f = Build();
+        Assert.All(VerdictDecisions.NotCopied(f.Verdict, f.Plan), r => Assert.Equal((true, (string?)null), (r.CanDecide, r.CannotDecideReason)));
+    }
+
+    private static (Plan Plan, OffloadResult Result, ItemId Video) OneVideo(Func<CopyJob, CopyOutcome> outcome)
+    {
+        var b = new OffloadPlanBuilder();
+        var v = b.Video("DJI_20260927140000_0001_D.MP4", 100, T0);
+        b.Group(new NewFolder(ZRel), Zachar, v);
+        var plan = b.Build();
+        return (plan, Result(OffloadCompiler.Compile(plan, "run-1"), outcome), v);
+    }
+
+    private static FormatVerdict Audit(Plan plan, OffloadResult result, ListingResult relisted, LedgerSnapshot? ledger = null)
+        => CardAudit.Audit(plan.Base.Scan.Inventory, relisted, OffloadPlanBuilder.Card, plan, result, ledger ?? plan.Base.Scan.Ledger, OffloadPlanBuilder.Card);
+
+    [Fact]
+    public void AFileAddedSinceTheScan_IsNotDecidable_AndCheckRefusesIt()
+    {
+        var (plan, result, _) = OneVideo(j => new Verified(j, UInt128.One, VerifyMode.Unbuffered));
+        var relisted = Unchanged(plan.Base.Scan.Inventory);
+        relisted = relisted with { Entries = relisted.Entries.Add(new FsEntry(@"E:\DCIM\DJI_001\late.MP4", @"DCIM\DJI_001\late.MP4", false, 9, T0, T0, T0, 0x20)) };
+
+        var row = Assert.Single(VerdictDecisions.NotCopied(Audit(plan, result, relisted), plan));
+
+        Assert.Equal((new ItemId("DCIM/DJI_001/late.MP4"), false, "Rescan the card first"), (row.Unit, row.CanDecide, row.CannotDecideReason));
+        Assert.Equal(new DecisionCheck(false, "Rescan the card first"), VerdictDecisions.Check(DecisionKind.Dismissed, [row]));
+        Assert.Throws<InvalidOperationException>(() => VerdictDecisions.Records(DecisionKind.Dismissed, [row], plan, "run-1", "DESKTOP-A", Clock));
+    }
+
+    [Fact]
+    public void AFileChangedSinceTheScan_IsNotDecidable()
+    {
+        var (plan, result, v) = OneVideo(j => new NotStarted(j));
+        var relisted = Unchanged(plan.Base.Scan.Inventory);
+        relisted = relisted with { Entries = [.. relisted.Entries.Select(e => e with { Size = e.Size + 1 })] };
+
+        var row = Assert.Single(VerdictDecisions.NotCopied(Audit(plan, result, relisted), plan));
+
+        Assert.Equal((v, false, "Rescan the card first"), (row.Unit, row.CanDecide, row.CannotDecideReason));
+        Assert.False(VerdictDecisions.Check(DecisionKind.Dismissed, [row]).Ok);
+    }
+
+    [Theory]
+    [InlineData("cardSwapped", false)]
+    [InlineData("changedOnCard", false)]
+    [InlineData("failed", true)]
+    [InlineData("cancelled", true)]
+    [InlineData("notStarted", true)]
+    [InlineData("conflictAtRename", true)]
+    public void OutcomeRows_AreDecidable_UnlessTheCardChanged(string outcome, bool decidable)
+    {
+        var (plan, result, _) = OneVideo(j => outcome switch
+        {
+            "cardSwapped" => new CardSwapped(j, OffloadPlanBuilder.Card with { VolumeSerial = 1 }),
+            "changedOnCard" => new ChangedOnCard(j, 101, T0),
+            "failed" => new Failed(j, CopyPhase.Copy, "Data error"),
+            "cancelled" => new Cancelled(j),
+            "notStarted" => new NotStarted(j),
+            _ => new ConflictAtRename(j),
+        });
+
+        var row = Assert.Single(VerdictDecisions.NotCopied(Audit(plan, result, Unchanged(plan.Base.Scan.Inventory)), plan));
+
+        Assert.Equal((decidable, decidable ? null : "Rescan the card first"), (row.CanDecide, row.CannotDecideReason));
+    }
+
+    [Theory]
+    [InlineData("failed")]
+    [InlineData("cancelled")]
+    [InlineData("notStarted")]
+    [InlineData("conflictAtRename")]
+    public void AnUncopiedVideoIndividuallyDismissed_CountsAsConfirmedByYou(string outcome)
+    {
+        var (plan, result, _) = OneVideo(j => outcome switch
+        {
+            "failed" => new Failed(j, CopyPhase.Verify, "mismatch twice"),
+            "cancelled" => new Cancelled(j),
+            "notStarted" => new NotStarted(j),
+            _ => new ConflictAtRename(j),
+        });
+        var relisted = Unchanged(plan.Base.Scan.Inventory);
+        var before = Audit(plan, result, relisted);
+        Assert.Equal(VerdictLevel.NotSafe, before.Level);
+
+        var made = VerdictDecisions.Records(DecisionKind.Dismissed, [VerdictDecisions.NotCopied(before, plan).Single()], plan, "run-1", "DESKTOP-A", Clock);
+        var after = Audit(plan, result, relisted, VerdictDecisions.Apply(plan.Base.Scan.Ledger, made, []));
+
+        Assert.Equal(VerdictLevel.Safe, after.Level);
+        Assert.Equal(1, after.Counts[AuditCategory.ConfirmedByYou]);
+        Assert.Equal("you marked it not needed", Assert.Single(Assert.Single(after.Units).Lines).Detail);
+        Assert.Empty(VerdictDecisions.NotCopied(after, plan));
+    }
+
+    [Fact]
+    public void Records_Throws_WhenADecidableRowResolvesToNoCardFile()
+    {
+        var f = Build();
+        var ghost = new NotCopiedRow(new ItemId("DCIM/DJI_A001/gone.MP4"), NotCopiedKind.Unknown, false, null, 1, 5, AuditCategory.Unaccounted, "not recognised");
+
+        Assert.True(VerdictDecisions.Check(DecisionKind.Dismissed, [ghost]).Ok);
+        Assert.Throws<InvalidOperationException>(() => VerdictDecisions.Records(DecisionKind.Dismissed, [ghost], f.Plan, "run-1", "DESKTOP-A", Clock));
+    }
+
+    [Fact]
     public void DismissingTheLastUnaccountedFiles_MakesTheCardSafe_AndUndoRevokesIt()
     {
         var b = new OffloadPlanBuilder();

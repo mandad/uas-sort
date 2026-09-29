@@ -4,14 +4,18 @@ namespace UasSort.Core.Offload;
 
 public enum NotCopiedKind { Video, Photo, Set, Unknown }
 
+/// <summary>One "Not copied" row. CanDecide is false when no decision could clear it (added or changed since the scan, or the card
+/// was swapped during the offload); CannotDecideReason then says what to do instead.</summary>
 public sealed record NotCopiedRow(ItemId Unit, NotCopiedKind Kind, bool Truncated, DateOnly? LocalDate, int Files, long Bytes,
-                                  AuditCategory Category, string Detail);
+                                  AuditCategory Category, string Detail, bool CanDecide = true, string? CannotDecideReason = null);
 
 public sealed record DecisionCheck(bool Ok, string? Refusal);
 
 /// <summary>Ref §10.5 "Verdict page": the "Not copied" list, the two decisions, their confirmation text, and undo.</summary>
 public static class VerdictDecisions
 {
+    private const string RescanFirst = "Rescan the card first";
+
     public static ImmutableArray<NotCopiedRow> NotCopied(FormatVerdict verdict, Plan plan)
     {
         ArgumentNullException.ThrowIfNull(verdict);
@@ -32,8 +36,9 @@ public static class VerdictDecisions
             };
             bool truncated = unit is VideoUnit { HasTrinf: true } || (item?.Flags.HasFlag(ItemFlags.Truncated) ?? false);
             var detail = u.Lines.First(l => l.Category == u.Worst).Detail;
+            bool canDecide = !u.Lines.Any(AuditCategorizer.NeedsRescan);
             rows.Add(new NotCopiedRow(u.Unit, kind, truncated, kind == NotCopiedKind.Unknown ? null : item?.Time.LocalDate,
-                                      u.Lines.Length, u.Lines.Sum(l => l.Size), u.Worst, detail));
+                                      u.Lines.Length, u.Lines.Sum(l => l.Size), u.Worst, detail, canDecide, canDecide ? null : RescanFirst));
         }
         return rows.ToImmutable();
     }
@@ -45,6 +50,7 @@ public static class VerdictDecisions
     {
         ArgumentNullException.ThrowIfNull(selected);
         if (selected.Count == 0) return new DecisionCheck(false, "Nothing is selected");
+        if (selected.FirstOrDefault(r => !r.CanDecide) is { } stuck) return new DecisionCheck(false, stuck.CannotDecideReason ?? RescanFirst);
         if (kind == DecisionKind.AssumedImported && selected.Any(r => r.Kind is not (NotCopiedKind.Photo or NotCopiedKind.Set)))
             return new DecisionCheck(false, "Only photos and sets can be recorded as imported");
         if (selected.Count > 1 && selected.Any(r => r.Kind is NotCopiedKind.Video or NotCopiedKind.Unknown))
@@ -99,6 +105,8 @@ public static class VerdictDecisions
                                                                            StringComparison.OrdinalIgnoreCase))];
                     break;
             }
+            if (files.Count == 0)
+                throw new InvalidOperationException($"{row.Unit.CardRelPath} matches no file in the scanned card; rescan the card first");
             var why = kind == DecisionKind.Dismissed ? "not needed"
                     : item?.Newness is ProbablyImported p2 ? p2.Why : "confirmed by you";
             foreach (var f in files)

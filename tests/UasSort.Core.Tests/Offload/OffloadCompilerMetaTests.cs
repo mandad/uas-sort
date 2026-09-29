@@ -50,4 +50,18 @@ public class OffloadCompilerMetaTests
         Assert.Contains(@"C:\Users\u\OneDrive\Pictures\UAS Videos\2026\2026-09\2026-09-27 Zachar Bay", dirs);
         Assert.Contains(@"D:\Photos\001_0087", dirs);
     }
+
+    [Fact]
+    public void NewFolderDirs_IncludesNewSetFoldersOfEveryKind_ButNeverAResumedOne()
+    {
+        var b = new OffloadPlanBuilder().WithPhotoRoot(@"D:\Photos");
+        b.Set("001_0087", [("PANO_0001.DNG", 5)], T0, SetResolution.DateSuffixed, folderName: "001_0087 2026-09-27");
+        b.Set("001_0088", [("PANO_0001.DNG", 5), ("PANO_0002.DNG", 6)], T0.AddMinutes(1), SetResolution.Resume, membersToCopy: ["PANO_0002.DNG"]);
+        var batch = OffloadCompiler.Compile(b.Build(), "r");
+
+        var dirs = OffloadCompiler.NewFolderDirs(batch, b.VideoRoot);
+
+        Assert.Equal([@"D:\Photos\001_0087 2026-09-27"], dirs.ToArray());
+        Assert.Equal([true, false], batch.Jobs.Select(j => j.CreatesFolder).ToArray());
+    }
 }

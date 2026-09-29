@@ -133,6 +133,7 @@ public sealed record CleanupEnvironment(CardSource Source, CardIdentity Pinned, 
 public sealed record CleanupResult(string RunId, ConfirmedCleanupPlan Plan, ImmutableArray<CleanupOutcome> Outcomes,
     CleanupStop? Stop /* null = ran to the end */, CardSpace SpaceAfter /* re-read */,
     ImmutableArray<string> StillListed /* deleted, yet present at the re-list */,
-    DateTime StartUtc, DateTime EndUtc);
+    DateTime StartUtc, DateTime EndUtc,
+    string? ClosingReadError = null /* null = the closing re-list and free-space read both succeeded */);
 
 public sealed record CleanupProgress(int FilesDone, int FilesTotal, long BytesDone, long BytesTotal, string? CurrentFile, ItemId? Unit);

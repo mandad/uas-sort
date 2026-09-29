@@ -171,6 +171,54 @@ public sealed class CleanupExecutorFaultTests : IDisposable
     }
 
     [Fact]
+    public async Task A_card_removed_after_the_last_delete_reports_the_closing_read_error_and_keeps_the_stop()
+    {
+        var (s, ids) = Singles(2);
+        var h = Harness(s);
+        var confirmed = s.Confirmed(Before(2026, 7, 26));
+        var last = Rel(s, ids[1]);
+        h.Fs.Faults.OnCardDelete = p => { if (p == last) h.Fs.Faults.CardRemoved = true; };   // the delete lands, then the card goes
+        var r = await h.Run(confirmed, TestContext.Current.CancellationToken);
+        Assert.Equal(new[] { typeof(Deleted), typeof(Deleted) }, Kinds(r));
+        Assert.Null(r.Stop);
+        Assert.Equal("Couldn't re-read E: after cleanup: the card couldn't be listed (Win32 error 21)", r.ClosingReadError);
+        Assert.Equal(confirmed.Plan.SpaceBefore, r.SpaceAfter);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_closing_read_that_throws_is_reported(bool relistThrows)
+    {
+        var (s, _) = Singles(1);
+        var h = Harness(s);
+        var confirmed = s.Confirmed(Before(2026, 7, 26));
+        h.Fs.Faults.OnCardDelete = _ => h.Fs.Faults.CardRemoved = true;
+        var env = h.Env with { Reader = new ClosingReadFails(h.Env.Reader, h.Fs, relistThrows) };
+        var r = await CleanupExecutor.RunAsync(confirmed, env, h.Progress, TestContext.Current.CancellationToken);
+        Assert.Null(r.Stop);
+        Assert.IsType<Deleted>(Assert.Single(r.Outcomes));
+        Assert.Equal(relistThrows ? "Couldn't re-read E: after cleanup: listing failed"
+                                  : "Couldn't re-read E: after cleanup: The device is not ready.", r.ClosingReadError);
+    }
+
+    /// <summary>Once the card is gone, Relist either throws, or returns a clean empty listing so that only Space() fails.</summary>
+    private sealed class ClosingReadFails(ICardReader inner, FakeFileSystem fs, bool relistThrows) : ICardReader
+    {
+        public CardIdentity CurrentIdentity() => inner.CurrentIdentity();
+        public Stream OpenSequential(string cardRelPath) => inner.OpenSequential(cardRelPath);
+        public Stream OpenRandom(string cardRelPath) => inner.OpenRandom(cardRelPath);
+        public FsEntry Stat(string cardRelPath) => inner.Stat(cardRelPath);
+        public ListingResult Relist()
+        {
+            if (!fs.Faults.CardRemoved) return inner.Relist();
+            if (relistThrows) throw new IOException("listing failed");
+            return new ListingResult([], []);
+        }
+        public CardSpace Space() => inner.Space();
+    }
+
+    [Fact]
     public async Task Access_denied_and_sharing_violation_fail_only_their_unit()
     {
         var (s, ids) = Singles(3);
