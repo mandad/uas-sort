@@ -8,5 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\UasSort.Core\UasSort.Core.csproj" />
+    <!-- added by Part 09 -->
+    <PackageReference Include="System.IO.Hashing" />
+    <InternalsVisibleTo Include="UasSort.Platform.Tests" />
   </ItemGroup>
 </Project>

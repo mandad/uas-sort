@@ -14,6 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\UasSort.Platform\UasSort.Platform.csproj" />
+    <ProjectReference Include="..\..\src\UasSort.Core\UasSort.Core.csproj" />  <!-- added by Part 09 -->
     <ProjectReference Include="..\UasSort.Testing\UasSort.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>

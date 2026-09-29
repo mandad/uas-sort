@@ -1,0 +1,7 @@
+global using UasSort.Platform.Card;
+global using UasSort.Platform.Io;
+global using UasSort.Platform.Ledger;
+global using UasSort.Platform.Logging;
+global using UasSort.Platform.Shell;
+global using UasSort.Platform.Stores;
+global using UasSort.Platform.Win32;
