@@ -29,7 +29,7 @@
             <TextBlock Grid.Column="5" Text="Status" Style="{StaticResource CaptionText}" />
             <TextBlock Grid.Column="6" Text="From centre" Style="{StaticResource CaptionText}" />
         </Grid>
-        <ItemsView x:Name="Items" x:FieldModifier="internal" Grid.Row="1" SelectionMode="Extended" SelectionChanged="OnSelectionChanged"
+        <ItemsView x:Name="Items" x:FieldModifier="internal" Grid.Row="1" SelectionMode="Extended" SelectionChanged="OnSelectionChanged" PreviewKeyDown="OnItemsPreviewKeyDown"
                    ContextRequested="OnContextRequested">
             <ItemsView.ItemTemplate>
                 <DataTemplate x:DataType="rv:ClipRowVm">

@@ -27,6 +27,12 @@ public sealed partial class CardPage : Page
         if (args.InvokedItem is CardRowVm row && row.UseCommand.CanExecute(null)) row.UseCommand.Execute(null);
     }
 
+    private void OnRescanAccelerator(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (Vm.RescanCommand.CanExecute(null)) Vm.RescanCommand.Execute(null);
+        args.Handled = true;
+    }
+
     private async void OnBrowse(object sender, RoutedEventArgs e)
     {
         if (await FolderPickerService.PickFolderAsync(_window, null) is { } path) Vm.Browse(path);

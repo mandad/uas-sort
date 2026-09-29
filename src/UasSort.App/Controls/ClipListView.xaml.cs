@@ -3,6 +3,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.System;
 
 namespace UasSort.App.Controls;
 
@@ -46,6 +47,24 @@ public sealed partial class ClipListView : UserControl
     {
         var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
         return VisualTree.FindAncestor<ItemContainer>(focused)?.DataContext as ClipRowVm;
+    }
+
+    private void OnItemsPreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
+        e.Handled = HandleKey(e.Key, KeyRouting.Modifiers(), FocusManager.GetFocusedElement(XamlRoot));   // synchronous: Handled counts
+
+    /// <summary>Clip-list keys (Ref §9.12) through ReviewVm.HandleKey: Space toggles the selected clips (the focused row is
+    /// selected first), Ctrl+Shift+S splits before ReviewVm.FocusedClip. A focused CheckBox keeps Space; a text box keeps every key.</summary>
+    public bool HandleKey(VirtualKey key, KeyMods mods, object? focused)
+    {
+        if (_review is null || KeyRouting.IsCheckBox(focused)
+            || KeyRouting.ToReviewKey(key) is not { } k || k is not (ReviewKey.Space or ReviewKey.S)) return false;
+        var focus = KeyRouting.FocusOf(focused);
+        if (focus == KeyFocus.ClipItem && VisualTree.FindAncestor<ItemContainer>(focused as DependencyObject)?.DataContext is ClipRowVm row)
+        {
+            _review.FocusedClip = row;
+            if (k == ReviewKey.Space && !_review.Videos.SelectedClipIds.Contains(row.Id)) SelectRows((ItemId[])[row.Id]);   // explicit array: CsWinRT1032
+        }
+        return _review.HandleKey(k, mods, focus);
     }
 
     private void OnSelectionChanged(ItemsView sender, ItemsViewSelectionChangedEventArgs args)

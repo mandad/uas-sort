@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Windows.System;
 
 namespace UasSort.App.Controls;
 
@@ -32,6 +33,19 @@ public sealed partial class PhotosTab : UserControl
 
     public PhotoTileVm? FocusedTile() =>
         VisualTree.FindAncestor<ItemContainer>(FocusManager.GetFocusedElement(XamlRoot) as DependencyObject)?.DataContext as PhotoTileVm;
+
+    private void OnWallPreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
+        e.Handled = HandleKey(e.Key, KeyRouting.Modifiers(), FocusManager.GetFocusedElement(XamlRoot));
+
+    /// <summary>Space on a photo tile toggles it through ReviewVm.HandleKey (ReviewVm.FocusedTile). A focused CheckBox keeps Space.</summary>
+    public bool HandleKey(VirtualKey key, KeyMods mods, object? focused)
+    {
+        if (_review is null || key != VirtualKey.Space || KeyRouting.IsCheckBox(focused)) return false;
+        var focus = KeyRouting.FocusOf(focused);
+        if (focus == KeyFocus.PhotoItem && VisualTree.FindAncestor<ItemContainer>(focused as DependencyObject)?.DataContext is PhotoTileVm tile)
+            _review.FocusedTile = tile;
+        return _review.HandleKey(ReviewKey.Space, mods, focus);
+    }
 
     private void OnDaySelectionChanged(ItemsView sender, ItemsViewSelectionChangedEventArgs args)
     {

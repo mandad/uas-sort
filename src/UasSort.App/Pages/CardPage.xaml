@@ -6,6 +6,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ui="using:UasSort.App.Services"
     xmlns:rv="using:UasSort.Review">
+    <Page.KeyboardAccelerators>
+        <KeyboardAccelerator Key="F5" Invoked="OnRescanAccelerator" />
+    </Page.KeyboardAccelerators>
     <Grid Padding="24" RowSpacing="12" MaxWidth="900">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

@@ -4,7 +4,9 @@ using System.Text.Json;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.System;
 
 namespace UasSort.App.SelfTest;
 
@@ -280,5 +282,53 @@ internal static partial class SelfTestChecks
         {
             page.Vm.Other.Sections.Remove(probe);
         }
+    }
+
+    // Ref §9.12 / §13: "A smoke test types a space into the rename box and checks that Included is unchanged."
+    private static async Task<SelfTestCheck> KeysSpaceInRenameBox(SelfTestContext ctx)
+    {
+        var (page, timeline, groups) = await TimelineAsync(ctx);
+        page.Vm.Videos.SelectedEntry = groups[0];
+        var list = VisualTree.FindDescendant<ClipListView>(page)!;
+        await WaitUntilAsync(() => page.Vm.Videos.Clips.Count == 2 && list.ContainerFor(page.Vm.Videos.Clips[1]) is not null, TimeSpan.FromSeconds(5));
+        var before = page.Vm.Videos.Clips.Select(c => c.IsIncluded).ToList();
+
+        var box = VisualTree.FindDescendant<AutoSuggestBox>(timeline.ContainerFor(groups[0])!, b => b.Name == "DescriptionBox")!;
+        box.Focus(FocusState.Keyboard);
+        await WaitUntilAsync(() => KeyRouting.IsTextInput(FocusManager.GetFocusedElement(page.XamlRoot)), TimeSpan.FromSeconds(2));
+        var focused = FocusManager.GetFocusedElement(page.XamlRoot);
+        bool t = timeline.HandleKey(VirtualKey.Space, KeyMods.None, focused);
+        bool c = list.HandleKey(VirtualKey.Space, KeyMods.None, focused);
+        await Task.Delay(300);                                   // any (wrong) edit would have been applied by now
+        var afterText = page.Vm.Videos.Clips.Select(x => x.IsIncluded).ToList();
+
+        var rowB = page.Vm.Videos.Clips[1];
+        var container = list.ContainerFor(rowB)!;
+        container.Focus(FocusState.Keyboard);
+        await WaitUntilAsync(() => KeyRouting.IsInItemContainer(FocusManager.GetFocusedElement(page.XamlRoot)), TimeSpan.FromSeconds(2));
+        bool handled = list.HandleKey(VirtualKey.Space, KeyMods.None, FocusManager.GetFocusedElement(page.XamlRoot));
+        bool toggled = await WaitUntilAsync(() => page.Vm.Videos.Clips.Count == 2 && page.Vm.Videos.Clips[1].IsIncluded != before[1], TimeSpan.FromSeconds(3));
+        if (toggled) list.HandleKey(VirtualKey.Space, KeyMods.None, FocusManager.GetFocusedElement(page.XamlRoot));   // restore
+        bool ok = !t && !c && afterText.SequenceEqual(before) && handled && toggled;
+        return ok ? SelfTestCheck.Pass("keys.spaceInRenameBox", "space in the rename box changed nothing; space on a clip row toggled it")
+                  : SelfTestCheck.Fail("keys.spaceInRenameBox", $"timeline {t} list {c} unchanged {afterText.SequenceEqual(before)} rowHandled {handled} toggled {toggled}");
+    }
+
+    private static async Task<SelfTestCheck> KeysAccelerators(SelfTestContext ctx)
+    {
+        var (page, timeline, groups) = await TimelineAsync(ctx);
+        string[] expected = ["undo", "redo", "mergeNext", "moveToNewGroup", "tab1", "tab2", "tab3", "rescan", "offload"];
+        var actions = ReviewPage.AcceleratorTable.Select(a => a.Action).Distinct().ToList();
+        bool unmodifiedLetters = ReviewPage.AcceleratorTable.Any(a => a.Modifiers == VirtualKeyModifiers.None && a.Key != VirtualKey.F5);
+        var box = VisualTree.FindDescendant<AutoSuggestBox>(timeline.ContainerFor(groups[0])!, b => b.Name == "DescriptionBox")!;
+        box.Focus(FocusState.Keyboard);
+        await WaitUntilAsync(() => KeyRouting.IsTextInput(FocusManager.GetFocusedElement(page.XamlRoot)), TimeSpan.FromSeconds(2));
+        bool undoInText = page.TryHandleAccelerator("undo", FocusManager.GetFocusedElement(page.XamlRoot));
+        bool tab = page.TryHandleAccelerator("tab2", FocusManager.GetFocusedElement(page.XamlRoot)) && page.Vm.SelectedTab == 1;
+        page.Vm.SelectedTab = 0;
+        bool ok = expected.All(actions.Contains) && page.KeyboardAccelerators.Count == ReviewPage.AcceleratorTable.Count
+                  && !unmodifiedLetters && !undoInText && tab;
+        return ok ? SelfTestCheck.Pass("keys.accelerators", $"{page.KeyboardAccelerators.Count} accelerators; Ctrl+Z left to the TextBox; Ctrl+2 → Photos")
+                  : SelfTestCheck.Fail("keys.accelerators", $"actions [{string.Join(",", actions)}] unmodified {unmodifiedLetters} undoInText {undoInText} tab {tab}");
     }
 }

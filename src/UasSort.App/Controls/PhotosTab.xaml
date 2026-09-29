@@ -42,7 +42,7 @@
             </ItemsView>
             <ToggleSwitch Grid.Row="1" Header="{x:Bind Vm.ShowImportedText, Mode=OneWay}" IsOn="{x:Bind Vm.ShowImportedDays, Mode=TwoWay}" />
         </Grid>
-        <ItemsView x:Name="Wall" x:FieldModifier="internal" Grid.Column="1" SelectionMode="Extended">
+        <ItemsView x:Name="Wall" x:FieldModifier="internal" Grid.Column="1" SelectionMode="Extended" PreviewKeyDown="OnWallPreviewKeyDown">
             <ItemsView.Layout>
                 <LinedFlowLayout LineHeight="150" LineSpacing="6" MinItemSpacing="6" />
             </ItemsView.Layout>

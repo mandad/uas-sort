@@ -23,6 +23,7 @@ internal static partial class SelfTestChecks
         ("template.groupCard", TemplateGroupCard), ("template.suggestion", TemplateSuggestion), ("template.targetMenu", TemplateTargetMenu),
         ("template.clipRow", TemplateClipRow), ("thumb.keyRecheck", ThumbKeyRecheck),
         ("template.photoTile", TemplatePhotoTile), ("template.otherTab", TemplateOtherTab),
+        ("keys.spaceInRenameBox", KeysSpaceInRenameBox), ("keys.accelerators", KeysAccelerators),
     ];
 
     private static Task<SelfTestCheck> ShellRender(SelfTestContext ctx)

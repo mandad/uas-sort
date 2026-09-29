@@ -2,6 +2,8 @@
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Windows.System;
 
 namespace UasSort.App.Controls;
 
@@ -21,6 +23,24 @@ public sealed partial class TimelineView : UserControl
         Items.ItemsSource = review.Videos.Timeline;       // ObservableCollection<TimelineEntryVm> (Ref §2.7 #4)
         review.Videos.PropertyChanged += OnVideosChanged;
         SyncSelectionFromVm();
+    }
+
+    public ClipListView? ClipList { get; set; }
+
+    private void OnItemsPreviewKeyDown(object sender, KeyRoutedEventArgs e) =>
+        e.Handled = HandleKey(e.Key, KeyRouting.Modifiers(), FocusManager.GetFocusedElement(XamlRoot));
+
+    /// <summary>Timeline list keys (Ref §9.12), only on an item, never in a text box: Tab → clip list (App-side);
+    /// F2 → ReviewVm.HandleKey(F2, …, TimelineItem), which raises FocusRenameRequested.</summary>
+    public bool HandleKey(VirtualKey key, KeyMods mods, object? focused)
+    {
+        if (_review is null || !KeyRouting.IsInItemContainer(focused)) return false;
+        if (key == VirtualKey.Tab && mods == KeyMods.None && ClipList is not null)
+        {
+            ClipList.FocusList();
+            return true;
+        }
+        return key == VirtualKey.F2 && _review.HandleKey(ReviewKey.F2, mods, KeyFocus.TimelineItem);
     }
 
     public ItemContainer? ContainerFor(TimelineEntryVm vm) =>

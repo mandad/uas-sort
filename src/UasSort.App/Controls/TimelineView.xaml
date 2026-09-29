@@ -176,6 +176,6 @@
                                       GroupCard="{StaticResource GroupCardTemplate}" FoldedRun="{StaticResource FoldedRunTemplate}" />
     </UserControl.Resources>
 
-    <ItemsView x:Name="Items" x:FieldModifier="internal" SelectionMode="Single" ItemTemplate="{StaticResource TimelineSelector}"
+    <ItemsView x:Name="Items" x:FieldModifier="internal" SelectionMode="Single" PreviewKeyDown="OnItemsPreviewKeyDown" ItemTemplate="{StaticResource TimelineSelector}"
                SelectionChanged="OnSelectionChanged" TabFocusNavigation="Once" />
 </UserControl>

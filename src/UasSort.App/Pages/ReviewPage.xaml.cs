@@ -3,7 +3,9 @@ using System.ComponentModel;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.System;
 
 namespace UasSort.App.Pages;
 
@@ -13,13 +15,14 @@ public sealed partial class ReviewPage : Page
 
     private MainWindow _window = null!;
     private bool _layoutApplied;
-    private DispatcherQueueTimer? _layoutTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _layoutTimer;   // qualified: Windows.System has one too
     private MapBridge? _bridge;
     private ReviewVm? _bridgeFor;
 
     public ReviewPage()
     {
         InitializeComponent();
+        RegisterAccelerators();
         Map.FocusReturnRequested += () => ClipListSlot.FocusList();
         Map.Ready += ConnectMap;
         Map.OnlineChanged += _ => SendMapInit();                // Ref §9.6 offline: re-send init with the new online flag
@@ -60,6 +63,55 @@ public sealed partial class ReviewPage : Page
         OtherSlot.Vm = Vm.Other;
         if (previous is not null) previous.MapContextMenuRequested -= OnMapContextMenu;
         Vm.MapContextMenuRequested += OnMapContextMenu;
+        TimelineSlot.ClipList = ClipListSlot;                   // so Tab moves into the clip list
+        if (previous is not null) previous.FocusRenameRequested -= OnFocusRenameRequested;
+        Vm.FocusRenameRequested += OnFocusRenameRequested;
+    }
+
+    /// <summary>Ref §9.12 page-level accelerators (modified keys only; F5 is a function key).</summary>
+    public static readonly IReadOnlyList<(string Action, VirtualKey Key, VirtualKeyModifiers Modifiers)> AcceleratorTable =
+    ((string Action, VirtualKey Key, VirtualKeyModifiers Modifiers)[])[   // explicit array: CsWinRT1032 (AOT) rejects a collection expression typed as IReadOnlyList
+        ("undo", VirtualKey.Z, VirtualKeyModifiers.Control),
+        ("redo", VirtualKey.Y, VirtualKeyModifiers.Control),
+        ("redo", VirtualKey.Z, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift),
+        ("mergeNext", VirtualKey.M, VirtualKeyModifiers.Control),
+        ("moveToNewGroup", VirtualKey.N, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift),
+        ("tab1", VirtualKey.Number1, VirtualKeyModifiers.Control),
+        ("tab2", VirtualKey.Number2, VirtualKeyModifiers.Control),
+        ("tab3", VirtualKey.Number3, VirtualKeyModifiers.Control),
+        ("rescan", VirtualKey.F5, VirtualKeyModifiers.None),
+        ("offload", VirtualKey.Enter, VirtualKeyModifiers.Control),
+    ];
+
+    private void RegisterAccelerators()
+    {
+        KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+        foreach (var (_, key, mods) in AcceleratorTable)
+        {
+            var accelerator = new KeyboardAccelerator { Key = key, Modifiers = mods };
+            accelerator.Invoked += (_, e) => e.Handled = HandleReviewKey(key, mods, FocusManager.GetFocusedElement(XamlRoot));
+            KeyboardAccelerators.Add(accelerator);
+        }
+    }
+
+    /// <summary>Runs one accelerator of the table; false lets the key through (Ctrl+Z/Y in a text box are the box's own undo).</summary>
+    public bool TryHandleAccelerator(string action, object? focused)
+    {
+        var (_, key, mods) = AcceleratorTable.First(a => string.Equals(a.Action, action, StringComparison.Ordinal));
+        return HandleReviewKey(key, mods, focused);
+    }
+
+    /// <summary>ReviewVm.HandleKey decides (Part 10): undo/redo, merge, move, tabs, F5 rescan (RescanRequested), Ctrl+Enter offload.</summary>
+    private bool HandleReviewKey(VirtualKey key, VirtualKeyModifiers mods, object? focused) =>
+        Vm is not null && KeyRouting.ToReviewKey(key) is { } k && Vm.HandleKey(k, KeyRouting.ToMods(mods), KeyRouting.FocusOf(focused));
+
+    /// <summary>ReviewVm.FocusRenameRequested (F2 on a card, or the "Name it" quick fix): select the card, then focus its rename box.</summary>
+    private void OnFocusRenameRequested(ItemId anchor)
+    {
+        if (Vm?.Videos.CardFor(anchor) is not { } card) return;
+        Vm.SelectedTab = 0;
+        Vm.Videos.SelectedEntry = card;
+        DispatcherQueue.TryEnqueue(() => TimelineSlot.FocusRenameBox(card));   // after the container is brought into view
     }
 
     // Ref §9.6: the map's contextMenu (through ReviewVm.MapContextMenuRequested) → a WinUI MenuFlyout at the pointer
