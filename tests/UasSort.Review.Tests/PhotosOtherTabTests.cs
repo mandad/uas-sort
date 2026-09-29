@@ -75,7 +75,7 @@ public class PhotosOtherTabTests
     public async Task OtherTab_SectionsAndUndismiss()
     {
         var undismissed = new List<Item>();
-        var tab = new OtherTabVm(items => { undismissed.AddRange(items); return Task.CompletedTask; });
+        var tab = new OtherTabVm(items => { undismissed.AddRange(items); return Task.CompletedTask; }, _ => Task.CompletedTask);
         var t = TestPlans.Utc(2026, 7, 26, 3, 0);
         ImmutableArray<CardEntry> extra =
         [
@@ -128,5 +128,85 @@ public class PhotosOtherTabTests
                 new LedgerDecision(d.Id, FileKey.OfPath(d.Src, d.Size), DecisionKind.AssumedImported, d.At, "PC1", null, d.Why)),
         };
         Assert.Equal<string>([d.Id], svc.DecisionIdsFor(DecisionTargets.For(photo), ledger));
+    }
+
+    private static LedgerDecision Decision(string id, CardEntry file, DecisionKind kind)
+        => new(id, FileKey.OfPath(file.RelPath, file.Size), kind, TestPlans.Utc(2026, 10, 4, 18, 0), "PC1", null, "recorded on the Verdict page");
+
+    [Fact]
+    public void Decisions_PairedPhoto_TargetsAndRevokesTheDngAndItsJpgTwin()
+    {
+        var utc = TestPlans.Utc(2026, 7, 26, 4, 0);
+        var lone = Photo("DJI_20260725200000_0101_D.DNG", utc, new Decided(DecisionKind.AssumedImported, utc, "PC1"));
+        var unit = (PhotoUnit)lone.Raw.Unit;
+        var twin = new CardEntry("DCIM/DJI_001/DJI_20260725200000_0101_D.JPG", 8_000_000, utc, utc, utc, 0x20, EntryClass.Photo, null);
+        var paired = lone with { Raw = lone.Raw with { Unit = unit with { JpgTwin = twin } } };
+
+        var targets = DecisionTargets.For(paired);
+        Assert.Equal<CardEntry>([unit.Primary, twin], targets.Select(t => t.File));
+
+        var store = Fake.Ledger();
+        var svc = new LedgerDecisionService(store, new FakeTimeProvider(new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero)), "PC1");
+        var ledger = TestPlans.Ledger() with
+        {
+            Decisions = ImmutableDictionary<FileKey, LedgerDecision>.Empty
+                .Add(FileKey.OfPath(unit.Primary.RelPath, unit.Primary.Size), Decision("d1", unit.Primary, DecisionKind.AssumedImported))
+                .Add(FileKey.OfPath(twin.RelPath, twin.Size), Decision("d2", twin, DecisionKind.AssumedImported)),
+        };
+        var ids = svc.DecisionIdsFor(targets, ledger);
+        Assert.Equal<string>(["d1", "d2"], ids.Order(StringComparer.Ordinal));
+
+        svc.Revoke(ids);
+        Assert.Equal<string>(["d1", "d2"], store.Writer.Records.OfType<RevokeRecord>().Select(r => r.Decision).Order(StringComparer.Ordinal));
+        Assert.Single(DecisionTargets.For(lone));
+    }
+
+    [Fact]
+    public async Task OtherTab_UnknownFileDismissedOnTheVerdictPage_ListedUnderDismissedWithUndismiss()
+    {
+        var undismissedEntries = new List<CardEntry>();
+        var tab = new OtherTabVm(_ => Task.CompletedTask, entries => { undismissedEntries.AddRange(entries); return Task.CompletedTask; });
+        var t = TestPlans.Utc(2026, 7, 26, 3, 0);
+        var dismissed = new CardEntry("DCIM/DJI_A001/x.MP4", 5_000_000, t, t, t, 0x20, EntryClass.Unknown, null);
+        var other = new CardEntry("DCIM/DJI_A001/y.BIN", 7_000_000, t, t, t, 0x20, EntryClass.Unknown, null);
+        var ledger = TestPlans.Ledger() with
+        {
+            Decisions = ImmutableDictionary<FileKey, LedgerDecision>.Empty
+                .Add(FileKey.OfPath(dismissed.RelPath, dismissed.Size), Decision("d1", dismissed, DecisionKind.Dismissed)),
+        };
+        var b = TestPlans.Base(TestPlans.CouncilAnvil(), ledger: ledger, extraEntries: [dismissed, other]);
+        var plan = new ScriptedDeriver().Derive(b, new Tuning(), [], new SessionFlags(false), 1, TestContext.Current.CancellationToken);
+        tab.Update(new PlanIndex(plan));
+
+        Assert.Equal<string>(["Unknown files", "Dismissed by you"], tab.Sections.Select(s => s.Title));
+        Assert.Equal("DCIM/DJI_A001/y.BIN", Assert.Single(tab.Sections[0].Rows).Text);
+        var row = Assert.Single(tab.Sections[1].Rows);
+        Assert.Equal("DCIM/DJI_A001/x.MP4", row.Text);
+        Assert.Equal("5 MB · marked not needed", row.Detail);
+        Assert.Equal("Other · 2", tab.Header);
+
+        await row.UndismissCommand!.ExecuteAsync(null);
+        Assert.Equal(dismissed, Assert.Single(undismissedEntries));
+    }
+
+    [Fact]
+    public async Task ReviewVm_UndismissUnknownFile_RevokesItsDecisionAndRescans()
+    {
+        var t = TestPlans.Utc(2026, 7, 26, 3, 0);
+        var dismissed = new CardEntry("DCIM/DJI_A001/x.MP4", 5_000_000, t, t, t, 0x20, EntryClass.Unknown, null);
+        var ledger = TestPlans.Ledger() with
+        {
+            Decisions = ImmutableDictionary<FileKey, LedgerDecision>.Empty
+                .Add(FileKey.OfPath(dismissed.RelPath, dismissed.Size), Decision("d1", dismissed, DecisionKind.Dismissed)),
+        };
+        using var h = ReviewHarness.Create([], planBase: TestPlans.Base(TestPlans.CouncilAnvil(), ledger: ledger, extraEntries: [dismissed]));
+        var rescans = 0;
+        h.Vm.RescanRequested += () => rescans++;
+
+        var row = Assert.Single(h.Vm.Other.Sections.Single(s => s.Title == "Dismissed by you").Rows);
+        await row.UndismissCommand!.ExecuteAsync(null);
+
+        Assert.Equal("d1", Assert.Single(h.Ledger.Writer.Records.OfType<RevokeRecord>()).Decision);
+        Assert.Equal(1, rescans);
     }
 }

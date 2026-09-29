@@ -27,11 +27,9 @@ public sealed partial class ReviewVm
     {
         if (Offer is not { } o) return Task.CompletedTask;
         Offer = null;
-        Session.Changed -= OnSessionChanged;
-        Session.Faulted -= OnSessionFaulted;
+        Detach(Session);          // plans the old session still delivers (an edit deriving right now) are dropped by OnPlanArrived
         Session = o.Session;
-        Session.Changed += OnSessionChanged;
-        Session.Faulted += OnSessionFaulted;
+        Attach(Session);
         UpdateUndo();
         Tuning.SetCommitted(Session.Current.Tuning);
         Apply(Session.Current);

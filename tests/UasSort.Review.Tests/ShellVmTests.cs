@@ -11,6 +11,13 @@ public class ShellVmTests
         public IReadOnlyList<VolumeInfo> GetVolumes() => v;
     }
 
+    private sealed class DeleteFails : IDraftStore
+    {
+        public Draft? Load(string cardKey) => null;
+        public void Save(string cardKey, Draft d) { }
+        public void Delete(string cardKey) => throw new IOException("drafts folder is locked");
+    }
+
     private sealed class Rig
     {
         public Rig()
@@ -34,6 +41,8 @@ public class ShellVmTests
         public int Scans { get; private set; }
         public List<Settings> Saved { get; } = [];
         public PlanBase Base { get; } = TestPlans.Base(TestPlans.Zachar());
+        public IDraftStore CommitDrafts { get; set; } = new FakeDraftStore();
+        public List<(CleanupOrigin Origin, OffloadResult? Offload)> CleanupOpens { get; } = [];
 
         public ShellVm Shell(bool rootsConfirmed = true)
         {
@@ -52,15 +61,15 @@ public class ShellVmTests
                 (src, b) => new ReviewVm(new PlanSession(b, new ScriptedDeriver([new Suggestion("Zachar Bay", DescSource.Feature, null, null)]), new Tuning(), services.Time),
                                          services, new LedgerDecisionService(Ledger, services.Time, "PC1")),
                 r => new PreflightVm(r.Plan, shell!.Source!, _ => CommitSession.Begin(Offload.Plan, Commit, "run-1"),
-                                     new CommitPorts(new FakeDraftStore(), new FakeDialogService(), Ui)),
+                                     new CommitPorts(CommitDrafts, new FakeDialogService(), Ui)),
                 p => new CopyVm(p, new FakeDialogService(), Ui),
                 (r, res) => new VerdictVm(res?.Verdict ?? verdict, r.Plan, res?.Offload, res?.ReportPath,
                                           new VerdictPorts(Ledger, "PC1", services.Time, new FakeDialogService(), new FakeShellLauncher(), new FakeEjectOk(),
                                                            () => res?.Verdict ?? verdict)),
-                (origin, res) => new CleanupVm(new CleanupEngine(() => new CleanupPreparation(null, "A different card is in E:; rescan", true),
+                (origin, res) => Record(origin, res, new CleanupVm(new CleanupEngine(() => new CleanupPreparation(null, "A different card is in E:; rescan", true),
                                                                  (c, p, ct) => throw new InvalidOperationException("not reached"),
                                                                  () => shell!.RescanForCleanupAsync(), r => "r.json", new FakeEjectOk()),
-                                               new FakeDialogService(), Ui, services.Time),
+                                               new FakeDialogService(), Ui, services.Time)),
                 s => new SettingsPageVm(s, store, _ => Ledger, FakeLayout.NewFileSystem(), new FakeShellLauncher(), new FakeDialogService(), new FakeFreeSpace(),
                                         new FakeTimeProvider(), Ui, () => TestPlans.Ledger(), r => @"C:\AppData\backup"),
                 r => verdict,
@@ -68,6 +77,12 @@ public class ShellVmTests
                 _ => null,
                 Saved.Add));
             return shell;
+        }
+
+        private CleanupVm Record(CleanupOrigin origin, OffloadResult? offload, CleanupVm vm)
+        {
+            CleanupOpens.Add((origin, offload));
+            return vm;
         }
     }
 
@@ -212,5 +227,65 @@ public class ShellVmTests
         Assert.Equal(new LayoutSettings(512, 0.55), Assert.Single(rig.Saved).Layout);
         Assert.Equal(new LayoutSettings(512, 0.55), shell.Settings.Layout);
         Assert.Equal(TestPlans.VideoRoot, shell.Settings.VideoRoot);
+    }
+
+    [Fact]
+    public async Task Shell_CopyFailsWithoutAResult_StillShowsTheVerdictAndReleasesTheLock()
+    {
+        var rig = new Rig { CommitDrafts = new DeleteFails() };
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+
+        shell.BeginOffload();
+        await shell.StartCopyAsync();
+
+        Assert.StartsWith("The offload stopped before it could finish", shell.Copy!.ErrorText, StringComparison.Ordinal);
+        Assert.Equal(Stage.Verdict, shell.Stage);
+        Assert.NotNull(shell.Verdict);
+        Assert.Null(shell.Preflight);
+        Assert.Equal((0, 0), (rig.Offload.Lock.Holds, rig.Offload.Thumbnails.Paused));
+        Assert.True(shell.CleanupEnabled);
+    }
+
+    [Fact]
+    public async Task Shell_ShowPlanFromVerdict_IsReadOnly_KeepsVerdictCleanup_AndReturnsToTheSameVerdict()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        shell.BeginOffload();
+        await shell.StartCopyAsync();
+        var verdict = shell.Verdict!;
+        var review = shell.Review!;
+
+        verdict.ShowPlanCommand.Execute(null);
+        Assert.Equal(Stage.Review, shell.Stage);
+        Assert.True(review.IsReadOnly);
+        Assert.False(shell.CanRescan);
+        Assert.False(shell.CanOpenSettings);
+        Assert.False(shell.CanUndoRedo);
+        Assert.True(review.ShowVerdictCommand.CanExecute(null));
+        await shell.RescanAsync();
+        Assert.Equal((Stage.Review, 1), (shell.Stage, rig.Scans));
+
+        shell.CleanupCommand.Execute(null);
+        var (origin, offload) = Assert.Single(rig.CleanupOpens);
+        Assert.Equal(CleanupOrigin.Verdict, origin);
+        Assert.NotNull(offload);
+        shell.Cleanup!.BackCommand.Execute(null);
+        Assert.Equal(Stage.Verdict, shell.Stage);
+        Assert.Same(verdict, shell.Current);
+
+        verdict.ShowPlanCommand.Execute(null);
+        review.ShowVerdictCommand.Execute(null);
+        Assert.Equal(Stage.Verdict, shell.Stage);
+        Assert.Same(verdict, shell.Current);
+        Assert.Same(verdict, shell.Verdict);
+
+        rig.Cards.Clear();
+        verdict.DoneCommand.Execute(null);
+        Assert.Equal(Stage.Card, shell.Stage);
     }
 }

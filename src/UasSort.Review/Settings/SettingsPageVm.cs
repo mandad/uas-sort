@@ -20,6 +20,7 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
     private readonly IDialogService _dialogs;
     private readonly IFreeSpace _space;
     private readonly TimeProvider _time;
+    private readonly IUiDispatcher _ui;
     private readonly Func<LedgerSnapshot> _currentLedger;
     private readonly Func<string, string> _backupDirFor;
     private ITimer? _saveTimer;
@@ -29,7 +30,7 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
                           IShellLauncher shell, IDialogService dialogs, IFreeSpace space, TimeProvider time, IUiDispatcher ui,
                           Func<LedgerSnapshot> currentLedger, Func<string, string> backupDirFor)
     {
-        _ = ui;
+        _ui = ui;
         Current = settings;
         _store = store;
         _ledgerFor = ledgerFor;
@@ -151,14 +152,18 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         ScheduleSave();
     }
 
+    /// <summary>The debounce timer only posts to the UI thread (like ReviewVm's draft timer), so the save, <c>_saveTimer</c> and
+    /// <c>Current</c> are only touched there and a save failure surfaces on the UI thread instead of ending the process.</summary>
     private void ScheduleSave()
     {
         StopSave();
-        _saveTimer = _time.CreateTimer(_ => SaveNow(), null, SaveDelay, Timeout.InfiniteTimeSpan);
+        _saveTimer = _time.CreateTimer(_ => _ui.Post(SaveNow), null, SaveDelay, Timeout.InfiniteTimeSpan);
     }
 
+    /// <summary>A save posted before StopSave (the video-root save of Ref §9.14 already wrote Current, or the page closed) is dropped.</summary>
     private void SaveNow()
     {
+        if (_saveTimer is null) return;
         StopSave();
         _store.Save(Current);
     }

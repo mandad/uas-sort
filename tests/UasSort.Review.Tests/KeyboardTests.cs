@@ -74,4 +74,37 @@ public class KeyboardTests
         Assert.True(h.Vm.HandleKey(ReviewKey.F5, KeyMods.None, KeyFocus.Other));
         Assert.Equal(1, rescan);
     }
+
+    /// <summary>Derives through ScriptedDeriver until <see cref="Fail"/> is set, then throws (a deriver bug).</summary>
+    private sealed class SwitchableDeriver : IPlanDeriver
+    {
+        private readonly ScriptedDeriver _inner = new();
+        public volatile bool Fail;
+
+        public Plan Derive(PlanBase b, Tuning t, IReadOnlyList<PlanEdit> edits, SessionFlags flags, int revision, CancellationToken ct)
+            => Fail ? throw new InvalidOperationException("derive exploded") : _inner.Derive(b, t, edits, flags, revision, ct);
+    }
+
+    [Fact]
+    public async Task Keys_DeriveFault_ShowsTheSessionFaultInfoBar_PlanUnchanged()
+    {
+        var ui = new FakeUiDispatcher();
+        var log = new ListLog();
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 9, 28, 2, 0, 0, TimeSpan.Zero));
+        var deriver = new SwitchableDeriver();
+        var session = new PlanSession(TestPlans.Base(TestPlans.CouncilAnvil()), deriver, new Tuning(), time);
+        using var vm = new ReviewVm(session, Fake.Services(ui, time, log: log), new LedgerDecisionService(Fake.Ledger(), time, "PC1"));
+        vm.Videos.SelectedEntry = vm.Videos.Timeline.OfType<GroupCardVm>().First();
+        vm.FocusedClip = vm.Videos.Clips.Single(c => c.Id == AnvilFirst);
+        var shown = vm.Plan;
+        deriver.Fail = true;
+
+        Assert.True(vm.HandleKey(ReviewKey.S, KeyMods.Ctrl | KeyMods.Shift, KeyFocus.ClipItem));
+        await Eventually.TrueAsync(() => vm.InfoBars.Any(i => i.Key == "sessionFault"), ui);
+
+        var bar = Assert.Single(vm.InfoBars, i => i.Key == "sessionFault");
+        Assert.Equal((InfoSeverity.Error, "Couldn't update the plan: derive exploded"), (bar.Severity, bar.Message));
+        Assert.Contains(log.Warnings, w => w.Contains("derive exploded", StringComparison.Ordinal));
+        Assert.Same(shown, vm.Plan);
+    }
 }

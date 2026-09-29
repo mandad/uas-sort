@@ -31,6 +31,7 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
     private const string FaultKey = "sessionFault";
 
     private MapBridge? _map;
+    private Action<Plan>? _onChanged;
     private bool _clockMismatchDismissed;
     private string? _faultText;
 
@@ -41,13 +42,14 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
         Session = session;
         Videos = new VideosTabVm(this);
         Photos = new PhotosTabVm(e => ApplyEditAsync(e), UndoConfirmedAsync);
-        Other = new OtherTabVm(UndoConfirmedAsync);
+        Other = new OtherTabVm(UndoConfirmedAsync, UndismissEntriesAsync);
         Tuning = new TuningVm(this, services.Time, services.Ui);
         Issues = new IssuesVm(RunIssueFixAsync);
         UndoCommand = new AsyncRelayCommand(UndoAsync, () => CanUndo && !IsReadOnly);
         RedoCommand = new AsyncRelayCommand(RedoAsync, () => CanRedo && !IsReadOnly);
         OffloadCommand = new RelayCommand(() => OffloadRequested?.Invoke(), () => CanOffload);
-        ShowVerdictCommand = new RelayCommand(() => VerdictRequested?.Invoke(), () => NothingNew && !IsReadOnly);
+        // Nothing new: "Show verdict" without an offload. Read-only (the plan shown from the Verdict page): back to that verdict.
+        ShowVerdictCommand = new RelayCommand(() => VerdictRequested?.Invoke(), () => IsReadOnly || NothingNew);
 
         Plan = session.Current;
         Index = new PlanIndex(Plan);
@@ -61,8 +63,7 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
         Tuning.SetCommitted(Plan.Tuning);
         MapBase = Plan.Base.Scan.Settings.Map.Base;
         InitDraftOffer(offer);
-        Session.Changed += OnSessionChanged;
-        Session.Faulted += OnSessionFaulted;
+        Attach(Session);
         Apply(Plan);
     }
 
@@ -117,10 +118,12 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
         }
     }
 
-    /// <summary>Applies a plan on the UI thread; a plan with a lower Revision than the one shown is ignored (Ref §4.2).</summary>
-    internal void OnPlanArrived(Plan p)
+    /// <summary>Applies a plan on the UI thread; a plan with a lower Revision than the one shown is ignored (Ref §4.2). Revisions are
+    /// counted per PlanSession, so a plan from a session that is no longer <see cref="Session"/> (a draft was resumed while an edit
+    /// of the old session was still deriving) is dropped whatever its revision.</summary>
+    internal void OnPlanArrived(PlanSession from, Plan p)
     {
-        if (p.Revision < Plan.Revision) return;
+        if (!ReferenceEquals(from, Session) || p.Revision < Plan.Revision) return;
         Apply(p);
     }
 
@@ -160,8 +163,7 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
 
     public void Dispose()
     {
-        Session.Changed -= OnSessionChanged;
-        Session.Faulted -= OnSessionFaulted;
+        Detach(Session);
         Map = null;
         Tuning.Dispose();
         DisposeDrafts();
@@ -181,10 +183,44 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
 
     partial void OnMapBaseChanged(string value) => _map?.Send(new MapSetBase(value));
 
-    private void OnSessionChanged(Plan p) => _s.Ui.Post(() => OnPlanArrived(p));
+    /// <summary>Subscribes to a session with a Changed handler that remembers which session raised the plan.</summary>
+    private void Attach(PlanSession session)
+    {
+        _onChanged = p => _s.Ui.Post(() => OnPlanArrived(session, p));
+        session.Changed += _onChanged;
+        session.Faulted += OnSessionFaulted;
+    }
 
-    /// <summary>A fire-and-forget derive (slider preview, [Accept and continue]) threw: log it and show it as an error InfoBar;
-    /// the plan shown stays the last good one.</summary>
+    private void Detach(PlanSession session)
+    {
+        if (_onChanged is not null) session.Changed -= _onChanged;
+        session.Faulted -= OnSessionFaulted;
+        _onChanged = null;
+    }
+
+    /// <summary>Awaits a fire-and-forget action (a keyboard shortcut) so a fault is never swallowed: it is logged and shown as the
+    /// same error InfoBar as a session fault; the plan shown stays the last good one.</summary>
+    private void Observe(Task task) => _ = ObserveAsync(task);
+
+    private async Task ObserveAsync(Task task)
+    {
+#pragma warning disable CA1031 // every fault of an unobserved action is reported, never rethrown into nowhere
+        try
+        {
+            await task.ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            OnSessionFaulted(e);
+        }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>A fire-and-forget derive (slider preview, [Accept and continue], a keyboard shortcut's edit) threw: log it and show it
+    /// as an error InfoBar; the plan shown stays the last good one.</summary>
     private void OnSessionFaulted(Exception e)
     {
         var text = "Couldn't update the plan: " + e.Message;
@@ -196,7 +232,7 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
         });
     }
 
-    private void Accept(Plan p) => _s.Ui.Post(() => OnPlanArrived(p));
+    private void Accept(PlanSession from, Plan p) => _s.Ui.Post(() => OnPlanArrived(from, p));
 
     private void Apply(Plan p)
     {
@@ -281,6 +317,15 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
     private Task UndoConfirmedAsync(IReadOnlyList<Item> items)
     {
         var targets = items.SelectMany(i => DecisionTargets.For(i)).ToList();
+        _decisions.Revoke(_decisions.DecisionIdsFor(targets, Plan.Base.Scan.Ledger));
+        RescanRequested?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>[Un-dismiss] on an unknown file marked not needed on the Verdict page: one revoke per live decision on it (Ref §10.5).</summary>
+    private Task UndismissEntriesAsync(IReadOnlyList<CardEntry> entries)
+    {
+        var targets = entries.Select(DecisionTargets.ForEntry).ToList();
         _decisions.Revoke(_decisions.DecisionIdsFor(targets, Plan.Base.Scan.Ledger));
         RescanRequested?.Invoke();
         return Task.CompletedTask;

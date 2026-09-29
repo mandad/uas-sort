@@ -76,4 +76,38 @@ public class DraftTests
     [Fact]
     public void Drafts_NoDraftForThisCard_NoOffer()
         => Assert.Null(DraftOffers.Find(TestPlans.Base(TestPlans.CouncilAnvil()), new FakeDraftStore(), new ScriptedDeriver()));
+
+    [Fact]
+    public async Task Drafts_ResumeWhileAnEditIsDeriving_KeepsTheResumedPlan()
+    {
+        var b = TestPlans.Base(TestPlans.CouncilAnvil());
+        var drafts = new FakeDraftStore();
+        drafts.Save(TestPlans.Source.DraftKey, new Draft(1, TestPlans.Source.DraftKey, b.Scan.Inventory.InventoryHash,
+            TestPlans.Utc(2026, 9, 28, 1, 2), new Tuning(), [new SplitBefore(AnvilFirst)]));
+        var offer = DraftOffers.Find(b, drafts, new ScriptedDeriver())!;
+        using var h = ReviewHarness.Create([], planBase: b, offer: offer, drafts: drafts);
+        await h.SettleAsync();
+        await h.Vm.SetIncludedAsync([Council0], false);        // the old session moves past the resumed session's Revision 1
+        await h.SettleAsync();
+
+        var next = h.Deriver.Calls.Count;
+        h.Deriver.Hold = true;
+        var edit = h.Vm.SetIncludedAsync([Council1], false);   // still deriving in the old session when [Resume] is clicked
+        await h.Deriver.CallStartedAsync(next);
+        await h.Vm.ResumeDraftAsync();
+        h.Deriver.ReleaseAll();
+        await edit;
+        h.Ui.RunAll();
+
+        Assert.Same(offer.Session, h.Vm.Session);
+        Assert.Same(h.Vm.Session.Current, h.Vm.Plan);
+        Assert.Equal(2, h.Vm.Plan.Groups.Length);
+        Assert.Contains(Council1, h.Vm.Plan.Included);
+        Assert.Equal(offer.Session.CanUndo, h.Vm.CanUndo);
+
+        await h.Vm.SetIncludedAsync([Council1], false);        // later edits on the resumed session are shown at once
+        h.Ui.RunAll();
+        Assert.Same(h.Vm.Session.Current, h.Vm.Plan);
+        Assert.DoesNotContain(Council1, h.Vm.Plan.Included);
+    }
 }

@@ -242,7 +242,9 @@ public sealed partial class VerdictVm : ObservableObject
     }
 
     /// <summary>Ref §10.5: confirm with Core's text, write one decision record per file through the own ledger file, re-audit.
-    /// A selection Core can't resolve to scanned files (VerdictDecisions.Records throws) is shown as an error; nothing is written.</summary>
+    /// A selection Core can't resolve to scanned files (VerdictDecisions.Records throws) is shown as an error; nothing is written.
+    /// A ledger write failure (the video root went away, the disk is full, the guard refused the file) is shown as a dialog; the
+    /// records actually written become the [Undo] target and the page is re-audited when anything was written.</summary>
     private async Task DecideAsync(DecisionKind kind)
     {
         List<NotCopiedRow> rows = [.. Selected().Select(r => r.Row)];
@@ -262,25 +264,50 @@ public sealed partial class VerdictVm : ObservableObject
             await _ports.Dialogs.ShowAsync(new DialogRequest("Nothing was recorded", ex.Message, "OK", null, "Close")).ConfigureAwait(true);
             return;
         }
-        using (var writer = _ports.Ledger.OpenOwn())
+        var (written, failure) = AppendAll(records, r => r.Id);
+        if (written.Count > 0)
         {
-            foreach (var r in records) writer.Append(r);
+            _lastDecisionIds = [.. written];
+            UndoCommand.NotifyCanExecuteChanged();
+            ApplyVerdict(_ports.Reaudit());
         }
-        _lastDecisionIds = [.. records.Select(r => r.Id)];
-        UndoCommand.NotifyCanExecuteChanged();
-        ApplyVerdict(_ports.Reaudit());
+        if (failure is not null)
+            await _ports.Dialogs.ShowAsync(new DialogRequest(written.Count == 0 ? "Nothing was recorded" : "Only part of the selection was recorded",
+                WriteFailure(failure) + (written.Count == 0 ? "" : " You can undo what was recorded."), "OK", null, "Close")).ConfigureAwait(true);
     }
 
-    /// <summary>Undo writes one revoke per decision just made (VerdictDecisions.Revokes), then re-audits.</summary>
-    private Task UndoAsync()
+    /// <summary>Undo writes one revoke per decision just made (VerdictDecisions.Revokes), then re-audits. When a revoke can't be
+    /// written, the dialog says so and [Undo] stays available for the decisions not yet revoked.</summary>
+    private async Task UndoAsync()
     {
-        using (var writer = _ports.Ledger.OpenOwn())
-        {
-            foreach (var r in VerdictDecisions.Revokes(_lastDecisionIds, _ports.Machine, _ports.Time)) writer.Append(r);
-        }
-        _lastDecisionIds = [];
+        var (revoked, failure) = AppendAll(VerdictDecisions.Revokes(_lastDecisionIds, _ports.Machine, _ports.Time), r => r.Decision);
+        _lastDecisionIds = [.. _lastDecisionIds.Except(revoked, StringComparer.Ordinal)];
         UndoCommand.NotifyCanExecuteChanged();
-        ApplyVerdict(_ports.Reaudit());
-        return Task.CompletedTask;
+        if (revoked.Count > 0) ApplyVerdict(_ports.Reaudit());
+        if (failure is not null)
+            await _ports.Dialogs.ShowAsync(new DialogRequest("Couldn't undo", WriteFailure(failure), "OK", null, "Close")).ConfigureAwait(true);
     }
+
+    /// <summary>Appends through this PC's own ledger file; returns the keys of the records written before any IO or guard failure.</summary>
+    private (List<string> Written, Exception? Failure) AppendAll<T>(IEnumerable<T> records, Func<T, string> key) where T : LedgerRecord
+    {
+        var written = new List<string>();
+        try
+        {
+            using var writer = _ports.Ledger.OpenOwn();
+            foreach (var r in records)
+            {
+                writer.Append(r);
+                written.Add(key(r));
+            }
+            return (written, null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or UnsafeIoException)
+        {
+            return (written, ex);
+        }
+    }
+
+    private static string WriteFailure(Exception ex)
+        => ex is UnsafeIoException ? "Internal safety stop: " + ex.Message : "The history file couldn't be written: " + ex.Message;
 }

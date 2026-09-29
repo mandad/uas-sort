@@ -13,7 +13,8 @@ public sealed partial class ReviewVm
     public ClipRowVm? FocusedClip { get; set; }
     public PhotoTileVm? FocusedTile { get; set; }
 
-    /// <summary>Ref §9.12. Page keys use modifiers; list keys act only on item containers, never in a TextBox.</summary>
+    /// <summary>Ref §9.12. Page keys use modifiers; list keys act only on item containers, never in a TextBox. Every async action is
+    /// observed: a fault shows the session-fault InfoBar instead of vanishing.</summary>
     public bool HandleKey(ReviewKey key, KeyMods mods, KeyFocus focus)
     {
         var ctrl = mods.HasFlag(KeyMods.Ctrl);
@@ -24,17 +25,17 @@ public sealed partial class ReviewVm
         switch (key)
         {
             case ReviewKey.Z when ctrl && !shift:
-                _ = UndoCommand.ExecuteAsync(null);
+                Observe(UndoCommand.ExecuteAsync(null));
                 return true;
             case ReviewKey.Z when ctrl && shift:
             case ReviewKey.Y when ctrl:
-                _ = RedoCommand.ExecuteAsync(null);
+                Observe(RedoCommand.ExecuteAsync(null));
                 return true;
             case ReviewKey.M when ctrl && !shift:
-                _ = MergeSelectedWithNextAsync();
+                Observe(MergeSelectedWithNextAsync());
                 return true;
             case ReviewKey.N when ctrl && shift:
-                _ = MoveSelectedToNewGroupAsync();
+                Observe(MoveSelectedToNewGroupAsync());
                 return true;
             case ReviewKey.D1 when ctrl:
                 SelectedTab = 0;
@@ -52,13 +53,13 @@ public sealed partial class ReviewVm
                 if (OffloadCommand.CanExecute(null)) OffloadCommand.Execute(null);
                 return true;
             case ReviewKey.Space when mods == KeyMods.None && focus == KeyFocus.ClipItem:
-                _ = ToggleSelectedClipsAsync();
+                Observe(ToggleSelectedClipsAsync());
                 return true;
             case ReviewKey.Space when mods == KeyMods.None && focus == KeyFocus.PhotoItem && FocusedTile is { } tile:
-                _ = tile.ToggleCommand.ExecuteAsync(null);
+                Observe(tile.ToggleCommand.ExecuteAsync(null));
                 return true;
             case ReviewKey.S when ctrl && shift && focus == KeyFocus.ClipItem && FocusedClip is { } clip:
-                _ = SplitBeforeAsync(clip.Id);
+                Observe(SplitBeforeAsync(clip.Id));
                 return true;
             case ReviewKey.F2 when focus == KeyFocus.TimelineItem && Videos.SelectedCard is { } card:
                 FocusRenameRequested?.Invoke(card.Anchor);

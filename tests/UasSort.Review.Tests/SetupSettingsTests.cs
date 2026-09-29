@@ -23,6 +23,19 @@ public class SetupSettingsTests
     }
 
     [Fact]
+    public void LedgerStatusText_CountsHyphenatedMachineNames()
+    {
+        static string History(params string[] files) => LedgerStatusText.For(Status(LedgerFolderState.Ok, files)).Text;
+
+        Assert.Equal("History: 2 PCs' ledgers found",
+                     History("ledger-DESKTOP-A.jsonl", "ledger-DESKTOP-B.jsonl", "ledger-DESKTOP-A-DESKTOP-B.jsonl"));
+        Assert.Equal("History: 2 PCs' ledgers found", History("ledger-DESKTOP-7H2K9QF.jsonl", "ledger-DESKTOP-M3P1XZ8.jsonl"));
+        Assert.Equal("History: 1 PC's ledger found", History("ledger-DESKTOP-A.jsonl", "ledger-DESKTOP-A-LAPTOP-B.jsonl"));
+        Assert.Equal("History: 1 PC's ledger found", History("ledger-desktop-a.jsonl", "LEDGER-DESKTOP-A.JSONL"));
+        Assert.Equal("History: 1 PC's ledger found", History(@"C:\Lib\UAS Videos\.uas-sort\ledger-DESKTOP-A.jsonl", "notes.txt"));
+    }
+
+    [Fact]
     public void Setup_ConfirmSavesRootsConfirmed_AndPhotoRootFollowsVideoRoot()
     {
         var store = new FakeSettingsStore(new SettingsLoad(TestPlans.Settings(rootsConfirmed: false), false, null, null));
@@ -83,7 +96,8 @@ public class SetupSettingsTests
                                VerifyKind.Unbuffered, T, null, null, null, null, null, null, "PC1", "run1")),
         };
 
-    private static (SettingsPageVm Vm, FakeSettingsStore Store, Dictionary<string, CopyTarget> Ledgers, FakeFileSystem Fs, FakeDialogService Dialogs, FakeTimeProvider Time)
+    private static (SettingsPageVm Vm, FakeSettingsStore Store, Dictionary<string, CopyTarget> Ledgers, FakeFileSystem Fs, FakeDialogService Dialogs, FakeTimeProvider Time,
+                   FakeUiDispatcher Ui)
         Page()
     {
         var store = new FakeSettingsStore(new SettingsLoad(TestPlans.Settings(), false, null, null));
@@ -95,15 +109,16 @@ public class SetupSettingsTests
         var fs = FakeLayout.NewFileSystem();
         var dialogs = new FakeDialogService();
         var time = new FakeTimeProvider();
+        var ui = new FakeUiDispatcher();
         var vm = new SettingsPageVm(TestPlans.Settings(), store, r => ledgers[r], fs, new FakeShellLauncher(), dialogs, new FakeFreeSpace(),
-                                    time, new FakeUiDispatcher(), CurrentLedger, r => @"C:\AppData\uas-sort\ledger-backup\" + r.Length);
-        return (vm, store, ledgers, fs, dialogs, time);
+                                    time, ui, CurrentLedger, r => @"C:\AppData\uas-sort\ledger-backup\" + r.Length);
+        return (vm, store, ledgers, fs, dialogs, time, ui);
     }
 
     [Fact]
     public async Task Settings_VideoRootChange_SavesFirstThenPromptsAndCopies()
     {
-        var (vm, store, ledgers, _, _, _) = Page();
+        var (vm, store, ledgers, _, _, _, _) = Page();
         await vm.ChangeVideoRootAsync(NewRoot);
 
         Assert.Equal(NewRoot, store.Saved[^1].VideoRoot);
@@ -118,7 +133,7 @@ public class SetupSettingsTests
     [Fact]
     public async Task Settings_StartEmpty_ConfirmsWhenNewRootHoldsAppCopiedVideos()
     {
-        var (vm, _, _, fs, dialogs, _) = Page();
+        var (vm, _, _, fs, dialogs, _, _) = Page();
         fs.AddFile(NewRoot + @"\2026\2026-09\2026-09-27 Zachar Bay\DJI_20260927140627_0128_D.MP4", 1_200_000_000L, T);
         await vm.ChangeVideoRootAsync(NewRoot);
 
@@ -135,10 +150,11 @@ public class SetupSettingsTests
     [Fact]
     public void Settings_PhotoRootChange_AppendsPreviousAndSavesAfter500Ms()
     {
-        var (vm, store, _, _, _, time) = Page();
+        var (vm, store, _, _, _, time, ui) = Page();
         vm.ChangePhotoRoot(@"D:\Photos");
         Assert.Empty(store.Saved);
         time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
 
         var saved = store.Saved.Single();
         Assert.Equal(@"D:\Photos", saved.PhotoRoot);
@@ -147,21 +163,40 @@ public class SetupSettingsTests
 
         vm.PreviousPhotoRoots[0].ForgetCommand.Execute(null);
         time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
         Assert.Empty(store.Saved[^1].PreviousPhotoRoots);
     }
 
     [Fact]
     public void Settings_DefaultsClockAndMapFieldsSave()
     {
-        var (vm, store, _, _, _, time) = Page();
+        var (vm, store, _, _, _, time, ui) = Page();
         vm.RadiusMiles = 30;
         vm.IsSiteLocal = true;
         vm.CopyJpgTwin = false;
         vm.MapBase = "satellite";
         time.Advance(SettingsPageVm.SaveDelay);
+        ui.RunAll();
 
         var s = store.Saved.Single();
         Assert.Equal((30.0, StoredClockMode.SiteLocal, false, "satellite"), (s.RadiusMiles, s.DroneClockMode, s.CopyJpgTwin, s.Map.Base));
         Assert.Contains("GeoNames CC-BY 4.0", vm.AboutText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Settings_DebouncedSave_RunsOnTheUiThread_AndYieldsToTheVideoRootSave()
+    {
+        var (vm, store, _, _, _, time, ui) = Page();
+        vm.RadiusMiles = 30;
+        time.Advance(SettingsPageVm.SaveDelay);
+
+        Assert.Empty(store.Saved);                 // the timer only posts; the save runs on the UI thread
+        Assert.Equal(1, ui.Pending);
+
+        await vm.ChangeVideoRootAsync(NewRoot);
+        ui.RunAll();
+
+        var saved = Assert.Single(store.Saved);    // the stale posted save is skipped: nothing lands after the Ref 9.14 save
+        Assert.Equal((NewRoot, 30.0), (saved.VideoRoot, saved.RadiusMiles));
     }
 }

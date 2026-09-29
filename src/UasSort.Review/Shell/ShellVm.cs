@@ -36,7 +36,8 @@ public sealed partial class ShellVm : ObservableObject
         Settings = deps.Settings.Settings;
         RescanCommand = new AsyncRelayCommand(RescanAsync, () => CanRescan);
         SettingsCommand = new RelayCommand(OpenSettings, () => CanOpenSettings);
-        CleanupCommand = new RelayCommand(() => OpenCleanup(Stage == Stage.Verdict ? CleanupOrigin.Verdict : CleanupOrigin.Review), () => CleanupEnabled);
+        CleanupCommand = new RelayCommand(() => OpenCleanup(Stage == Stage.Verdict || PlanFromVerdict ? CleanupOrigin.Verdict : CleanupOrigin.Review),
+                                          () => CleanupEnabled);
     }
 
     public Settings Settings { get; private set; }
@@ -89,7 +90,7 @@ public sealed partial class ShellVm : ObservableObject
 
     public Task RescanAsync()
     {
-        if (Stage is Stage.Preflight or Stage.Copy or Stage.Verdict or Stage.Cleanup or Stage.Setup) return Task.CompletedTask;
+        if (Stage is Stage.Preflight or Stage.Copy or Stage.Verdict or Stage.Cleanup or Stage.Setup || PlanFromVerdict) return Task.CompletedTask;
         if (Source is { } s) return UseCardAsync(s);
         ShowCard();
         return Task.CompletedTask;
@@ -122,7 +123,10 @@ public sealed partial class ShellVm : ObservableObject
         Go(Stage.Preflight, preflight);
     }
 
-    /// <summary>Start offload: the Copy page runs the CommitSession; its CommitResult (verdict, report, offload) goes to the Verdict page.</summary>
+    /// <summary>Start offload: the Copy page runs the CommitSession; its CommitResult (verdict, report, offload) goes to the Verdict page.
+    /// Every Commit ends on the Verdict page (Ref §9.1, §10.5): when the run returned no result (a Cancel, or CopyVm's IO catch with
+    /// its ErrorText), the session is still disposed (offload lock and thumbnail pause released) and the verdict is re-audited
+    /// from the card and the ledger.</summary>
     public async Task StartCopyAsync()
     {
         if (Preflight is not { CanStart: true } preflight || Review is not { } review) return;
@@ -130,7 +134,6 @@ public sealed partial class ShellVm : ObservableObject
         Copy = copy;
         Go(Stage.Copy, copy);
         var result = await copy.RunAsync().ConfigureAwait(true);
-        if (result is null && copy.ErrorText is not null) return;
         _lastResult = result;
         ShowVerdict(review, result);
     }
@@ -228,7 +231,12 @@ public sealed partial class ShellVm : ObservableObject
     {
         review.OffloadRequested += BeginOffload;
         review.RescanRequested += () => _ = RescanAsync();
-        review.VerdictRequested += () => ShowVerdict(review, null);
+        // From the read-only plan ("Show plan" on the Verdict page) the same verdict comes back, with its result, decisions and ejects.
+        review.VerdictRequested += () =>
+        {
+            if (review.IsReadOnly && Verdict is { } v) Go(Stage.Verdict, v);
+            else ShowVerdict(review, null);
+        };
         review.UiActionRequested += label =>
         {
             if (string.Equals(label, "Open Settings", StringComparison.Ordinal)) OpenSettings();
@@ -253,6 +261,10 @@ public sealed partial class ShellVm : ObservableObject
         Go(Stage.Verdict, verdict);
     }
 
+    /// <summary>The read-only plan shown from the Verdict page: it belongs to the Verdict stage (Ref §9.1), so it keeps the Commit flags
+    /// (no Rescan, no Settings) and the Verdict cleanup origin.</summary>
+    private bool PlanFromVerdict => Stage == Stage.Review && Review is { IsReadOnly: true } && Verdict is not null;
+
     private void Go(Stage stage, object? current)
     {
         Stage = stage;
@@ -263,8 +275,8 @@ public sealed partial class ShellVm : ObservableObject
     private void UpdateFlags()
     {
         var committing = Stage is Stage.Preflight or Stage.Copy;
-        CanRescan = Stage is Stage.Card or Stage.Review or Stage.Scan && !IsScanning;
-        CanOpenSettings = Stage is Stage.Card or Stage.Review;
+        CanRescan = !PlanFromVerdict && (Stage is Stage.Card or Stage.Review or Stage.Scan && !IsScanning);
+        CanOpenSettings = !PlanFromVerdict && Stage is Stage.Card or Stage.Review;
         CanBrowse = Stage == Stage.Card;
         CanUndoRedo = Stage == Stage.Review && Review is { IsReadOnly: false };
         var (enabled, tooltip) = CleanupAvailability.For(new CleanupContext(committing, IsScanning, Source,

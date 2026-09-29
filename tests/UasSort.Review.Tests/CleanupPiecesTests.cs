@@ -73,6 +73,20 @@ public class CleanupPiecesTests
     }
 
     [Fact]
+    public void CleanupResult_FolderKept_NotedForPanoramaAndHyperlapseSetsOnly()
+    {
+        var result = CleanupFixture.Result(
+            [new Deleted(new ItemId("DCIM/PANORAMA/001_0087"), 3, 30_000_000, false),
+             new Deleted(new ItemId("DCIM/HYPERLAPSE/HYPERLAPSE_0003"), 240, 900_000_000, false),
+             new Deleted(new ItemId("DCIM/HYPERLAPSE/HYPERLAPSE_0004"), 240, 900_000_000, true),
+             new Deleted(new ItemId("DCIM/DJI_001/a.MP4"), 2, 1_300_000_000, false)],
+            stop: null, freeAfter: 73_800_000_000, stillListed: []);
+        var vm = new CleanupResultVm(result, VerdictLevel.Safe, @"C:\r.json", @"E:\", new FakeEjectOk());
+
+        Assert.Equal(["001_0087: folder kept", "HYPERLAPSE_0003: folder kept"], vm.Problems);
+    }
+
+    [Fact]
     public void CleanupResult_ClosingReadError_ReplacesTheFreeSpaceLineAndStillListed()
     {
         var u1 = new ItemId("DCIM/DJI_001/a.MP4");

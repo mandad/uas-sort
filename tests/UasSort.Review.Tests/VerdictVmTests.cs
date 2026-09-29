@@ -53,11 +53,11 @@ public class VerdictVmTests
         public FormatVerdict With(ItemId id, AuditCategory c, long size, string detail)
             => Verdict with { Units = [.. Verdict.Units.Where(u => u.Unit != id), U(id, c, size, detail)] };
 
-        public VerdictVm Vm(OffloadResult? result = null, FormatVerdict? verdict = null)
+        public VerdictVm Vm(OffloadResult? result = null, FormatVerdict? verdict = null, ILedgerStore? store = null)
         {
             var v = verdict ?? Verdict;
             return new(v, Plan, result, @"C:\AppData\uas-sort\reports\20260928-020500-run12345.json",
-                       new VerdictPorts(Ledger, "PC1", Time, Dialogs, Shell, new FakeEject(), () => { Reaudits++; return v; }));
+                       new VerdictPorts(store ?? Ledger, "PC1", Time, Dialogs, Shell, new FakeEject(), () => { Reaudits++; return v; }));
         }
     }
 
@@ -225,6 +225,86 @@ public class VerdictVmTests
         var error = rig.Dialogs.Shown[1];
         Assert.Equal("Nothing was recorded", error.Title);
         Assert.Equal("DCIM/DJI_A001/gone.MP4 matches no file in the scanned card; rescan the card first", error.Body);
+        Assert.Empty(rig.Ledger.Writer.Records);
+        Assert.Equal(0, rig.Reaudits);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    /// <summary>A ledger store whose own file can't be opened (the guard refuses it).</summary>
+    private sealed class RefusingLedger(FakeLedgerStore inner) : ILedgerStore
+    {
+        public LedgerFolderStatus Check() => inner.Check();
+        public LedgerSnapshot Load() => inner.Load();
+        public void EnsureFolder() => inner.EnsureFolder();
+        public ILedgerWriter OpenOwn() => throw new UnsafeIoException("the history file is cloud-only");
+        public void SnapshotToBackup(string runId) => inner.SnapshotToBackup(runId);
+        public void KeepOnDevice() => inner.KeepOnDevice();
+        public void CopyInto(string newVideoRoot, LedgerSnapshot current) => inner.CopyInto(newVideoRoot, current);
+    }
+
+    [Fact]
+    public async Task Verdict_DecisionAppendFailsMidBatch_ShowsError_UndoRevokesOnlyWhatWasWritten()
+    {
+        var rig = new Rig();
+        var vm = rig.Vm();
+        vm.NotCopiedDays.Single(d => d.Date == new DateOnly(2026, 7, 25)).SelectDayCommand.Execute(null);
+        rig.Ledger.Writer.ThrowWhen = r => r is DecisionRecord && rig.Ledger.Writer.Records.OfType<DecisionRecord>().Any();
+
+        await vm.RecordImportedCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, rig.Dialogs.Shown.Count);
+        var error = rig.Dialogs.Shown[1];
+        Assert.Equal("Only part of the selection was recorded", error.Title);
+        Assert.Equal("The history file couldn't be written: The ledger file couldn't be written. You can undo what was recorded.", error.Body);
+        var written = Assert.Single(rig.Ledger.Writer.Records.OfType<DecisionRecord>());
+        Assert.Equal(1, rig.Reaudits);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+
+        rig.Ledger.Writer.ThrowWhen = null;
+        await vm.UndoCommand.ExecuteAsync(null);
+        Assert.Equal(written.Id, Assert.Single(rig.Ledger.Writer.Records.OfType<RevokeRecord>()).Decision);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Verdict_UndoAppendFails_ShowsError_KeepsUndoForWhatIsLeft()
+    {
+        var rig = new Rig();
+        var vm = rig.Vm();
+        vm.NotCopiedDays.Single(d => d.Date == new DateOnly(2026, 7, 25)).SelectDayCommand.Execute(null);
+        await vm.RecordImportedCommand.ExecuteAsync(null);
+        var made = rig.Ledger.Writer.Records.OfType<DecisionRecord>().Select(d => d.Id).ToList();
+        rig.Ledger.Writer.ThrowWhen = r => r is RevokeRecord && rig.Ledger.Writer.Records.OfType<RevokeRecord>().Any();
+
+        await vm.UndoCommand.ExecuteAsync(null);
+
+        var error = rig.Dialogs.Shown[^1];
+        Assert.Equal("Couldn't undo", error.Title);
+        Assert.Equal("The history file couldn't be written: The ledger file couldn't be written.", error.Body);
+        var first = Assert.Single(rig.Ledger.Writer.Records.OfType<RevokeRecord>()).Decision;
+        Assert.True(vm.UndoCommand.CanExecute(null));
+        Assert.Equal(2, rig.Reaudits);
+
+        rig.Ledger.Writer.ThrowWhen = null;
+        await vm.UndoCommand.ExecuteAsync(null);
+        var revoked = rig.Ledger.Writer.Records.OfType<RevokeRecord>().Select(r => r.Decision).ToList();
+        Assert.Equal(made.Order(StringComparer.Ordinal), revoked.Order(StringComparer.Ordinal));   // each decision revoked exactly once
+        Assert.Equal(first, revoked[0]);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Verdict_OwnLedgerRefused_ShowsSafetyStop_NothingRecorded()
+    {
+        var rig = new Rig();
+        var vm = rig.Vm(store: new RefusingLedger(rig.Ledger));
+        Row(vm, rig.Video).ToggleCommand.Execute(null);
+
+        await vm.MarkNotNeededCommand.ExecuteAsync(null);
+
+        var error = rig.Dialogs.Shown[^1];
+        Assert.Equal("Nothing was recorded", error.Title);
+        Assert.Equal("Internal safety stop: the history file is cloud-only", error.Body);
         Assert.Empty(rig.Ledger.Writer.Records);
         Assert.Equal(0, rig.Reaudits);
         Assert.False(vm.UndoCommand.CanExecute(null));

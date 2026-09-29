@@ -106,29 +106,34 @@ public sealed partial class ReviewVm
         await ApplyEditAsync(new Retarget(g.Id.Anchor, new AppendTo(path), confirmed, g.Videos)).ConfigureAwait(true);
     }
 
+    /// <summary>The edit runs in the session current when it starts; if a draft was resumed meanwhile, its result is dropped.</summary>
     private async Task<bool> ApplyEditAsync(PlanEdit edit)
     {
         if (IsReadOnly) return false;
-        return Handle(await Session.ApplyAsync(edit, CancellationToken.None).ConfigureAwait(true));
+        var s = Session;
+        var result = await s.ApplyAsync(edit, CancellationToken.None).ConfigureAwait(true);
+        return ReferenceEquals(s, Session) && Handle(s, result);
     }
 
     private async Task ApplyEditsAsync(IReadOnlyList<PlanEdit> edits)
     {
         if (IsReadOnly) return;
-        Handle(await Session.ApplyAllAsync(edits, CancellationToken.None).ConfigureAwait(true));
+        var s = Session;
+        var result = await s.ApplyAllAsync(edits, CancellationToken.None).ConfigureAwait(true);
+        if (ReferenceEquals(s, Session)) Handle(s, result);
     }
 
-    private bool Handle(EditResult result) => result switch
+    private bool Handle(PlanSession s, EditResult result) => result switch
     {
-        Applied a => OnApplied(a.Plan),
+        Applied a => OnApplied(s, a.Plan),
         Rejected r => OnRejected(r),
     };
 
-    private bool OnApplied(Plan p)
+    private bool OnApplied(PlanSession s, Plan p)
     {
         LastError = null;
         UpdateUndo();
-        Accept(p);
+        Accept(s, p);
         OnEditCommitted();
         return true;
     }
@@ -141,23 +146,25 @@ public sealed partial class ReviewVm
 
     private async Task UndoAsync()
     {
-        if (!Session.CanUndo || IsReadOnly) return;
-        var p = await Session.UndoAsync().ConfigureAwait(true);
-        AfterHistoryMove(p);
+        var s = Session;
+        if (!s.CanUndo || IsReadOnly) return;
+        var p = await s.UndoAsync().ConfigureAwait(true);
+        if (ReferenceEquals(s, Session)) AfterHistoryMove(s, p);
     }
 
     private async Task RedoAsync()
     {
-        if (!Session.CanRedo || IsReadOnly) return;
-        var p = await Session.RedoAsync().ConfigureAwait(true);
-        AfterHistoryMove(p);
+        var s = Session;
+        if (!s.CanRedo || IsReadOnly) return;
+        var p = await s.RedoAsync().ConfigureAwait(true);
+        if (ReferenceEquals(s, Session)) AfterHistoryMove(s, p);
     }
 
-    private void AfterHistoryMove(Plan p)
+    private void AfterHistoryMove(PlanSession s, Plan p)
     {
         Tuning.SetCommitted(p.Tuning);
         UpdateUndo();
-        Accept(p);
+        Accept(s, p);
         OnEditCommitted();
     }
 
@@ -180,7 +187,9 @@ public sealed partial class ReviewVm
     async Task ITuningHost.CommitTuningAsync(Tuning t)
     {
         if (IsReadOnly) return;
-        await Session.CommitTuningAsync().ConfigureAwait(true);
+        var s = Session;
+        await s.CommitTuningAsync().ConfigureAwait(true);
+        if (!ReferenceEquals(s, Session)) return;
         UpdateUndo();
         OnEditCommitted();
     }

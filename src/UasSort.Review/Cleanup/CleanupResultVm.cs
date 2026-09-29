@@ -61,9 +61,19 @@ public sealed class CleanupResultVm
 
     private static string Name(string relPath) => relPath[(relPath.LastIndexOfAny(['/', '\\']) + 1)..];
 
+    /// <summary>A panorama or hyperlapse set unit (DCIM/PANORAMA/&lt;set&gt; or DCIM/HYPERLAPSE/&lt;set&gt;, the set folders cleanup removes,
+    /// Ref §10.6). Other units always report SetFolderRemoved = false, so they never get a "folder kept" line.</summary>
+    private static bool IsSetUnit(ItemId unit)
+    {
+        var parts = unit.CardRelPath.Split('/', '\\');
+        return parts.Length == 3 && string.Equals(parts[0], "DCIM", StringComparison.OrdinalIgnoreCase)
+               && (string.Equals(parts[1], "PANORAMA", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(parts[1], "HYPERLAPSE", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string? Problem(CleanupOutcome o) => o switch
     {
-        Deleted d when !d.SetFolderRemoved && d.Unit.CardRelPath.Contains("PANORAMA", StringComparison.OrdinalIgnoreCase) => $"{Name(d.Unit.CardRelPath)}: folder kept",
+        Deleted d when !d.SetFolderRemoved && IsSetUnit(d.Unit) => $"{Name(d.Unit.CardRelPath)}: folder kept",
         Deleted => null,
         SkippedChanged s => $"{Name(s.CardRelPath)}: skipped, it changed since the scan",
         SkippedEvidenceGone e => $"{Name(e.CardRelPath)}: skipped, {e.Why}",

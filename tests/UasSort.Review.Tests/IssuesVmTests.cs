@@ -43,4 +43,32 @@ public class IssuesVmTests
                                                 TestContext.Current.CancellationToken);
         Assert.Equal("3 videos · 3.6 GB → C: (317 GB free)", Footer.Text(plan, new FakeFreeSpace()));
     }
+
+    [Fact]
+    public void Footer_SkippedGroupNotCounted()
+    {
+        var clips = TestPlans.Zachar();
+        var ids = clips.Select(c => TestPlans.Id(c.Name)).ToImmutableArray();
+        var plan = new ScriptedDeriver().Derive(TestPlans.Base(clips), new Tuning(), [new Retarget(ids[0], new SkipTarget(), false, ids)],
+                                                new SessionFlags(false), 1, TestContext.Current.CancellationToken);
+
+        Assert.IsType<SkipGroup>(Assert.Single(plan.Groups).Target);
+        Assert.Equal(3, plan.Included.Count);                   // still ticked: inclusion doesn't depend on the target (Ref 8.9)
+        Assert.Equal("Nothing to copy", Footer.Text(plan, new FakeFreeSpace()));
+    }
+
+    [Fact]
+    public void Footer_CountsTheJpgTwinCommitCopies()
+    {
+        var utc = TestPlans.Utc(2026, 9, 27, 19, 0);
+        var photo = PhotosOtherTabTests.Photo("DJI_20260927110000_0150_D.DNG", utc, new IsNew(NewReason.NoMatch, null));
+        var unit = (PhotoUnit)photo.Raw.Unit;
+        var twin = new CardEntry("DCIM/DJI_001/DJI_20260927110000_0150_D.JPG", 8_000_000, utc, utc, utc, 0x20, EntryClass.Photo, null);
+        photo = photo with { Raw = photo.Raw with { Unit = unit with { JpgTwin = twin } } };
+        var plan = new ScriptedDeriver().Derive(TestPlans.Base(TestPlans.Zachar(), extraItems: [photo]), new Tuning(), [],
+                                                new SessionFlags(false), 1, TestContext.Current.CancellationToken);
+
+        Assert.True(plan.Base.Scan.Settings.CopyJpgTwin);
+        Assert.Equal("3 videos · 3.6 GB → C: (317 GB free) · 1 photo · 38 MB → C:", Footer.Text(plan, new FakeFreeSpace()));
+    }
 }

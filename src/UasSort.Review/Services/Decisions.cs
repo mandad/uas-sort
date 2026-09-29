@@ -7,14 +7,17 @@ public sealed record DecisionTarget(CardEntry File, DateTime? CaptureUtc, string
 /// <summary>The card files a Review-side decision covers. Their ledger key is always Core's <see cref="FileKey.OfPath"/>.</summary>
 public static class DecisionTargets
 {
-    /// <summary>The files a decision covers: a video's MP4, a photo's primary (its twin follows it), every set member.</summary>
+    /// <summary>The files a decision covers: a video's MP4, a photo's primary and its JPG twin, every set member. This is the shape
+    /// Core's VerdictDecisions.Records writes (one decision per file), so an undo revokes every one of them (Ref §10.5).</summary>
     public static ImmutableArray<DecisionTarget> For(Item item) => item.Raw.Unit switch
     {
         VideoUnit v => [new DecisionTarget(v.Mp4, item.Time.CaptureUtc, null)],
+        PhotoUnit { JpgTwin: { } twin } p => [new DecisionTarget(p.Primary, item.Time.CaptureUtc, null), new DecisionTarget(twin, item.Time.CaptureUtc, null)],
         PhotoUnit p => [new DecisionTarget(p.Primary, item.Time.CaptureUtc, null)],
         SetUnit s => [.. s.Members.Select(m => new DecisionTarget(m, item.Time.CaptureUtc, s.SetName))],
     };
 
+    /// <summary>A loose card file (an unknown file dismissed on the Verdict page).</summary>
     public static DecisionTarget ForEntry(CardEntry e) => new(e, null, null);
 }
 

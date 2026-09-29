@@ -259,7 +259,7 @@ public class ReviewVmTests
         var current = h.Vm.Plan;
         var stale = current with { Revision = current.Revision - 1, Groups = [] };
 
-        h.Vm.OnPlanArrived(stale);
+        h.Vm.OnPlanArrived(h.Vm.Session, stale);
         Assert.Same(current, h.Vm.Plan);
     }
 

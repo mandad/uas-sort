@@ -14,6 +14,9 @@ public class CleanupVmTests
         public ConfirmedCleanupPlan? Confirmed { get; private set; }
         public CleanupReport? Report { get; private set; }
         public bool RescanThrows { get; set; }
+        public bool RescanCancelled { get; set; }
+        public Exception? RunFault { get; set; }
+        public Exception? SaveFault { get; set; }
         public FakeEjectOk Eject { get; } = new();
 
         public Rig() => Time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("America/Anchorage"));
@@ -24,6 +27,7 @@ public class CleanupVmTests
                 () => Preparation,
                 (confirmed, progress, ct) =>
                 {
+                    if (RunFault is { } fault) return Task.FromException<CleanupResult>(fault);
                     Confirmed = confirmed;
                     progress.Report(new CleanupProgress(1, confirmed.Plan.FileCount, CleanupFixture.S, confirmed.Plan.AllocatedBytes, "DJI_x.MP4", null));
                     ImmutableArray<CleanupOutcome> outcomes = [.. confirmed.Plan.Delete.Select(c => (CleanupOutcome)new Deleted(c.Unit, c.Files.Length, c.AllocatedBytes, false))];
@@ -31,8 +35,14 @@ public class CleanupVmTests
                         new CardSpace(CleanupFixture.Space.FreeBytes + confirmed.Plan.AllocatedBytes, CleanupFixture.Space.TotalBytes, 131_072), [],
                         TestPlans.Utc(2026, 9, 28, 3, 0), TestPlans.Utc(2026, 9, 28, 3, 1)));
                 },
-                () => RescanThrows ? Task.FromException<VerdictLevel>(new IOException("card removed")) : Task.FromResult(VerdictLevel.Safe),
-                r => { Report = r; return @"C:\AppData\uas-sort\reports\20260928-030100-cleanup0-cleanup.json"; },
+                () => RescanCancelled ? Task.FromCanceled<VerdictLevel>(new CancellationToken(true))
+                    : RescanThrows ? Task.FromException<VerdictLevel>(new IOException("card removed")) : Task.FromResult(VerdictLevel.Safe),
+                r =>
+                {
+                    if (SaveFault is { } fault) throw fault;
+                    Report = r;
+                    return @"C:\AppData\uas-sort\reports\20260928-030100-cleanup0-cleanup.json";
+                },
                 Eject);
             var vm = new CleanupVm(engine, Dialogs, Ui, Time);
             vm.Open();
@@ -221,6 +231,62 @@ public class CleanupVmTests
 
         Assert.Equal(VerdictLevel.NotSafe, rig.Report!.VerdictAfter);
         Assert.Equal("Don't format yet", vm.Result!.VerdictText);
+    }
+
+    private static CleanupVm ReadyToDelete(Rig rig)
+    {
+        var vm = rig.Vm();
+        vm.PickDate(Jul26LateEveningAlaska);
+        vm.ContinueCommand.Execute(null);
+        vm.AckCantBeRecovered = true;
+        return vm;
+    }
+
+    [Fact]
+    public async Task Cleanup_RescanCancelled_ReportStillWrittenWithNotSafe()
+    {
+        var rig = new Rig { RescanCancelled = true };
+        var vm = ReadyToDelete(rig);
+
+        await vm.DeleteCommand.ExecuteAsync(null);
+
+        Assert.Equal(CleanupStep.Result, vm.Step);
+        Assert.Equal(VerdictLevel.NotSafe, rig.Report!.VerdictAfter);
+        Assert.Equal("Don't format yet", vm.Result!.VerdictText);
+    }
+
+    [Fact]
+    public async Task Cleanup_SaveReportFails_StillReachesResult_ErrorShown()
+    {
+        var rig = new Rig { SaveFault = new IOException("disk full") };
+        var vm = ReadyToDelete(rig);
+
+        await vm.DeleteCommand.ExecuteAsync(null);
+
+        Assert.Equal(CleanupStep.Result, vm.Step);
+        Assert.NotNull(vm.Result);
+        Assert.Equal("The cleanup report couldn't be saved: disk full", vm.BlockingText);
+        Assert.True(vm.DoneCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Cleanup_RunFails_LeavesDeleting_OffersRescanAndBack_NoReport()
+    {
+        var rig = new Rig { RunFault = new IOException("card gone") };
+        var vm = ReadyToDelete(rig);
+
+        await vm.DeleteCommand.ExecuteAsync(null);
+
+        Assert.Equal(CleanupStep.Choose, vm.Step);
+        Assert.Equal("The cleanup stopped unexpectedly: card gone. Some files may already be deleted; Rescan to see what is on the card.",
+                     vm.BlockingText);
+        Assert.True(vm.CanRescan);
+        Assert.True(vm.RescanCommand.CanExecute(null));
+        Assert.True(vm.BackCommand.CanExecute(null));
+        Assert.False(vm.CanDelete);
+        Assert.False(vm.CanContinue);
+        Assert.Null(rig.Report);
+        Assert.Null(vm.Result);
     }
 
     [Fact]

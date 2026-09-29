@@ -79,7 +79,7 @@ public class OrderingTests
         await h.SettleAsync();
         var newer = h.Vm.Plan;
 
-        h.Services.Ui.Post(() => h.Vm.OnPlanArrived(older));
+        h.Services.Ui.Post(() => h.Vm.OnPlanArrived(h.Vm.Session, older));
         h.Ui.RunAll();
         Assert.Same(newer, h.Vm.Plan);
     }

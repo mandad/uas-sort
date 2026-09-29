@@ -18,8 +18,10 @@ public sealed class OtherSectionVm(string title, string? note, IReadOnlyList<Oth
     public override string ToString() => Title;
 }
 
-/// <summary>The Other tab: unknown files, rule skips, probe errors, scan warnings, dismissed items (Ref §9.9).</summary>
-public sealed partial class OtherTabVm(Func<IReadOnlyList<Item>, Task> undismiss) : ObservableObject
+/// <summary>The Other tab: unknown files, rule skips, probe errors, scan warnings, dismissed items (Ref §9.9). "Dismissed by you"
+/// holds items of any kind and unknown files marked not needed on the Verdict page (a live ledger decision on the file's key),
+/// each with [Un-dismiss]: <paramref name="undismiss"/> for items, <paramref name="undismissEntries"/> for loose card files.</summary>
+public sealed partial class OtherTabVm(Func<IReadOnlyList<Item>, Task> undismiss, Func<IReadOnlyList<CardEntry>, Task> undismissEntries) : ObservableObject
 {
     public ObservableCollection<OtherSectionVm> Sections { get; } = [];
 
@@ -31,7 +33,10 @@ public sealed partial class OtherTabVm(Func<IReadOnlyList<Item>, Task> undismiss
         var sections = new List<OtherSectionVm>();
         var count = 0;
 
-        var unknown = scan.Inventory.Entries.Where(e => e.Class == EntryClass.Unknown).ToList();
+        var allUnknown = scan.Inventory.Entries.Where(e => e.Class == EntryClass.Unknown).ToList();
+        var dismissedUnknown = allUnknown.Where(e => scan.Ledger.Decisions.TryGetValue(FileKey.OfPath(e.RelPath, e.Size), out var d)
+                                                     && d.Kind == DecisionKind.Dismissed).ToList();
+        var unknown = allUnknown.Except(dismissedUnknown).ToList();
         if (unknown.Count > 0)
             sections.Add(new("Unknown files", "Not copied by uas-sort; copy manually if needed",
                              [.. unknown.Select(e => new OtherRowVm(e.RelPath, Fmt.Size(e.Size), null))], false));
@@ -54,11 +59,13 @@ public sealed partial class OtherTabVm(Func<IReadOnlyList<Item>, Task> undismiss
         count += scan.Warnings.Length;
 
         var dismissed = ix.Plan.Base.Items.Where(i => i.Newness is Decided { Kind: DecisionKind.Dismissed }).ToList();
-        if (dismissed.Count > 0)
+        if (dismissed.Count + dismissedUnknown.Count > 0)
             sections.Add(new("Dismissed by you", null,
                              [.. dismissed.Select(i => new OtherRowVm(i.Raw.Name, ClipRowVm.Status(i).Tooltip,
-                                                                      new AsyncRelayCommand(() => undismiss([i]))))], false));
-        count += dismissed.Count;
+                                                                      new AsyncRelayCommand(() => undismiss([i])))),
+                              .. dismissedUnknown.Select(e => new OtherRowVm(e.RelPath, $"{Fmt.Size(e.Size)} · marked not needed",
+                                                                             new AsyncRelayCommand(() => undismissEntries([e]))))], false));
+        count += dismissed.Count + dismissedUnknown.Count;
 
         Sections.Clear();
         foreach (var s in sections) Sections.Add(s);

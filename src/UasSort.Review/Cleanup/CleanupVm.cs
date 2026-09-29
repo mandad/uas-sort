@@ -321,19 +321,42 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
         Step = CleanupStep.Deleting;
         var progress = new UiProgress<CleanupProgress>(_ui, p =>
             ProgressText = string.Create(CultureInfo.InvariantCulture, $"{p.FilesDone} / {Fmt.Count(p.FilesTotal, "file", "files")} · {Fmt.Size(p.BytesDone)} of {Fmt.Size(p.BytesTotal)}"));
-        var result = await _engine.Run(confirmed, progress, _cts.Token).ConfigureAwait(true);
+        CleanupResult result;
+#pragma warning disable CA1031 // the page must never stay stuck on Deleting after an irreversible delete; every failure is shown (Ref §10.6)
+        try
+        {
+            result = await _engine.Run(confirmed, progress, _cts.Token).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // Part 08's executor turns every known failure into a CleanupResult.Stop; anything else leaves no result to report on.
+            // Each deleted file already has its cardDelete ledger record, so the page offers Rescan (and Back) to see the card as it is.
+            BlockingText = $"The cleanup stopped unexpectedly: {ex.Message}. Some files may already be deleted; Rescan to see what is on the card.";
+            CanRescan = true;
+            RescanCommand.NotifyCanExecuteChanged();
+            Step = CleanupStep.Choose;
+            return;
+        }
         VerdictLevel after;
-#pragma warning disable CA1031 // any failure of the rescan (card pulled, IO) means the verdict after is NotSafe (Ref §10.6 step 4)
         try
         {
             after = await _engine.Rescan().ConfigureAwait(true);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception)
         {
-            after = VerdictLevel.NotSafe;
+            after = VerdictLevel.NotSafe;   // any rescan failure, a cancelled one included: the verdict after is NotSafe (Ref §10.6 step 4)
+        }
+        string reportPath;
+        try
+        {
+            reportPath = _engine.SaveReport(CleanupReports.Build(plan, result, after));
+        }
+        catch (Exception ex)
+        {
+            reportPath = "";
+            BlockingText = $"The cleanup report couldn't be saved: {ex.Message}";
         }
 #pragma warning restore CA1031
-        var reportPath = _engine.SaveReport(CleanupReports.Build(plan, result, after));
         Result = new CleanupResultVm(result, after, reportPath, plan.CardRoot, _engine.Eject);
         Step = CleanupStep.Result;
     }
