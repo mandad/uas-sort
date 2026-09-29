@@ -82,4 +82,20 @@ internal static partial class SelfTestChecks
         return ok ? SelfTestCheck.Pass("cleanup.entry", "title-bar [Clean up card…] disabled: " + reason)
                   : SelfTestCheck.Fail("cleanup.entry", $"enabled {shell.CleanupEnabled}, tooltip '{shell.CleanupTooltip}', button enabled {button?.IsEnabled}");
     }
+
+    private static async Task<SelfTestCheck> DeviceHook(SelfTestContext ctx)
+    {
+        var watcher = ctx.Window.DeviceWatcher;
+        if (watcher is null) return SelfTestCheck.Fail("device.hook", "no DeviceChangeWatcher on the main window");
+        int n0 = watcher.Notifications, r0 = watcher.Refreshes, s0 = watcher.Suppressed;
+        bool enabled = !DeviceChangeWatcher.IsSuppressed(ctx.Services.Shell.Stage);
+        // Two arrivals in quick succession → one debounced refresh (or one suppression while Commit/Cleanup runs).
+        WindowInterop.Send(ctx.Window.Hwnd, WindowMessageHook.WM_DEVICECHANGE, WindowMessageHook.DBT_DEVICEARRIVAL, 0);
+        WindowInterop.Send(ctx.Window.Hwnd, WindowMessageHook.WM_DEVICECHANGE, WindowMessageHook.DBT_DEVICEARRIVAL, 0);
+        await Task.Delay(DeviceChangeWatcher.Debounce + TimeSpan.FromMilliseconds(500));
+        bool ok = watcher.Notifications == n0 + 2
+                  && (enabled ? watcher.Refreshes == r0 + 1 && watcher.Suppressed == s0 : watcher.Refreshes == r0 && watcher.Suppressed == s0 + 1);
+        return ok ? SelfTestCheck.Pass("device.hook", $"2 notifications → {(enabled ? "1 refresh" : "suppressed")}")
+                  : SelfTestCheck.Fail("device.hook", $"notifications {watcher.Notifications - n0}, refreshes {watcher.Refreshes - r0}, suppressed {watcher.Suppressed - s0}");
+    }
 }

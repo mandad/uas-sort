@@ -34,12 +34,16 @@ public sealed partial class MainWindow : Window
     public AppServices Services { get; }
     public ShellPage? Shell => RootFrame.Content as ShellPage;
     public nint Hwnd => Win32Interop.GetWindowFromWindowId(AppWindow.Id);
+    public DeviceChangeWatcher? DeviceWatcher { get; private set; }
 
     /// <summary>Milliseconds from process start to the first CompositionTarget.Rendering (Ref §13 firstFrameMs).</summary>
     internal Task<double> FirstFrameMs => _firstFrame.Task;
 
     public void Start()
     {
+        var watcher = new DeviceChangeWatcher(Hwnd, DispatcherQueue, Services.Shell);
+        DeviceWatcher = watcher;
+        Closed += (_, _) => watcher.Dispose();
         if (_options.SelfTest)
         {
             ShowOffScreen();

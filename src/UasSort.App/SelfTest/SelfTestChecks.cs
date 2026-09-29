@@ -25,6 +25,7 @@ internal static partial class SelfTestChecks
         ("template.photoTile", TemplatePhotoTile), ("template.otherTab", TemplateOtherTab),
         ("keys.spaceInRenameBox", KeysSpaceInRenameBox), ("keys.accelerators", KeysAccelerators),
         ("cleanup.entry", CleanupEntry),
+        ("device.hook", DeviceHook),
         ("pages.construct", PagesConstruct),
     ];
 
