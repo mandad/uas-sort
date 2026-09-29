@@ -1,5 +1,6 @@
 // src/UasSort.App/SelfTest/SelfTestRunner.cs — Ref §13 UI smoke test: exits 0/1, writes the result JSON, 60 s budget.
 // The records SelfTestCheck/SelfTestResult/SelfTestJsonContext are Part 01's (src/UasSort.App/SelfTest/SelfTestResult.cs).
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace UasSort.App.SelfTest;
@@ -18,7 +19,9 @@ internal static class SelfTestRunner
 {
     public static readonly TimeSpan PerCheck = TimeSpan.FromSeconds(20);
     public static readonly TimeSpan Watchdog = TimeSpan.FromSeconds(55);  // deploy.ps1 / selftest.ps1 kill at 60 s
+    private static readonly TimeSpan BrowserExit = TimeSpan.FromSeconds(5);
     private static int _finished;
+    private static IDisposable? _cardPause;                               // held until exit (ReleaseCard)
 
     public static async Task RunAsync(SelfTestContext ctx)
     {
@@ -51,18 +54,49 @@ internal static class SelfTestRunner
 #pragma warning restore CA1031
             lock (checks) checks.Add(result);
         }
-        CloseWebViews(ctx, checks);
+        ReleaseCard(ctx, checks);
+        await CloseWebViewsAsync(ctx, checks);
         lock (checks) Finish(ctx, checks);
     }
 
-    /// <summary>On the UI thread, before exit: closes the map WebView2s so the run log has no Chromium teardown line.
-    /// The watchdog path (a timer thread) skips this; a timed-out run may still print the line.</summary>
-    private static void CloseWebViews(SelfTestContext ctx, List<SelfTestCheck> checks)
+    /// <summary>Closes the card file the thumbnail reader keeps open, so Finish can delete the sandbox. The pause is never
+    /// resumed: the process exits next. The watchdog path skips this too.</summary>
+    private static void ReleaseCard(SelfTestContext ctx, List<SelfTestCheck> checks)
     {
-        try { SelfTestChecks.CloseMapPanes(ctx); }
+        try { _cardPause = ctx.Services.Thumbnails.PauseSource(); }
+#pragma warning disable CA1031 // selftest: a release failure is recorded, and the result file is still written
+        catch (Exception ex) { lock (checks) checks.Add(SelfTestCheck.Fail("releaseCard", ex.GetType().Name + ": " + ex.Message)); }
+#pragma warning restore CA1031
+    }
+
+    /// <summary>On the UI thread, before exit: closes the map WebView2s so the run log has no Chromium teardown line, then
+    /// waits (up to 5 s, the UI thread still pumping) for their browser process to exit, so it no longer holds the sandbox's
+    /// WebView2 folder when Finish deletes it. The watchdog path (a timer thread) skips this; a timed-out run may still
+    /// print the line and leave the folder.</summary>
+    private static async Task CloseWebViewsAsync(SelfTestContext ctx, List<SelfTestCheck> checks)
+    {
+        var browsers = new List<Process>();
+        try
+        {
+            List<MapPane> panes = ctx.Window.Shell is { } shell ? [.. VisualTree.FindAll<MapPane>(shell)] : [];
+            if (ctx.Shared.TryGetValue("mapPane", out var standalone)) panes.Add((MapPane)standalone);
+            foreach (var pid in panes.Select(p => p.Core?.BrowserProcessId).OfType<uint>().Distinct())
+            {
+                try { browsers.Add(Process.GetProcessById((int)pid)); }
+                catch (ArgumentException) { }                             // already exited
+            }
+            SelfTestChecks.CloseMapPanes(ctx);
+            using var timeout = new CancellationTokenSource(BrowserExit);
+            foreach (var browser in browsers) await browser.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) { }                            // still running: Finish's delete retries for 3 s
 #pragma warning disable CA1031 // selftest: a close failure is recorded, and the result file is still written
         catch (Exception ex) { lock (checks) checks.Add(SelfTestCheck.Fail("closeWebViews", ex.GetType().Name + ": " + ex.Message)); }
 #pragma warning restore CA1031
+        finally
+        {
+            foreach (var browser in browsers) browser.Dispose();
+        }
     }
 
     private static void Finish(SelfTestContext ctx, List<SelfTestCheck> checks)

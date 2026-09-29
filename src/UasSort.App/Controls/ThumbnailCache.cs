@@ -31,6 +31,10 @@ public sealed class ThumbnailCache(IThumbnailSource source, DispatcherQueue ui)
 
     public void Clear() => _cache.Clear();
 
+    /// <summary>Selftest teardown: pauses the source, which closes the card file it holds open (Ref §9.5) so the sandbox
+    /// can be deleted. Later loads return the placeholder until the returned token is disposed.</summary>
+    internal IDisposable PauseSource() => source.Pause();
+
     private async Task<ImageSource?> LoadAsync(ItemId id)
     {
         LoadsStarted++;
