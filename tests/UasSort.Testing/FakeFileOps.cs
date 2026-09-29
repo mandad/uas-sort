@@ -1,7 +1,11 @@
+// tests/UasSort.Testing/FakeFileOps.cs
 using System.IO.Hashing;
+using UasSort.Core;
 
 namespace UasSort.Testing;
 
+/// <summary>The fake twin of Platform's GuardedFileOps (Part 02), with the offload's hooks (Part 07). Every call is guarded through
+/// FakeFileSystem.Guard with this run's own temps and renamed files, and honours FakeFaults' destination hooks.</summary>
 public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
 {
     private const uint TempAttributes = IoGuardPolicy.FileAttributeHidden | IoGuardPolicy.FileAttributeNotContentIndexed
@@ -9,22 +13,56 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     private readonly HashSet<string> _ownTemps = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _renamed = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _flushed = [];
+    private readonly List<(string Dir, int Files)> _flushedDestinations = [];
     private readonly List<string> _createdDirectories = [];
+    private readonly IReadOnlySet<string>? _newFolderDirs;
     private long _bytesWritten;
 
+    /// <summary>Part 07: guard with the run's NewFolderDirs (OffloadCompiler.NewFolderDirs), used verbatim instead of
+    /// fs.Context.NewFolderDirs, exactly as GuardedFileOps takes them (registry decision 27).</summary>
+    public FakeFileOps(FakeFileSystem fs, IEnumerable<string> newFolderDirs) : this(fs)
+    {
+        ArgumentNullException.ThrowIfNull(newFolderDirs);
+        _newFolderDirs = newFolderDirs.Select(PathRules.Normalize).ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    // ── Part 02
     public IReadOnlySet<string> OwnTemps { get { lock (fs.Gate) { return _ownTemps.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase); } } }
     public IReadOnlySet<string> Renamed { get { lock (fs.Gate) { return _renamed.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase); } } }
     public IReadOnlyList<string> Flushed { get { lock (fs.Gate) { return [.. _flushed]; } } }
     public IReadOnlyList<string> CreatedDirectories { get { lock (fs.Gate) { return [.. _createdDirectories]; } } }
     public int FlushToDiskCount { get; private set; }
 
-    private GuardContext Ctx => fs.Context with { OwnTempsThisRun = OwnTemps, RenamedThisRun = Renamed };
+    // ── Part 07 (Task 07.4)
+    /// <summary>Every IFileOps call, e.g. "CreateTemp {temp}", "EnsureDirectory {dir} False" (paths normalised).</summary>
+    public List<string> Calls { get; } = [];
+    /// <summary>One entry per FlushDestination call: the directory and how many files were flushed in it.</summary>
+    public IReadOnlyList<(string Dir, int Files)> FlushedDestinations { get { lock (fs.Gate) { return [.. _flushedDestinations]; } } }
+    /// <summary>Called after each temp write with (final path, bytes in this temp so far).</summary>
+    public Action<string, long>? OnTempWrite { get; set; }
+    /// <summary>Thrown by FinalizeAttributes before anything else (e.g. an UnsafeIoException for the safety-stop test).</summary>
+    public Exception? ThrowOnFinalize { get; set; }
+    /// <summary>Replaces fs.DestinationFreeBytes in FreeBytes (argument: the path asked about).</summary>
+    public Func<string, long>? FreeBytesOverride { get; set; }
+
+    private GuardContext Ctx => fs.Context with
+    {
+        NewFolderDirs = _newFolderDirs ?? fs.Context.NewFolderDirs,
+        OwnTempsThisRun = OwnTemps,
+        RenamedThisRun = Renamed,
+    };
+
+    private void Call(string text)
+    {
+        lock (fs.Gate) { Calls.Add(text); }
+    }
 
     public Stream CreateTemp(string finalPath, long size, out string tempPath)
     {
         var final = PathRules.Normalize(finalPath);
-        ThrowIfLost(final);
         var temp = final + IoGuardPolicy.TempSuffix;
+        Call("CreateTemp " + temp);
+        ThrowIfLost(final);
         tempPath = temp;
         fs.Guard(IoOp.CreateNew, temp, Ctx);
         lock (fs.Gate)
@@ -42,6 +80,8 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public void FlushToDisk(Stream s)
     {
         ArgumentNullException.ThrowIfNull(s);
+        Call("FlushToDisk");
+        if (s is FakeWriteStream w) ThrowIfLost(w.TempPath);
         s.Flush();
         FlushToDiskCount++;
     }
@@ -50,6 +90,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     {
         ct.ThrowIfCancellationRequested();
         var temp = PathRules.Normalize(tempPath);
+        Call("VerifyHash " + temp);
         ThrowIfLost(temp);
         fs.Guard(IoOp.ReadData, temp, Ctx);
         byte[] data;
@@ -72,6 +113,8 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public void FinalizeAttributes(string tempPath, DateTime creationUtc, DateTime mtimeUtc)
     {
         var temp = PathRules.Normalize(tempPath);
+        Call("FinalizeAttributes " + temp);
+        if (ThrowOnFinalize is { } injected) throw injected;
         ThrowIfLost(temp);
         fs.Guard(IoOp.SetAttributesOrTimes, temp, Ctx);
         lock (fs.Gate)
@@ -87,6 +130,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     {
         var temp = PathRules.Normalize(tempPath);
         var final = PathRules.Normalize(finalPath);
+        Call("RenameNoReplace " + final);
         ThrowIfLost(final);
         fs.Guard(IoOp.Rename, temp, Ctx);
         lock (fs.Gate)
@@ -106,6 +150,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public bool ConfirmFinal(string finalPath, long size)
     {
         var final = PathRules.Normalize(finalPath);
+        Call("ConfirmFinal " + final);
         ThrowIfLost(final);
         lock (fs.Gate)
         {
@@ -119,6 +164,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     {
         ArgumentNullException.ThrowIfNull(filesCreatedThisRun);
         var d = PathRules.Normalize(dir);
+        Call("FlushDestination " + d);
         ThrowIfLost(d);
         foreach (var f in filesCreatedThisRun)
         {
@@ -126,12 +172,17 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
             lock (fs.Gate) { _flushed.Add(p); }
         }
         var dp = fs.Guard(IoOp.OpenForFlush, d, Ctx);
-        lock (fs.Gate) { _flushed.Add(dp); }
+        lock (fs.Gate)
+        {
+            _flushed.Add(dp);
+            _flushedDestinations.Add((d, filesCreatedThisRun.Count));
+        }
     }
 
     public void DeleteOwnTemp(string tempPath)
     {
         var temp = PathRules.Normalize(tempPath);
+        Call("DeleteOwnTemp " + temp);
         if (!temp.EndsWith(IoGuardPolicy.TempSuffix, StringComparison.OrdinalIgnoreCase))
             throw new UnsafeIoException($"DeleteOwnTemp refuses {temp}: not a *{IoGuardPolicy.TempSuffix} file");
         ThrowIfLost(temp);
@@ -147,6 +198,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public void EnsureDirectory(string dir, bool allowCreate)
     {
         var d = PathRules.Normalize(dir);
+        Call($"EnsureDirectory {d} {allowCreate}");
         ThrowIfLost(d);
         if (fs.Metadata(d) is { IsDirectory: true }) return;
         if (!allowCreate) throw new DirectoryNotFoundException($"{d} doesn't exist");
@@ -166,7 +218,9 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
 
     public bool TryGetSize(string path, out long size)
     {
-        var e = fs.Metadata(path);
+        var p = PathRules.Normalize(path);
+        ThrowIfLost(p);
+        var e = fs.Metadata(p);
         size = e is { IsDirectory: false } ? e.Size : 0;
         return e is { IsDirectory: false };
     }
@@ -174,7 +228,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
     public long FreeBytes(string anyPathOnVolume)
     {
         ThrowIfLost(PathRules.Normalize(anyPathOnVolume));
-        return fs.DestinationFreeBytes;
+        return FreeBytesOverride?.Invoke(anyPathOnVolume) ?? fs.DestinationFreeBytes;
     }
 
     internal void WriteTemp(FakeNode node, ReadOnlySpan<byte> bytes)
@@ -186,6 +240,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
         fs.AppendBytes(node, bytes[..allowed]);
         Interlocked.Add(ref _bytesWritten, allowed);
         if (allowed < bytes.Length) throw DiskFull();
+        OnTempWrite?.Invoke(node.Path[..^IoGuardPolicy.TempSuffix.Length], node.Size);
     }
 
     private void ThrowIfLost(string path)
@@ -198,6 +253,7 @@ public sealed class FakeFileOps(FakeFileSystem fs) : IFileOps
 
 internal sealed class FakeWriteStream(FakeFileOps ops, FakeNode node) : Stream
 {
+    public string TempPath => node.Path;
     public override bool CanRead => false;
     public override bool CanSeek => false;
     public override bool CanWrite => true;
