@@ -199,4 +199,76 @@ public class PreflightCopyTests
         Assert.Equal("Stop the offload?", rig.Dialogs.Shown[0].Title);
         Assert.DoesNotContain(rig.Source.DraftKey, rig.Drafts.Deleted);
     }
+
+    private static OffloadResult Stopped(StopReason? stop, params CopyOutcome[] outcomes)
+        => new("run-1", [.. outcomes], stop, T0, T0, []);
+
+    [Theory] // F12: every stop reason says why the offload stopped and what to do (Ref §10.3 stop causes, §12)
+    [InlineData(StopReason.CardSwapped, "A different card is in the drive; the offload stopped.")]
+    [InlineData(StopReason.CardRemoved, "The card was removed; the offload stopped.")]
+    [InlineData(StopReason.DestinationFull, "The destination disk is full; the offload stopped.")]
+    [InlineData(StopReason.DestinationLost, "The destination drive went away; the offload stopped.")]
+    [InlineData(StopReason.LedgerWriteFailed, "Writing the history file failed; the offload stopped.")]
+    [InlineData(StopReason.InternalSafetyStop, "Internal safety stop:")]
+    public void Copy_StopText_ExplainsEveryStop(StopReason stop, string start)
+    {
+        var job = new OffloadPlanBuilder();
+        var id = job.Video("DJI_20260927140000_0123_D.MP4", 1_000, T0);
+        job.Group(new NewFolder(ZRel), Zachar, id);
+        var batch = new OffloadRig(job).Build().Batch;
+        var text = CopyVm.StopTextFor(Stopped(stop, new Verified(batch.Jobs[0], 1, VerifyMode.Unbuffered)));
+        Assert.StartsWith(start, text, StringComparison.Ordinal);
+    }
+
+    [Fact] // F12: a finished run and a Cancel have nothing to explain
+    public void Copy_StopText_NoneForAFinishedRunOrACancel()
+    {
+        Assert.Null(CopyVm.StopTextFor(Stopped(null)));
+        Assert.Null(CopyVm.StopTextFor(Stopped(StopReason.Cancelled)));
+    }
+
+    [Fact] // F12 (Ref §12 UnsafeIoException: stop, log, dialog "internal safety stop")
+    public async Task Copy_InternalSafetyStop_ShowsTheDialogAndTheStopText()
+    {
+        var rig = new Rig();
+        rig.Offload.Ledger.EnsureFolderFault = new UnsafeIoException("Refused CreateDir of C:\\x: outside every configured root");
+        using var preflight = rig.Preflight();
+        preflight.Open();
+        preflight.Acks[0].IsChecked = true;
+        var log = new ListLog();
+        using var copy = new CopyVm(preflight, rig.Dialogs, rig.Ui, log);
+
+        var result = await copy.RunAsync();
+
+        Assert.Equal(StopReason.InternalSafetyStop, result!.Offload.Stop);
+        Assert.StartsWith("Internal safety stop:", copy.ErrorText, StringComparison.Ordinal);
+        Assert.Equal("Internal safety stop", Assert.Single(rig.Dialogs.Shown).Title);
+        Assert.Single(log.Lines);
+    }
+
+    [Fact] // F18: history not fully written, or the report not saved: a warning, not a silent success
+    public async Task Copy_LedgerTailOrReportFailure_GivesAWarning()
+    {
+        var rig = new Rig();
+        rig.Offload.Writer.ThrowWhen = r => r is RunRecord;
+        rig.Offload.Reports.Throws = true;
+        using var preflight = rig.Preflight();
+        preflight.Open();
+        preflight.Acks[0].IsChecked = true;
+        using var copy = new CopyVm(preflight, rig.Dialogs, rig.Ui);
+
+        var result = await copy.RunAsync();
+
+        Assert.False(result!.LedgerComplete);
+        Assert.Null(result.ReportPath);
+        Assert.Null(copy.ErrorText);
+        Assert.Equal("The history couldn't be fully written; rescan before formatting the card. The offload report couldn't be saved.",
+                     copy.WarningText);
+    }
+
+    private sealed class ListLog : IReviewLog
+    {
+        public List<string> Lines { get; } = [];
+        public void Warn(string message) => Lines.Add(message);
+    }
 }

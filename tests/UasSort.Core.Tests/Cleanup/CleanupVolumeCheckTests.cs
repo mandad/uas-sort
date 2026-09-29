@@ -62,4 +62,37 @@ public class CleanupVolumeCheckTests
     [Fact]
     public void Write_protected_card_gets_the_lock_switch_tooltip()
         => Assert.Equal("The card is write-protected (lock switch)", CleanupVolumeCheck.Refusal(V(readOnly: true), Card(), S(), AppData));
+
+    private static readonly IReadOnlySet<string> NoExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    [Fact] // F7: the button's check gets the root's and MISC's children from a non-recursive lister, RelPaths under the card root
+    public void CardListing_FromANonRecursiveLister_FindsTheMiscIndex()
+    {
+        var fs = FakeLayout.NewFileSystem();
+        fs.AddFile(@"E:\DCIM\DJI_001\DJI_20260927140627_0128_D.MP4", 10, T);
+        fs.AddFile(@"E:\MISC\FC1.db", 10, T);
+
+        var listing = CleanupVolumeCheck.CardListing(fs, @"E:\");
+
+        Assert.Contains(listing.Entries, e => e.RelPath == @"MISC\FC1.db" && e.FullPath == @"E:\MISC\FC1.db");
+        Assert.Null(CleanupVolumeCheck.Refusal(V(), listing, S(), AppData));
+        Assert.Equal(CleanupVolumeCheck.NotACard,                                          // the top-level-only listing never passes
+                     CleanupVolumeCheck.Refusal(V(), fs.Enumerate(@"E:\", false, NoExcludes), S(), AppData));
+    }
+
+    [Fact] // F7: no MISC folder (a card copy) stays refused
+    public void CardListing_WithoutMisc_IsNotACard()
+    {
+        var fs = FakeLayout.NewFileSystem();
+        fs.AddFile(@"E:\DCIM\DJI_001\DJI_20260927140627_0128_D.MP4", 10, T);
+        Assert.Equal(CleanupVolumeCheck.NotACard, CleanupVolumeCheck.Refusal(V(), CleanupVolumeCheck.CardListing(fs, @"E:\"), S(), AppData));
+    }
+
+    [Fact] // F7: a MISC\IDX folder is the other drone index
+    public void CardListing_WithMiscIdxFolder_Passes()
+    {
+        var fs = FakeLayout.NewFileSystem();
+        fs.AddFile(@"E:\MISC\IDX\a.idx", 10, T);
+        Assert.Null(CleanupVolumeCheck.Refusal(V(), CleanupVolumeCheck.CardListing(fs, @"E:\"), S(), AppData));
+    }
 }

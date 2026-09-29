@@ -46,10 +46,13 @@ public sealed class FakeLedgerStore(FakeFileSystem? fs, string videoRoot, string
     // ── Part 07 (Task 07.4): the write half
     public FakeLedgerWriter Writer { get; } = new();
     public bool EnsureFolderThrows { get; set; }
+    /// <summary>Thrown by EnsureFolder instead (e.g. an UnsafeIoException: the setup's internal safety stop).</summary>
+    public Exception? EnsureFolderFault { get; set; }
 
     public void EnsureFolder()
     {
         Calls.Add("EnsureFolder");
+        if (EnsureFolderFault is { } fault) throw fault;
         if (EnsureFolderThrows) throw new IOException($"Couldn't create {Folder}.");
         if (fs is not { } files) return;
         if (files.Metadata(Folder) is null) files.CreateDirectory(Folder);

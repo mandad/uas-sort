@@ -67,7 +67,7 @@ public sealed partial class ScanStageVm : ObservableObject
         {
             return null;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             ErrorText = $"The card was removed or can't be read. Reinsert it, then Rescan. ({ex.Message})";
             return null;

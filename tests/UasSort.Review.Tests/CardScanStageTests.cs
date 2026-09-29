@@ -130,4 +130,14 @@ public class CardScanStageTests
         Assert.Null(await run);
         Assert.Null(vm.ErrorText);
     }
+
+    [Fact] // F10: access denied on the card (Failures.IsIo treats it as IO) is shown like a read error, never escapes
+    public async Task ScanStage_AccessDenied_ShowsTheReadError()
+    {
+        var vm = new ScanStageVm((_, _, _) => Task.FromException<ScanResult>(new UnauthorizedAccessException("Access to the path 'E:\\DCIM' is denied.")),
+                                 _ => throw new InvalidOperationException("not reached"), TestPlans.Settings(), new FakeUiDispatcher());
+        Assert.Null(await vm.RunAsync(TestPlans.Source));
+        Assert.Equal("The card was removed or can't be read. Reinsert it, then Rescan. (Access to the path 'E:\\DCIM' is denied.)", vm.ErrorText);
+        Assert.False(vm.IsRunning);
+    }
 }

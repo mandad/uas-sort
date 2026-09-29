@@ -15,6 +15,20 @@ public static partial class CleanupVolumeCheck
     [GeneratedRegex(@"^MISC/FC[^/]*\.db$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex MiscDb();
 
+    /// <summary>The listing <see cref="Refusal"/> needs, from a non-recursive lister: the card root's children plus MISC's children, with
+    /// RelPaths relative to the card root (MISC\FC1.db), so check 6 can see the drone index and check 2's listed-root comparison holds.</summary>
+    public static ListingResult CardListing(IDirectoryLister lister, string root)
+    {
+        ArgumentNullException.ThrowIfNull(lister);
+        var none = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var top = lister.Enumerate(root, false, none);
+        if (top.Entries.FirstOrDefault(e => e.IsDirectory && e.RelPath.Equals("MISC", StringComparison.OrdinalIgnoreCase)) is not { } misc)
+            return top;
+        var inner = lister.Enumerate(misc.FullPath, false, none);
+        return new ListingResult([.. top.Entries, .. inner.Entries.Select(e => e with { RelPath = misc.RelPath + "\\" + e.RelPath })],
+                                 [.. top.Errors, .. inner.Errors]);
+    }
+
     public static string? Refusal(VolumeInfo volume, ListingResult card, Settings settings, string appDataDir)
     {
         ArgumentNullException.ThrowIfNull(volume);

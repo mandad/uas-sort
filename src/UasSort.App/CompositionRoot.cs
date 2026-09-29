@@ -17,7 +17,7 @@ public static class CompositionRoot
         if (sandbox is not null) platform.Settings.Save(SelfTestSettings(sandbox));   // before the shell reads settings
         platform.Log.Prune();
 
-        var dispatcher = new WinUiDispatcher(ui);
+        var dispatcher = new WinUiDispatcher(ui, App.ReportFault);
         var dialogs = new DialogService(xamlRoot, ui);
         var wiring = new Wiring(platform, dispatcher, dialogs, selfTest: sandbox is not null);
         var thumbs = new ThumbnailCache(wiring.Thumbnails, ui);
@@ -65,7 +65,7 @@ public static class CompositionRoot
                 CreateScan,
                 CreateReview,
                 CreatePreflight,
-                preflight => new CopyVm(preflight, _dialogs, _ui),
+                preflight => new CopyVm(preflight, _dialogs, _ui, _log),
                 CreateVerdict,
                 (origin, offload) => CreateCleanup(offload),
                 CreateSettings,
@@ -73,6 +73,7 @@ public static class CompositionRoot
                 CardPresent,
                 VolumeRefusal,
                 p.Settings.Save));
+            Shell.Faulted += e => p.Log.Error("scan failed", e);      // already shown on the Card stage (Ref §12 log, keep running)
         }
 
         public ShellVm Shell { get; }
@@ -185,11 +186,12 @@ public static class CompositionRoot
             if (volume is null)
                 return new CleanupPreparation(null, $"{Fmt.Drive(source.Root)} is not available; rescan", true);
 
-            var ledger = _p.LedgerFor(s.VideoRoot).Load();
-            var audit = CardAudit.Audit(inventory, relisted, now, plan, offload, ledger);
+            var (ledger, refused) = CleanupLedgerGate.Load(_p.LedgerFor(s.VideoRoot), s);   // Check() first: Blocking up front (Ref §7.5)
+            if (refused is not null) return refused;
+            var audit = CardAudit.Audit(inventory, relisted, now, plan, offload, ledger!);
             var listings = new LibraryListings(ListRoot(s.VideoRoot, DestRoot.Video, false), ListRoot(s.PhotoRoot, DestRoot.Photo, false),
                                                [.. s.PreviousPhotoRoots.Select(r => ListRoot(r, DestRoot.Photo, true))]);
-            return new CleanupPreparation(new CleanupInputs(inventory, plan, audit, offload, space, listings, ledger, volume, _places, s),
+            return new CleanupPreparation(new CleanupInputs(inventory, plan, audit, offload, space, listings, ledger!, volume, _places, s),
                                           null, false);
         }
 
@@ -202,21 +204,31 @@ public static class CompositionRoot
 
         private SettingsPageVm CreateSettings(Settings s) => new(
             s, _p.Settings, _p.LedgerFor, _p.Lister, _p.Shell, _dialogs, _space, _p.Clock, _ui,
-            () => Shell.Review?.Plan.Base.Scan.Ledger ?? _p.LedgerFor(s.VideoRoot).Load(),        // the current (old) root's ledger
+            () => CurrentLedger(s.VideoRoot),                                                     // the current (old) root's ledger
             root => LedgerPaths.BackupDir(_p.AppDataDir, _p.PathFacts.Canonical(root)));
+
+        /// <summary>The ledger a video-root [Copy] copies (Ref §9.14): the old root's union; when the old root is gone, its latest
+        /// local snapshot ∪ mirror (LedgerStore.LoadFromBackup).</summary>
+        private LedgerSnapshot CurrentLedger(string oldRoot)
+        {
+            var old = _p.LedgerFor(oldRoot);
+            if (old.Check().State == LedgerFolderState.VideoRootMissing && old is LedgerStore store) return store.LoadFromBackup();
+            return Shell.Review?.Plan.Base.Scan.Ledger ?? old.Load();
+        }
 
         private bool CardPresent(CardSource s) => s.Identity is { } id
             ? _p.Volumes.GetVolumes().Any(v => PathRules.Equal(v.Root, s.Root) && v.Identity == id)
             : _p.Lister.Enumerate(s.Root, false, NoExcludes).Errors.IsEmpty;
 
-        /// <summary>CleanupVolumeCheck on the card's volume (top-level listing); browsed folders are refused by CleanupAvailability.</summary>
+        /// <summary>CleanupVolumeCheck on the card's volume (the root's and MISC's children, so the drone index is seen); browsed
+    /// folders are refused by CleanupAvailability.</summary>
         private string? VolumeRefusal(CardSource s)
         {
             if (s.IsBrowsedFolder) return null;
             var volume = _p.Volumes.GetVolumes().FirstOrDefault(v => PathRules.Equal(v.Root, s.Root));
             return volume is null
                 ? CleanupVolumeCheck.NotACard
-                : CleanupVolumeCheck.Refusal(volume, _p.Lister.Enumerate(s.Root, false, NoExcludes), Current, _p.AppDataDir);
+                : CleanupVolumeCheck.Refusal(volume, CleanupVolumeCheck.CardListing(_p.Lister, s.Root), Current, _p.AppDataDir);
         }
 
         /// <summary>The identity of a detected card, or of the volume holding a browsed folder (as ScanService does).</summary>

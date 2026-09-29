@@ -17,7 +17,7 @@ public sealed partial class DeviceChangeWatcher : IDisposable   // partial: CsWi
         _timer = ui.CreateTimer();
         _timer.Interval = Debounce;
         _timer.IsRepeating = false;
-        _timer.Tick += (_, _) => Fire();
+        _timer.Tick += (_, _) => App.Guarded(Fire);
         _hook = WindowMessageHook.Attach(hwnd, WindowMessageHook.WM_DEVICECHANGE, (wParam, _) =>
         {
             if (wParam != WindowMessageHook.DBT_DEVICEARRIVAL && wParam != WindowMessageHook.DBT_DEVICEREMOVECOMPLETE) return;

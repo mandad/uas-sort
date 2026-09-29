@@ -104,13 +104,15 @@ dotnet run --project src/UasSort.Cli -- plan --card E:\ --expect tests\acceptanc
 
 ## First-real-card acceptance
 
-After the build is complete, the first real card is the user's acceptance of the app (design reference §13). With the card in the reader (here `E:\`):
+After the build is complete, the first real card is the user's acceptance of the app. Design reference §13 ("Acceptance on the first real card") is the authoritative checklist; the steps below follow it. With the card in the reader (here `E:\`):
 
-1. Save a listing snapshot of the card first (relative path, size, modified, created and last-access times, attributes).
-2. Write `tests\acceptance\first-card-expected.json` from `first-card-expected.example.json` **before** the dry run (see [`tests/acceptance/README.md`](tests/acceptance/README.md)), then run `dotnet run --project src/UasSort.Cli -- plan --card E:\ --json --expect tests\acceptance\first-card-expected.json`. It passes at 2 edits or fewer; note the scan + plan time on stderr. Re-list the card and compare with the snapshot.
-3. Rehearse: in the app, point the roots at `%TEMP%\uas-sort-rehearsal\video` and `%TEMP%\uas-sort-rehearsal\photo` and offload. Check the verdict and the report, that OneDrive doesn't sync the `.tmp` files, the unbuffered verify and post-run flush on a scratch folder on the exFAT `D:` drive, and [Eject D:].
-4. Real offload: point the roots back at the real library, answer **[Start empty]** at the ledger prompt (so rehearsal records never enter the real ledger), offload, then rescan the card: everything shows Imported and the verdict is Safe.
-5. Card cleanup: snapshot the card listing, run Before date with a cutoff that takes exactly one old eligible clip (and its companions), confirm, then re-list: only that clip's files are gone.
+1. **Before anything else,** save a listing snapshot of the card (relative path, size, modified, created and **last-access** times, attributes).
+2. Write `tests\acceptance\first-card-expected.json` from `first-card-expected.example.json` **before** the dry run (see [`tests/acceptance/README.md`](tests/acceptance/README.md)), then run `dotnet run --project src/UasSort.Cli -- plan --card E:\ --json --expect tests\acceptance\first-card-expected.json`. It passes at 2 edits or fewer; note the scan + plan time on stderr. Fix classification surprises (LRF presence, cover JPGs, the tele-camera suffix, hyperlapse frame names, folder rollover).
+3. Re-list the card and compare with the snapshot. If only last-access times changed on the exFAT card, that is Windows, not uas-sort (it wrote nothing); to avoid it, slide the SD card's lock switch, which shows as the write-protected badge.
+4. Rehearse: in the app, point the roots at `%TEMP%\uas-sort-rehearsal\video` and `%TEMP%\uas-sort-rehearsal\photo` and offload (the rehearsal's ledger lands in `%TEMP%\uas-sort-rehearsal\video\.uas-sort\`). Check the verdict and the report, that OneDrive doesn't sync the `.tmp` files, the unbuffered verify and post-run flush on a scratch folder on the exFAT `D:` drive, and [Eject D:].
+5. Real offload: point the roots back at the real library and answer **[Start empty]** at the ledger prompt (so rehearsal records never enter the real ledger; confirm its dialog if it appears). Check that the pin sticks: after [Keep on this device], Explorer must show `UAS Videos\.uas-sort` as "Always keep on this device". Offload, then diff the card listing against the snapshot again (excluding `System Volume Information`): the offload wrote nothing to the card.
+6. Rescan the same card: everything shows Imported and the verdict is Safe (or SafeWithAssumptions only for photos you chose to leave).
+7. Card cleanup: snapshot the card listing, run Before date with a cutoff that takes exactly one old eligible clip (and its companions), confirm, then re-list: only that clip's files are gone, each deleted file has a `cardDelete` record in the ledger, and the rescanned verdict is unchanged for everything else. Put the card in the drone and note what its media browser shows.
 
 ## Maintenance
 

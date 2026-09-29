@@ -84,12 +84,12 @@ public sealed partial class ShellPage : Page
 
     private void OnUndo(object sender, RoutedEventArgs e)
     {
-        if (Vm.CanUndoRedo && Vm.Review is { } review) _ = review.UndoCommand.ExecuteAsync(null);
+        if (Vm.CanUndoRedo && Vm.Review is { } review) Observed.Forget(review.UndoCommand.ExecuteAsync(null), App.ReportFault);
     }
 
     private void OnRedo(object sender, RoutedEventArgs e)
     {
-        if (Vm.CanUndoRedo && Vm.Review is { } review) _ = review.RedoCommand.ExecuteAsync(null);
+        if (Vm.CanUndoRedo && Vm.Review is { } review) Observed.Forget(review.RedoCommand.ExecuteAsync(null), App.ReportFault);
     }
 }
 

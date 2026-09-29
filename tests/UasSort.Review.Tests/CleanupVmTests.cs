@@ -11,6 +11,7 @@ public class CleanupVmTests
         public FakeUiDispatcher Ui { get; } = new();
         public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 9, 28, 3, 0, 0, TimeSpan.Zero));
         public CleanupPreparation Preparation { get; set; } = new(CleanupFixture.Inputs(), null, false);
+        public Func<CleanupPreparation>? PrepareWith { get; set; }
         public ConfirmedCleanupPlan? Confirmed { get; private set; }
         public CleanupReport? Report { get; private set; }
         public bool RescanThrows { get; set; }
@@ -24,7 +25,7 @@ public class CleanupVmTests
         public CleanupVm Vm()
         {
             var engine = new CleanupEngine(
-                () => Preparation,
+                () => PrepareWith?.Invoke() ?? Preparation,
                 (confirmed, progress, ct) =>
                 {
                     if (RunFault is { } fault) return Task.FromException<CleanupResult>(fault);
@@ -51,6 +52,60 @@ public class CleanupVmTests
     }
 
     private static readonly DateTimeOffset Jul26LateEveningAlaska = new(2026, 7, 26, 23, 30, 0, TimeSpan.FromHours(-8));
+
+    [Fact] // F17 (Ref §7.5, §9 row, §13): a cloud-only ledger folder blocks Card cleanup up front, with [Keep on this device]
+    public void Cleanup_CloudOnlyLedger_BlocksBeforeAnyPlan_KeepOnDeviceRetries()
+    {
+        var ledger = Fake.Ledger(TestPlans.Ledger(LedgerFolderState.CloudOnly).Status);
+        var prepares = 0;
+        var rig = new Rig();
+        rig.PrepareWith = () =>
+        {
+            prepares++;
+            var (loaded, refused) = CleanupLedgerGate.Load(ledger, TestPlans.Settings());
+            return refused ?? new CleanupPreparation(CleanupFixture.Inputs() with { FreshLedger = loaded! }, null, false);
+        };
+        var vm = rig.Vm();
+
+        Assert.Equal(@"Set UAS Videos\.uas-sort to Always keep on this device", vm.BlockingText);
+        Assert.True(vm.CanKeepOnDevice);
+        vm.PickDate(Jul26LateEveningAlaska);
+        Assert.Null(vm.Plan);
+        Assert.False(vm.ContinueCommand.CanExecute(null));
+        Assert.False(vm.CanDelete);
+        Assert.DoesNotContain("Load", ledger.Calls);                          // attributes only: nothing opened
+
+        ledger.StatusOverride = TestPlans.Ledger().Status;                    // OneDrive downloaded it
+        vm.KeepOnDeviceCommand.Execute(null);
+
+        Assert.Contains("KeepOnDevice", ledger.Calls);
+        Assert.Equal(2, prepares);
+        Assert.Null(vm.BlockingText);
+        Assert.False(vm.CanKeepOnDevice);
+    }
+
+    [Theory] // F17: the other blocking ledger states refuse with the Preflight texts, and a failing load never escapes Open()
+    [InlineData(LedgerFolderState.Unwritable, @"Can't write the history file in C:\Lib\UAS Videos\.uas-sort")]
+    [InlineData(LedgerFolderState.Unlistable, @"Can't list C:\Lib\UAS Videos\.uas-sort")]
+    [InlineData(LedgerFolderState.VideoRootMissing, @"C:\Lib\UAS Videos is not available")]
+    public void Cleanup_BlockingLedgerStates_Refuse(LedgerFolderState state, string text)
+    {
+        var (ledger, refused) = CleanupLedgerGate.Load(Fake.Ledger(TestPlans.Ledger(state).Status), TestPlans.Settings());
+        Assert.Null(ledger);
+        Assert.Equal(text, refused!.BlockingText);
+        Assert.Null(refused.KeepOnDevice);
+    }
+
+    [Fact] // F17: Check() or Load() failing is a refusal, never an exception out of CleanupVm.Open()
+    public void Cleanup_LedgerThatCantBeRead_Refuses()
+    {
+        var failing = Fake.Ledger();
+        failing.CheckThrows = true;
+        var (ledger, refused) = CleanupLedgerGate.Load(failing, TestPlans.Settings());
+        Assert.Null(ledger);
+        Assert.StartsWith("The history file can't be read:", refused!.BlockingText, StringComparison.Ordinal);
+        Assert.True(refused.OfferRescan);
+    }
 
     [Fact]
     public void Cleanup_ContinueDisabledUntilADateIsPicked_PickerDayIsTheCutoffDay()

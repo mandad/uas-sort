@@ -207,12 +207,23 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ClockLearnedText));
     }
 
-    private Task CopyLedgerAsync()
+    /// <summary>[Copy] (Ref §9.14): the current union goes into the new root's own file. A failure (the old root's files can't be read
+    /// or are refused, the new folder can't be written) is shown and the prompt stays, so the user can retry or start empty.</summary>
+    private async Task CopyLedgerAsync()
     {
-        _ledgerFor(Current.VideoRoot).CopyInto(Current.VideoRoot, _currentLedger());
+        try
+        {
+            _ledgerFor(Current.VideoRoot).CopyInto(Current.VideoRoot, _currentLedger());
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or UnsafeIoException)
+        {
+            RefreshLedger();
+            await _dialogs.ShowAsync(new DialogRequest("Couldn't copy the history",
+                $"The history couldn't be copied to {LedgerPaths.For(Current.VideoRoot)}: {e.Message}", "OK", null, "Close")).ConfigureAwait(true);
+            return;
+        }
         NoHistoryPrompt = null;
         RefreshLedger();
-        return Task.CompletedTask;
     }
 
     private async Task StartEmptyAsync()

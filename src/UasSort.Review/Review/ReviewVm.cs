@@ -200,24 +200,7 @@ public sealed partial class ReviewVm : ObservableObject, IReviewActions, ITuning
 
     /// <summary>Awaits a fire-and-forget action (a keyboard shortcut) so a fault is never swallowed: it is logged and shown as the
     /// same error InfoBar as a session fault; the plan shown stays the last good one.</summary>
-    private void Observe(Task task) => _ = ObserveAsync(task);
-
-    private async Task ObserveAsync(Task task)
-    {
-#pragma warning disable CA1031 // every fault of an unobserved action is reported, never rethrown into nowhere
-        try
-        {
-            await task.ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception e)
-        {
-            OnSessionFaulted(e);
-        }
-#pragma warning restore CA1031
-    }
+    private void Observe(Task task) => Observed.Forget(task, OnSessionFaulted);
 
     /// <summary>A fire-and-forget derive (slider preview, [Accept and continue], a keyboard shortcut's edit) threw: log it and show it
     /// as an error InfoBar; the plan shown stays the last good one.</summary>

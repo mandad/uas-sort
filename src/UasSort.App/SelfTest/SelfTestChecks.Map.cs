@@ -98,6 +98,31 @@ internal static partial class SelfTestChecks
         finally { RemoveStandaloneMapPane(ctx); }
     }
 
+    /// <summary>F15 (Ref §9.6 Degradation, §12 "Map fails → fallback panel… Everything else works"): a WebView2 that can't start
+    /// (here its user-data folder is a file, the running exe) shows the Map unavailable panel; nothing reaches the unhandled path.</summary>
+    private static async Task<SelfTestCheck> MapUnavailable(SelfTestContext ctx)
+    {
+        var pane = new MapPane { Width = 320, Height = 200, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+        var root = (Grid)ctx.Window.Shell!.Content;
+        Grid.SetRowSpan(pane, 2);
+        root.Children.Add(pane);
+        try
+        {
+            var notAFolder = Environment.ProcessPath ?? throw new InvalidOperationException("no process path");
+            var init = pane.InitializeAsync(ctx.Services with { WebView2DataDir = notAFolder });   // a hang ends in the panel too
+            bool shown = await WaitUntilAsync(() => pane.IsUnavailable, MapPane.StartTimeout + TimeSpan.FromSeconds(3));
+            if (init.IsFaulted) return SelfTestCheck.Fail("map.unavailable", "InitializeAsync faulted: " + init.Exception!.GetBaseException().Message);
+            return shown && !pane.IsReady
+                ? SelfTestCheck.Pass("map.unavailable", "WebView2 start-up failure shows the Map unavailable panel: " + pane.UnavailableText)
+                : SelfTestCheck.Fail("map.unavailable", $"unavailable={pane.IsUnavailable}, ready={pane.IsReady}");
+        }
+        finally
+        {
+            root.Children.Remove(pane);
+            pane.Close();
+        }
+    }
+
     /// <summary>Polls a JS expression from the UI thread without blocking it.</summary>
     private static async Task<string?> PollEvaluateAsync(MapPane pane, string expression, Func<string?, bool> done, TimeSpan timeout)
     {

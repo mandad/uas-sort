@@ -77,13 +77,18 @@ public class SetupSettingsTests
     private sealed class CopyTarget(FakeLedgerStore inner) : ILedgerStore
     {
         public List<string> CopiedInto { get; } = [];
+        public Exception? CopyFault { get; set; }
         public LedgerFolderStatus Check() => inner.Check();
         public LedgerSnapshot Load() => inner.Load();
         public void EnsureFolder() => inner.EnsureFolder();
         public ILedgerWriter OpenOwn() => inner.OpenOwn();
         public void SnapshotToBackup(string runId) => inner.SnapshotToBackup(runId);
         public void KeepOnDevice() => inner.KeepOnDevice();
-        public void CopyInto(string newVideoRoot, LedgerSnapshot current) => CopiedInto.Add(newVideoRoot);
+        public void CopyInto(string newVideoRoot, LedgerSnapshot current)
+        {
+            if (CopyFault is { } fault) throw fault;
+            CopiedInto.Add(newVideoRoot);
+        }
     }
 
     private static readonly DateTime T = TestPlans.Utc(2026, 9, 27, 20, 0);
@@ -115,6 +120,21 @@ public class SetupSettingsTests
         var vm = new SettingsPageVm(TestPlans.Settings(), store, r => ledgers[r], fs, new FakeShellLauncher(), dialogs, new FakeFreeSpace(),
                                     time, ui, CurrentLedger, r => @"C:\AppData\uas-sort\ledger-backup\" + r.Length);
         return (vm, store, ledgers, fs, dialogs, time, ui);
+    }
+
+    [Fact] // F8: a [Copy] that fails says why and keeps the prompt; it never reaches the unhandled-error dialog
+    public async Task Settings_CopyLedgerFails_ShowsADialog_AndKeepsThePrompt()
+    {
+        var (vm, _, ledgers, _, dialogs, _, _) = Page();
+        await vm.ChangeVideoRootAsync(NewRoot);
+        ledgers[NewRoot].CopyFault = new UnsafeIoException(@"Refused ReadData of C:\old\.uas-sort\ledger-B.jsonl: outside every configured root");
+
+        await vm.CopyLedgerCommand.ExecuteAsync(null);
+
+        var d = Assert.Single(dialogs.Shown);
+        Assert.Equal("Couldn't copy the history", d.Title);
+        Assert.Contains("outside every configured root", d.Body, StringComparison.Ordinal);
+        Assert.NotNull(vm.NoHistoryPrompt);
     }
 
     [Fact]

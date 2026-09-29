@@ -24,6 +24,7 @@ internal static partial class SelfTestChecks
         ("map.mime", MapMime),
         ("map.ready", MapReady),
         ("map.draw", MapDraw),
+        ("map.unavailable", MapUnavailable),
         ("review.scan", ReviewScan),
         ("review.layout", ReviewLayout),
         ("review.clock", ReviewClock),
@@ -44,7 +45,18 @@ internal static partial class SelfTestChecks
         ("cleanup.entry", CleanupEntry),
         ("debug.hang", DebugHang),                                       // never in the default run
         ("debug.throw", DebugThrow),                                     // never in the default run
+        ("debug.throwPosted", DebugThrowPosted),                         // never in the default run
     ];
+
+    /// <summary>F14: an exception in a callback posted through Services.Ui (a raw DispatcherQueue callback, which WinUI never routes
+    /// to App.UnhandledException by itself) must still be logged and end the run with an "unhandled" failed check and the
+    /// result file, never a silent process exit (0xC000027B).</summary>
+    private static async Task<SelfTestCheck> DebugThrowPosted(SelfTestContext ctx)
+    {
+        ctx.Services.Ui.Post(() => throw new InvalidOperationException("debug.throwPosted"));
+        await Task.Delay(Timeout.InfiniteTimeSpan);
+        return SelfTestCheck.Pass("debug.throwPosted", "unreachable");
+    }
 
     /// <summary>An exception in a XAML event handler (here Loaded, raised by the framework) reaches App.UnhandledException,
     /// which must end the run with an "unhandled" failed check, the result file and exit code 1.</summary>

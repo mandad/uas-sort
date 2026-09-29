@@ -48,7 +48,11 @@ public sealed partial class CardStageVm : ObservableObject
     public event Action<CardSource>? CardChosen;
 
     /// <summary>Re-detects; returns (and raises CardChosen for) the source only when exactly one DJI card is present and valid.</summary>
-    public CardSource? Refresh()
+    public CardSource? Refresh() => Refresh(autoChoose: true);
+
+    /// <summary>autoChoose false (after the user cancelled a scan, or a scan failed): lists the cards but never starts a scan by
+    /// itself; the user picks the card again, browses, or opens Settings (Ref §9.1 Scan: Cancel works).</summary>
+    public CardSource? Refresh(bool autoChoose)
     {
         Message = null;
         var candidates = _detect(_volumes.GetVolumes());
@@ -61,8 +65,11 @@ public sealed partial class CardStageVm : ObservableObject
             1 => "",
             _ => string.Create(CultureInfo.InvariantCulture, $"{dji.Count} DJI cards found. Pick one; each is offloaded on its own."),
         };
-        return dji.Count == 1 ? Choose(dji[0].Volume.Root, dji[0].Volume) : null;
+        return autoChoose && dji.Count == 1 ? Choose(dji[0].Volume.Root, dji[0].Volume) : null;
     }
+
+    /// <summary>Shows why the last scan of a chosen source failed (the shell's observed-fault surface on this stage).</summary>
+    public void Report(string message) => Message = message;
 
     public void Browse(string? path)
     {

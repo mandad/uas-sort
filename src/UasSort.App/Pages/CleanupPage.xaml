@@ -24,6 +24,10 @@
                         <Button Content="Rescan" Command="{x:Bind Vm.RescanCommand}"
                                 Visibility="{x:Bind ui:UiFormat.Visible(Vm.CanRescan), Mode=OneWay}" />
                     </InfoBar.ActionButton>
+                    <!-- A cloud-only ledger folder (Ref §7.5, §12): pin it, then the page prepares again -->
+                    <Button x:Name="KeepOnDeviceButton" x:FieldModifier="internal" Content="Keep on this device"
+                            Command="{x:Bind Vm.KeepOnDeviceCommand}" Margin="0,0,0,8"
+                            Visibility="{x:Bind ui:UiFormat.Visible(Vm.CanKeepOnDevice), Mode=OneWay}" />
                 </InfoBar>
 
                 <!-- ── Choose (CleanupStep.Choose) ── -->

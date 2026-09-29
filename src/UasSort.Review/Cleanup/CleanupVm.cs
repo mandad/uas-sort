@@ -15,6 +15,7 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
     private string? _ackFingerprint;
     private bool _reviewShown;
     private CancellationTokenSource? _cts;
+    private Action? _keepOnDevice;
 
     public CleanupVm(CleanupEngine engine, IDialogService dialogs, IUiDispatcher ui, TimeProvider time)
     {
@@ -30,6 +31,7 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, () => CanDelete);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => Step == CleanupStep.Deleting);
         RescanCommand = new RelayCommand(() => RescanRequested?.Invoke(), () => CanRescan);
+        KeepOnDeviceCommand = new RelayCommand(KeepOnDevice, () => CanKeepOnDevice);
         DoneCommand = new RelayCommand(() => Closed?.Invoke(), () => Step == CleanupStep.Result);
         GbValue = double.NaN; // after the commands: the change handler rebuilds and notifies them
     }
@@ -40,6 +42,7 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
     [ObservableProperty] public partial CleanupStep Step { get; private set; }
     [ObservableProperty] public partial string? BlockingText { get; private set; }
     [ObservableProperty] public partial bool CanRescan { get; private set; }
+    [ObservableProperty] public partial bool CanKeepOnDevice { get; private set; }
     [ObservableProperty] public partial CleanupMode Mode { get; set; }
     [ObservableProperty] public partial DateTimeOffset? PickedDate { get; set; }
     [ObservableProperty] public partial DateOnly? Before { get; private set; }
@@ -81,6 +84,7 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
     public IAsyncRelayCommand DeleteCommand { get; }
     public IAsyncRelayCommand CancelCommand { get; }
     public IRelayCommand RescanCommand { get; }
+    public IRelayCommand KeepOnDeviceCommand { get; }
     public IRelayCommand DoneCommand { get; }
 
     public event Action? Closed;
@@ -91,6 +95,9 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
         var prep = _engine.Prepare();
         BlockingText = prep.BlockingText;
         CanRescan = prep.OfferRescan;
+        _keepOnDevice = prep.KeepOnDevice;
+        CanKeepOnDevice = prep.KeepOnDevice is not null;
+        KeepOnDeviceCommand.NotifyCanExecuteChanged();
         _inputs = prep.Inputs;
         if (_inputs is { } inputs)
         {
@@ -107,6 +114,23 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
         CanRescan = prep.OfferRescan;
         RescanCommand.NotifyCanExecuteChanged();
         Rebuild();
+    }
+
+    /// <summary>[Keep on this device] on a cloud-only ledger folder refusal: pin the folder, then prepare again (a still cloud-only
+    /// file keeps the page blocked until OneDrive has downloaded it).</summary>
+    private void KeepOnDevice()
+    {
+        if (_keepOnDevice is not { } keep) return;
+        try
+        {
+            keep();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or UnsafeIoException)
+        {
+            BlockingText = $"Keeping the history folder on this device failed: {e.Message}";
+            return;
+        }
+        Open();
     }
 
     /// <summary>The cutoff is the picker's own calendar day, never converted through UtcDateTime or ToLocalTime (Ref §10.6 Mode 1).</summary>

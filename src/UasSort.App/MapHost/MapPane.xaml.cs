@@ -14,6 +14,9 @@ public sealed partial class MapPane : UserControl
 {
     public const string Host = "map.uas-sort.example";
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>Budget for creating the WebView2 environment and control, before the 5 s ready budget starts at Navigate: a start-up
+    /// that hangs still ends in the Map unavailable panel (Ref §9.6 Degradation).</summary>
+    public static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(10);
     private const string Origin = "https://" + Host + "/";
 
     private Task? _init;
@@ -26,6 +29,7 @@ public sealed partial class MapPane : UserControl
     public bool IsReady { get; private set; }
     public bool IsUnavailable { get; private set; }
     public bool IsNavigated { get; private set; }
+    public string? UnavailableText => IsUnavailable ? UnavailableReason.Text : null;
     public Func<Uri?>? OpenInBrowserUri { get; set; }
     public CoreWebView2? Core => MapView.CoreWebView2;
 
@@ -34,9 +38,29 @@ public sealed partial class MapPane : UserControl
 
     public Task InitializeAsync(AppServices services) => _init ??= InitCoreAsync(services);
 
+    /// <summary>Ref §9.6 / §12 "Map fails → fallback panel… Everything else works": any start-up failure (runtime missing or broken,
+    /// user-data folder unusable, blocked by policy) is logged and shows the Map unavailable panel; the task completes normally, so
+    /// the Review page (which awaits it on every entry) carries on and never re-raises it.</summary>
     private async Task InitCoreAsync(AppServices services)
     {
         _services = services;
+        StartReadyTimer(StartTimeout);
+#pragma warning disable CA1031 // the map is optional: every start-up failure becomes the fallback panel, never the crash dialog
+        try
+        {
+            await StartCoreAsync(services);
+        }
+        catch (Exception ex)
+        {
+            _readyTimer?.Stop();
+            services.Platform.Log.Warn("map: WebView2 couldn't start: " + ex);
+            ShowUnavailable("The map couldn't start: " + ex.Message);
+        }
+#pragma warning restore CA1031
+    }
+
+    private async Task StartCoreAsync(AppServices services)
+    {
         _env = await CoreWebView2Environment.CreateWithOptionsAsync(null, services.WebView2DataDir, new CoreWebView2EnvironmentOptions());
         await MapView.EnsureCoreWebView2Async(_env);
         var core = MapView.CoreWebView2;
@@ -62,7 +86,7 @@ public sealed partial class MapPane : UserControl
         };
         core.DownloadStarting += (_, e) => { e.Cancel = true; e.Handled = true; };
         core.WebMessageReceived += OnWebMessageReceived;     // registered before Navigate (Ref §2.7 #6)
-        StartReadyTimer();
+        StartReadyTimer(ReadyTimeout);                       // the 5 s ready budget starts at Navigate
         core.Navigate(Origin + "index.html");
     }
 
@@ -89,20 +113,44 @@ public sealed partial class MapPane : UserControl
         MessageReceived?.Invoke(json);
     }
 
-    private void StartReadyTimer()
+    private void StartReadyTimer(TimeSpan budget)
     {
-        _readyTimer = DispatcherQueue.CreateTimer();
-        _readyTimer.Interval = ReadyTimeout;
-        _readyTimer.IsRepeating = false;
-        _readyTimer.Tick += (_, _) => { if (!IsReady) ShowUnavailable("The map didn't start within 5 seconds."); };
+        if (_readyTimer is null)
+        {
+            _readyTimer = DispatcherQueue.CreateTimer();
+            _readyTimer.IsRepeating = false;
+            _readyTimer.Tick += (_, _) => App.Guarded(() =>
+            {
+                if (!IsReady) ShowUnavailable(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                                                            $"The map didn't start within {_readyTimer!.Interval.TotalSeconds:0} seconds."));
+            });
+        }
+        _readyTimer.Stop();
+        _readyTimer.Interval = budget;
         _readyTimer.Start();
     }
 
     /// <summary>Posts one host→map message; callable from any thread (MapBridge's 10/s throttle posts from a timer thread).</summary>
     public void PostJson(string json)
     {
-        if (DispatcherQueue.HasThreadAccess) MapView.CoreWebView2?.PostWebMessageAsJson(json);
-        else DispatcherQueue.TryEnqueue(() => MapView.CoreWebView2?.PostWebMessageAsJson(json));
+        if (DispatcherQueue.HasThreadAccess) Post(json);
+        else DispatcherQueue.TryEnqueue(() => App.Guarded(() => Post(json)));
+    }
+
+    /// <summary>A browser process that exited (killed, crashed) makes PostWebMessageAsJson throw: the map is then unavailable,
+    /// everything else keeps working (Ref §12), instead of a crash inside a posted callback.</summary>
+    private void Post(string json)
+    {
+        try
+        {
+            MapView.CoreWebView2?.PostWebMessageAsJson(json);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException or ObjectDisposedException)
+        {
+            _services?.Platform.Log.Warn("map: post failed: " + ex.Message);
+            IsReady = false;
+            ShowUnavailable("The map stopped: " + ex.Message);
+        }
     }
 
     /// <summary>Evaluates a JS expression (awaiting a promise) through the DevTools protocol; returns the string value or null.</summary>
@@ -203,7 +251,7 @@ public sealed partial class MapPane : UserControl
     }
 
     private void OnNetworkStatusChanged(object sender) =>
-        DispatcherQueue.TryEnqueue(() => OnlineChanged?.Invoke(IsOnline()));
+        DispatcherQueue.TryEnqueue(() => App.Guarded(() => OnlineChanged?.Invoke(IsOnline())));
 
     /// <summary>UI events for the click and contextMenu messages (called from OnWebMessageReceived, on the UI thread).</summary>
     private void RaiseUiEvents(string? type, JsonElement root)

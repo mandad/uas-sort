@@ -119,6 +119,7 @@ public sealed partial class VerdictVm : ObservableObject
     /// <summary>Why the Commit stopped before it finished (CopyVm.ErrorText: the IO stop, or the history file that couldn't be
     /// opened); null after a run that finished. ShellVm sets it; the Verdict page shows it as an error InfoBar at the top.</summary>
     [ObservableProperty] public partial string? StopText { get; internal set; }
+    [ObservableProperty] public partial string? HistoryWarning { get; internal set; }
 
     public ObservableCollection<NotCopiedRowVm> NotCopied { get; } = [];
     public ObservableCollection<NotCopiedDayVm> NotCopiedDays { get; } = [];

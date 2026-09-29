@@ -61,7 +61,7 @@ public sealed partial class MainWindow : Window
         {
             Activate();
         }
-        _ = Services.Shell.StartAsync();
+        Observed.Forget(Services.Shell.StartAsync(), App.ReportFault);
     }
 
     /// <summary>--selftest launches off-screen and never activates the window (Ref §13 Isolation).</summary>

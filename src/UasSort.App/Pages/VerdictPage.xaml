@@ -23,6 +23,10 @@
                 <!-- Why the offload stopped before it finished (CopyVm.ErrorText, handed over as VerdictVm.StopText) -->
                 <InfoBar x:Name="StopBar" IsOpen="True" IsClosable="False" Severity="Error" Message="{x:Bind Vm.StopText, Mode=OneWay}"
                          Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.StopText), Mode=OneWay}" />
+                <!-- The history or the report couldn't be fully written after the copy (CopyVm.WarningText → VerdictVm.HistoryWarning) -->
+                <InfoBar x:Name="HistoryWarningBar" x:FieldModifier="internal" IsOpen="True" IsClosable="False" Severity="Warning"
+                         Message="{x:Bind Vm.HistoryWarning, Mode=OneWay}"
+                         Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.HistoryWarning), Mode=OneWay}" />
                 <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{x:Bind Vm.SafeRemovalNote, Mode=OneWay}"
                          Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.SafeRemovalNote), Mode=OneWay}">
                     <InfoBar.Content>

@@ -111,7 +111,7 @@ public sealed partial class ReviewPage : Page
         if (Vm?.Videos.CardFor(anchor) is not { } card) return;
         Vm.SelectedTab = 0;
         Vm.Videos.SelectedEntry = card;
-        DispatcherQueue.TryEnqueue(() => TimelineSlot.FocusRenameBox(card));   // after the container is brought into view
+        DispatcherQueue.TryEnqueue(() => App.Guarded(() => TimelineSlot.FocusRenameBox(card)));   // after the container is brought into view
     }
 
     // Ref §9.6: the map's contextMenu (through ReviewVm.MapContextMenuRequested) → a WinUI MenuFlyout at the pointer
@@ -199,7 +199,7 @@ public sealed partial class ReviewPage : Page
             _layoutTimer = DispatcherQueue.CreateTimer();
             _layoutTimer.Interval = LayoutSaveDelay;
             _layoutTimer.IsRepeating = false;
-            _layoutTimer.Tick += (_, _) => SaveLayout();
+            _layoutTimer.Tick += (_, _) => App.Guarded(SaveLayout);
         }
         _layoutTimer.Stop();
         _layoutTimer.Start();

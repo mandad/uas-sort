@@ -64,6 +64,14 @@ public sealed partial class ShellVm : ObservableObject
     public IRelayCommand SettingsCommand { get; }
     public IRelayCommand CleanupCommand { get; }
 
+    /// <summary>An unexpected fault of a fire-and-forget scan or rescan (Ref §12 "log, keep running"): the App logs it; the shell has
+    /// already shown it on the Card stage.</summary>
+    public event Action<Exception>? Faulted;
+
+    /// <summary>The run whose copies the unhandled-exception dialog lists (Ref §12): the Commit in progress, else the last one shown on
+    /// the Verdict page; null once the next card is shown.</summary>
+    public string? RunId => Preflight?.Batch?.RunId ?? _lastResult?.Batch.RunId;
+
     public Task StartAsync()
     {
         if (!Settings.RootsConfirmed || _deps.Settings.Recovered) ShowSetup();
@@ -71,17 +79,27 @@ public sealed partial class ShellVm : ObservableObject
         return Task.CompletedTask;
     }
 
+    /// <summary>Scans a chosen source and shows its Review. A Cancel returns to the Card stage without picking the card again
+    /// (Ref §9.1 Scan); an expected scan error stays on the Scan page with its text and Rescan. Callers that don't await it start
+    /// it through <see cref="Observed"/>, so an unexpected fault reaches <see cref="OnScanFault"/> (never a stuck Scan stage).</summary>
     public async Task UseCardAsync(CardSource s)
     {
         Source = s;
         var scan = _deps.CreateScan(Settings);
+        PlanBase? b;
         IsScanning = true;
-        Go(Stage.Scan, scan);
-        var b = await scan.RunAsync(s).ConfigureAwait(true);
-        IsScanning = false;
+        try
+        {
+            Go(Stage.Scan, scan);
+            b = await scan.RunAsync(s).ConfigureAwait(true);
+        }
+        finally
+        {
+            IsScanning = false;
+        }
         if (b is null)
         {
-            if (scan.ErrorText is null) ShowCard();
+            if (scan.ErrorText is null) ShowCard(autoPick: false);
             else UpdateFlags();
             return;
         }
@@ -134,8 +152,26 @@ public sealed partial class ShellVm : ObservableObject
         Copy = copy;
         Go(Stage.Copy, copy);
         var result = await copy.RunAsync().ConfigureAwait(true);
-        _lastResult = result;
-        ShowVerdict(review, result, copy.ErrorText);
+        var clock = preflight.Plan.Base.Scan.Clock;
+        ShowVerdict(review, result, copy.ErrorText, copy.WarningText);
+        if (result is { Offload.Stop: null }) SaveLearnedClock(clock);
+    }
+
+    /// <summary>Ref §6.1 / §9.14: a successful run keeps what the drone clock learned (SiteLocal: the mode; a fitted zone: mode and zone),
+    /// so a later card without videos converts through it. NearestSample and Setting learned nothing to keep.</summary>
+    private void SaveLearnedClock(ClockModel clock)
+    {
+        var learned = DroneClock.ApplyLearned(Settings, clock);
+        if (learned == Settings) return;
+        Settings = learned;
+        try
+        {
+            _deps.SaveSettings(Settings);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or UnsafeIoException)
+        {
+            Faulted?.Invoke(e);                                 // logged; the verdict is already shown and the next run saves again
+        }
     }
 
     /// <summary>Remembers the splitter positions (Ref §9.2): Settings.Layout is saved at once through ShellDeps.SaveSettings.</summary>
@@ -152,7 +188,7 @@ public sealed partial class ShellVm : ObservableObject
         if (!CleanupEnabled) return;
         var returnStage = origin == CleanupOrigin.Verdict ? Stage.Verdict : Stage.Review;
         var cleanup = _deps.CreateCleanup(origin, origin == CleanupOrigin.Verdict ? _lastResult?.Offload : null);
-        cleanup.RescanRequested += () => _ = UseCardAsync(Source!);
+        cleanup.RescanRequested += () => Observed.Forget(UseCardAsync(Source!), OnScanFault);
         cleanup.Closed += () =>
         {
             var finished = cleanup.Step == CleanupStep.Result;
@@ -173,17 +209,33 @@ public sealed partial class ShellVm : ObservableObject
         Go(Stage.Settings, _settingsPage);
     }
 
+    /// <summary>Back from Settings. New roots, a new JPG-twin choice or drone clock (anything the plan was derived from) invalidate
+    /// the Review: it is rescanned with the new settings (the draft keeps the edits), so an offload never runs against stale roots or
+    /// a stale ledger.</summary>
     public void CloseSettings()
     {
+        var before = Settings;
         if (_settingsPage is { } page)
         {
             Settings = page.Current;
             page.Dispose();
             _settingsPage = null;
         }
-        if (_beforeSettings is { } back) Go(back.Stage, back.Current);
+        var back = _beforeSettings;
         _beforeSettings = null;
+        if (back is not { } b) return;
+        Go(b.Stage, b.Current);
+        if (b.Stage == Stage.Review && PlanInputsChanged(before, Settings)) Observed.Forget(RescanAsync(), OnScanFault);
     }
+
+    internal static bool PlanInputsChanged(Settings a, Settings b) =>
+        !PathRules.Equal(a.VideoRoot, b.VideoRoot)
+        || !PathRules.Equal(a.PhotoRoot, b.PhotoRoot)
+        || !a.PreviousPhotoRoots.SequenceEqual(b.PreviousPhotoRoots, StringComparer.OrdinalIgnoreCase)
+        || a.CopyJpgTwin != b.CopyJpgTwin
+        || a.DroneClockMode != b.DroneClockMode
+        || !string.Equals(a.DroneClockZone, b.DroneClockZone, StringComparison.Ordinal)
+        || a.RootsConfirmed != b.RootsConfirmed;
 
     /// <summary>Device arrival or removal (WM_DEVICECHANGE, Part 11); ignored during Commit and Cleanup.</summary>
     public void DeviceChanged()
@@ -203,7 +255,9 @@ public sealed partial class ShellVm : ObservableObject
         Go(Stage.Setup, setup);
     }
 
-    private void ShowCard()
+    /// <summary>The Card stage. autoPick false after a Cancel or a failed scan: the card is listed but not scanned again by itself;
+    /// message says why the scan failed.</summary>
+    private void ShowCard(bool autoPick = true, string? message = null)
     {
         Review?.Dispose();
         Review = null;
@@ -212,20 +266,33 @@ public sealed partial class ShellVm : ObservableObject
         Verdict = null;
         Source = null;
         CardChipText = null;
+        _lastResult = null;                                     // a later card never inherits this card's OffloadResult
         var card = _deps.CreateCard();
         // A stale Card VM (the stage moved on while a folder picker was open, or a newer Card VM replaced it) never starts a scan.
         card.CardChosen += s =>
         {
-            if (Stage == Stage.Card && ReferenceEquals(Card, card)) _ = UseCardAsync(s);
+            if (Stage == Stage.Card && ReferenceEquals(Card, card)) Observed.Forget(UseCardAsync(s), OnScanFault);
         };
         Card = card;
         Go(Stage.Card, card);
-        card.Refresh();
+        card.Refresh(autoPick);
+        if (message is not null) card.Report(message);
+    }
+
+    /// <summary>An unexpected fault of a scan started without an awaiting caller (Ref §12 "log, keep running"): reported for the log,
+    /// then shown on the Card stage, where Rescan, Browse and Settings work again.</summary>
+    private void OnScanFault(Exception e)
+    {
+        var root = Source?.Root;
+        IsScanning = false;
+        Faulted?.Invoke(e);
+        ShowCard(autoPick: false, message: $"Couldn't scan {root}: {e.Message}");
     }
 
     private void ShowReview(CardSource s, PlanBase b)
     {
         Review?.Dispose();
+        Review = null;
         Review = Wire(_deps.CreateReview(s, b));
         CardChipText = Review.CardChipText;
         Go(Stage.Review, Review);
@@ -234,7 +301,7 @@ public sealed partial class ShellVm : ObservableObject
     private ReviewVm Wire(ReviewVm review)
     {
         review.OffloadRequested += BeginOffload;
-        review.RescanRequested += () => _ = RescanAsync();
+        review.RescanRequested += () => Observed.Forget(RescanAsync(), OnScanFault);
         // From the read-only plan ("Show plan" on the Verdict page) the same verdict comes back, with its result, decisions and ejects.
         review.VerdictRequested += () =>
         {
@@ -244,19 +311,23 @@ public sealed partial class ShellVm : ObservableObject
         review.UiActionRequested += label =>
         {
             if (string.Equals(label, "Open Settings", StringComparison.Ordinal)) OpenSettings();
-            else if (string.Equals(label, "Rescan", StringComparison.Ordinal)) _ = RescanAsync();
+            else if (string.Equals(label, "Rescan", StringComparison.Ordinal)) Observed.Forget(RescanAsync(), OnScanFault);
         };
         return review;
     }
 
-    /// <summary>stopText: why the Commit stopped before it finished (CopyVm.ErrorText); the Verdict page shows it at the top.</summary>
-    private void ShowVerdict(ReviewVm review, CommitResult? result, string? stopText = null)
+    /// <summary>stopText: why the Commit stopped before it finished (CopyVm.ErrorText); the Verdict page shows it at the top.
+    /// historyWarning: the history or the report couldn't be fully written (CopyVm.WarningText). The result is remembered only for
+    /// this verdict: the Show-verdict page of a later card (result null) has none (Ref §10.6 Verdict-origin cleanup).</summary>
+    private void ShowVerdict(ReviewVm review, CommitResult? result, string? stopText = null, string? historyWarning = null)
     {
+        _lastResult = result;
         var verdict = _deps.CreateVerdict(review, result);
         verdict.StopText = stopText;
+        verdict.HistoryWarning = historyWarning;
         Preflight?.Dispose();   // disposes the CommitSession: releases the offload lock and the thumbnail pause
         Preflight = null;
-        verdict.DoneRequested += ShowCard;
+        verdict.DoneRequested += () => ShowCard();
         verdict.CleanupRequested += () => OpenCleanup(CleanupOrigin.Verdict);
         verdict.ShowPlanRequested += () =>
         {
