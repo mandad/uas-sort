@@ -1622,7 +1622,7 @@ The Photos tab shows each set's folder, e.g. "→ `001_0087 2026-09-27` (001_008
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Panes.** The two splitters are toolkit `GridSplitter`s (Sizers). Pane sizes are remembered in settings.
+- **Panes.** The two splitters are the app's own `PaneSplitter` (drag, arrow keys); the toolkit `GridSplitter` (Sizers) unboxes a projected `GridLength` and threw on every drag under Native AOT (user report 2026-09-30, Task U1). Pane sizes are remembered in settings.
 - **Timeline.** An **ItemsView** with a `DataTemplateSelector` over two **selectable** item kinds: `GroupCardVm` and `FoldedRunVm`.
   - There are **no non-selectable rows.** The boundary chip that precedes a group (with its [Merge] / [Undo split] button) is drawn as the header part of that group's card template.
   - Keyboard navigation, Shift-range selection and clicks therefore only ever hit real items, and the chip buttons stay live.

@@ -4,7 +4,6 @@
     x:Class="UasSort.App.Pages.ReviewPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:ctk="using:CommunityToolkit.WinUI.Controls"
     xmlns:ctl="using:UasSort.App.Controls"
     xmlns:map="using:UasSort.App.MapHost"
     xmlns:ui="using:UasSort.App.Services"
@@ -32,22 +31,26 @@
 
         <Grid x:Name="VideosContent" Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TimelineColumn" Width="380" MinWidth="280" />
+                <ColumnDefinition x:Name="TimelineColumn" x:FieldModifier="internal" Width="380" MinWidth="280" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition x:Name="SideColumn" x:FieldModifier="internal" Width="*" MinWidth="420" />
             </Grid.ColumnDefinitions>
             <ctl:TimelineView x:Name="TimelineSlot" SizeChanged="OnPaneSizeChanged" />
-            <ctk:GridSplitter Grid.Column="1" Width="8" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" />
+            <!-- Task U1: our own AOT-safe splitter (the toolkit GridSplitter crashed the Native AOT app on every drag) -->
+            <ctl:PaneSplitter x:Name="ColumnSplitter" x:FieldModifier="internal" Grid.Column="1" Width="8"
+                              AutomationProperties.Name="Resize the group list" />
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
-                    <RowDefinition x:Name="MapRow" Height="45*" MinHeight="160" />
+                    <RowDefinition x:Name="MapRow" x:FieldModifier="internal" Height="45*" MinHeight="160" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition x:Name="ClipRow" Height="55*" MinHeight="160" />
+                    <RowDefinition x:Name="ClipRow" x:FieldModifier="internal" Height="55*" MinHeight="160" />
                 </Grid.RowDefinitions>
                 <map:MapPane x:Name="Map" x:FieldModifier="internal" SizeChanged="OnPaneSizeChanged" />
                 <ctl:TuningStrip x:Name="Tuning" Grid.Row="1" />
-                <ctk:GridSplitter Grid.Row="2" Height="8" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" />
+                <!-- resizes MapRow and ClipRow (the Auto tuning row between them is skipped) -->
+                <ctl:PaneSplitter x:Name="RowSplitter" x:FieldModifier="internal" Grid.Row="2" Height="8" ResizesRows="True"
+                                  AutomationProperties.Name="Resize the map" />
                 <ctl:ClipListView x:Name="ClipListSlot" Grid.Row="3" SizeChanged="OnPaneSizeChanged" />
             </Grid>
         </Grid>

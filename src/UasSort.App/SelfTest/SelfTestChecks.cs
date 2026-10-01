@@ -27,6 +27,7 @@ internal static partial class SelfTestChecks
         ("map.unavailable", MapUnavailable),
         ("review.scan", ReviewScan),
         ("review.layout", ReviewLayout),
+        ("review.splitters", ReviewSplitters),
         ("review.clock", ReviewClock),
         ("review.tuning", ReviewTuning),
         ("review.map", ReviewMap),

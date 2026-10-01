@@ -1,7 +1,7 @@
 // src/UasSort.App/SelfTest/SelfTestChecks.Review.cs (Core namespaces come from GlobalUsings.Core.cs)
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
@@ -88,13 +88,104 @@ internal static partial class SelfTestChecks
     {
         var page = await ReviewPageAsync(ctx);
         var tabs = page.Tabs.Items.Select(i => i.Text).ToList();
-        int splitters = VisualTree.FindAll<GridSplitter>(page).Count;
+        int splitters = VisualTree.FindAll<PaneSplitter>(page).Count;
         var offload = VisualTree.FindDescendant<Button>(page, b => (b.Content as string)?.StartsWith("Offload", StringComparison.Ordinal) == true);
         bool ok = tabs.Count == 3 && tabs[0].StartsWith("Videos", StringComparison.Ordinal) && tabs[1].StartsWith("Photos", StringComparison.Ordinal)
                   && tabs[2].StartsWith("Other", StringComparison.Ordinal) && splitters == 2 && offload is not null
                   && VisualTree.FindDescendant<MapPane>(page) is not null;
         return ok ? SelfTestCheck.Pass("review.layout", $"tabs [{string.Join(" | ", tabs)}], 2 splitters, map, Offload")
                   : SelfTestCheck.Fail("review.layout", $"tabs [{string.Join(" | ", tabs)}], splitters {splitters}, offload {offload is not null}");
+    }
+
+    /// <summary>Task U1 (user-reported crash): drives BOTH Review splitters through PaneSplitter's drag path — BeginDrag, DragTo,
+    /// EndDrag, what the pointer handlers call — and the arrow-key nudge, and checks that the tracks moved, stopped at their
+    /// Min sizes, and that the new layout reached Settings.Layout (ShellVm.UpdateLayout). Under Native AOT the toolkit
+    /// GridSplitter threw InvalidCastException on every drag: an exception here fails this check, and one raised in a layout
+    /// pass reaches App.UnhandledException, which under --selftest logs it and fails the run ("unhandled").</summary>
+    private static async Task<SelfTestCheck> ReviewSplitters(SelfTestContext ctx)
+    {
+        var page = await ReviewPageAsync(ctx);
+        page.Vm.SelectedTab = 0;
+        page.ShowTab(0);
+        page.UpdateLayout();
+        int count = VisualTree.FindAll<PaneSplitter>(page).Count;
+        if (count != 2) return SelfTestCheck.Fail("review.splitters", $"{count} PaneSplitters on the Review page, expected 2");
+        var problems = new List<string>();
+
+        // Columns: TimelineColumn (pixels, min 280) | splitter | SideColumn (star, min 420)
+        var cols = page.ColumnSplitter;
+        double Left() => page.TimelineColumn.ActualWidth;
+        double Side() => page.SideColumn.ActualWidth;
+        double w0 = Left(), colTotal = w0 + Side();
+        double wDrag = Math.Clamp(w0 + 40, page.TimelineColumn.MinWidth, colTotal - page.SideColumn.MinWidth);
+        Drag(cols, 20, 40);
+        Expect("column drag +40", Left(), wDrag);
+        if (Math.Abs(Left() - w0) < 1) problems.Add($"column drag +40 did not move the boundary (width {Left():0.#})");
+        cols.ApplyDrag(-10_000);
+        page.UpdateLayout();
+        Expect("column drag to the left end", Left(), page.TimelineColumn.MinWidth);
+        cols.ApplyDrag(10_000);
+        page.UpdateLayout();
+        Expect("column drag to the right end (side pane)", Side(), page.SideColumn.MinWidth);
+        double before = Left();
+        cols.ApplyDrag(PaneSplitter.NudgeFor(VirtualKey.Left, resizesRows: false));
+        page.UpdateLayout();
+        Expect("column Left key", Left(), before - PaneSplitter.KeyStep);
+
+        // Rows: MapRow (star, min 160) | tuning (Auto) | splitter | ClipRow (star, min 160)
+        var rows = page.RowSplitter;
+        double MapH() => page.MapRow.ActualHeight;
+        double ClipH() => page.ClipRow.ActualHeight;
+        double h0 = MapH(), rowTotal = h0 + ClipH();
+        double hDrag = Math.Clamp(h0 + 30, page.MapRow.MinHeight, rowTotal - page.ClipRow.MinHeight);
+        Drag(rows, 15, 30);
+        Expect("row drag +30", MapH(), hDrag);
+        if (Math.Abs(MapH() - h0) < 1) problems.Add($"row drag +30 did not move the boundary (map {MapH():0.#})");
+        Expect("row drag keeps the map + clip height", MapH() + ClipH(), rowTotal);
+        rows.ApplyDrag(-10_000);
+        page.UpdateLayout();
+        Expect("row drag to the top (map)", MapH(), page.MapRow.MinHeight);
+        rows.ApplyDrag(10_000);
+        page.UpdateLayout();
+        Expect("row drag to the bottom (clip list)", ClipH(), page.ClipRow.MinHeight);
+        before = MapH();
+        rows.ApplyDrag(PaneSplitter.NudgeFor(VirtualKey.Up, resizesRows: true));
+        page.UpdateLayout();
+        Expect("row Up key", MapH(), before - PaneSplitter.KeyStep);
+
+        // Persistence (Ref §9.3): a resting layout is saved through ShellVm.UpdateLayout; then the original layout is put back.
+        cols.ApplyDrag(wDrag - Left());
+        rows.ApplyDrag(hDrag - MapH());
+        page.UpdateLayout();
+        var shell = ctx.Services.Shell;
+        double wantRatio = Math.Round(MapH() / (MapH() + ClipH()), 3), wantWidth = Math.Round(Left());
+        bool saved = await WaitUntilAsync(() => Math.Abs(shell.Settings.Layout.TimelineWidth - wantWidth) < 1
+                                                && Math.Abs(shell.Settings.Layout.MapHeightRatio - wantRatio) < 0.006, TimeSpan.FromSeconds(3));
+        if (!saved) problems.Add($"layout not saved: Settings.Layout {shell.Settings.Layout}, expected width {wantWidth}, ratio {wantRatio}");
+        cols.ApplyDrag(w0 - Left());
+        rows.ApplyDrag(h0 - MapH());
+        page.UpdateLayout();
+
+        return problems.Count == 0
+            ? SelfTestCheck.Pass("review.splitters", string.Create(CultureInfo.InvariantCulture,
+                  $"columns {w0:0}→{wDrag:0} px (min {page.TimelineColumn.MinWidth:0}/{page.SideColumn.MinWidth:0} held), rows map {h0:0}→{hDrag:0} px (min 160/160 held), keys ±{PaneSplitter.KeyStep:0}, layout saved"))
+            : SelfTestCheck.Fail("review.splitters", string.Join("; ", problems));
+
+        // a pointer drag: press, two moves, release — the boundary follows the offset from the press point
+        void Drag(PaneSplitter splitter, double firstMove, double secondMove)
+        {
+            if (!splitter.BeginDrag()) { problems.Add("BeginDrag found no tracks to resize"); return; }
+            splitter.DragTo(firstMove);
+            splitter.DragTo(secondMove);
+            splitter.EndDrag();
+            page.UpdateLayout();
+        }
+
+        void Expect(string what, double actual, double expected)
+        {
+            if (Math.Abs(actual - expected) > 1)
+                problems.Add(string.Create(CultureInfo.InvariantCulture, $"{what}: {actual:0.#} px, expected {expected:0.#}"));
+        }
     }
 
     /// <summary>Ref §9.2/§6.5: the fixture's drone clock is US Eastern while every clip is in Alaska → the Warning InfoBar
