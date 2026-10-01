@@ -44,6 +44,7 @@ internal static partial class SelfTestChecks
         ("template.realizedOnly", TemplateRealizedOnly),
         ("cleanup.toggleResync", CleanupToggleResync),
         ("cleanup.entry", CleanupEntry),
+        ("verdict.daySelection", VerdictDaySelection),
         ("debug.hang", DebugHang),                                       // never in the default run
         ("debug.throw", DebugThrow),                                     // never in the default run
         ("debug.throwPosted", DebugThrowPosted),                         // never in the default run

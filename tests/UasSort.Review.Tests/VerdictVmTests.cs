@@ -22,14 +22,18 @@ public class VerdictVmTests
         public ItemId Photo25b { get; }
         public ItemId Photo26 { get; }
         public ItemId Unknown { get; } = new("DCIM/DJI_A001/x.MP4");
+        /// <summary>A panorama set on Jul 26 (local), present only when the rig is built with a set.</summary>
+        public ItemId Set26 { get; } = new("DCIM/PANORAMA/001_0104");
 
-        public Rig()
+        public Rig(bool withSet = false)
         {
             var p1 = PhotosOtherTabTests.Photo("DJI_20260725200000_0101_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 0), new ProbablyImported("x"), 200_000_000);
             var p2 = PhotosOtherTabTests.Photo("DJI_20260725200100_0102_D.DNG", TestPlans.Utc(2026, 7, 26, 4, 1), new ProbablyImported("x"), 200_000_000);
             var p3 = PhotosOtherTabTests.Photo("DJI_20260726200000_0103_D.DNG", TestPlans.Utc(2026, 7, 27, 4, 0), new ProbablyImported("x"), 200_000_000);
+            List<Item> extra = [p1, p2, p3];
+            if (withSet) extra.Add(SetItem(Set26, TestPlans.Utc(2026, 7, 27, 4, 30)));
             var t = TestPlans.Utc(2026, 7, 26, 3, 0);
-            var b = TestPlans.Base(TestPlans.CouncilAnvil(), extraItems: [p1, p2, p3],
+            var b = TestPlans.Base(TestPlans.CouncilAnvil(), extraItems: extra,
                                    extraEntries: [new CardEntry(Unknown.CardRelPath, 5_000_000, t, t, t, 0x20, EntryClass.Unknown, null)]);
             Plan = new ScriptedDeriver().Derive(b, new Tuning(), [], new SessionFlags(false), 1, TestContext.Current.CancellationToken);
             Video = TestPlans.Id(TestPlans.CouncilAnvil()[3].Name);
@@ -44,7 +48,23 @@ public class VerdictVmTests
                     U(Photo25b, AuditCategory.AssumedByRule, 200_000_000, "probably imported"),
                     U(Photo26, AuditCategory.AssumedByRule, 200_000_000, "probably imported"),
                     U(Unknown, AuditCategory.Unaccounted, 5_000_000, "unknown file"),
+                    .. withSet ? [U(Set26, AuditCategory.AssumedByRule, 100_000_000, "probably imported")] : Array.Empty<UnitAudit>(),
                 ], [], null);
+        }
+
+        /// <summary>A two-frame panorama set (50 MB per frame) taken at <paramref name="utc"/>, Anchorage time.</summary>
+        private static Item SetItem(ItemId id, DateTime utc)
+        {
+            ImmutableArray<CardEntry> members =
+            [
+                new($"{id.CardRelPath}/DJI_0001.JPG", 50_000_000, utc, utc, utc, 0x20, EntryClass.SetMember, null),
+                new($"{id.CardRelPath}/DJI_0002.JPG", 50_000_000, utc, utc, utc, 0x20, EntryClass.SetMember, null),
+            ];
+            var raw = new RawItem(new SetUnit(id, SetKind.Panorama, "001_0104", members), ItemKind.Set, "001_0104", 100_000_000, utc,
+                                  null, null, null, null);
+            var local = TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneInfo.FindSystemTimeZoneById(TestPlans.Anchorage));
+            return new Item(raw, new ItemTime(utc, TimeSource.DroneClockZone, TestPlans.Anchorage, TzSource.Gps, DateOnly.FromDateTime(local), local),
+                            null, null, ItemFlags.NoGps, new ProbablyImported("x"));
         }
 
         public static UnitAudit U(ItemId id, AuditCategory c, long size, string detail) => new(id, c, [new AuditLine(id.CardRelPath, size, c, detail)]);
@@ -73,6 +93,79 @@ public class VerdictVmTests
         Assert.False(vm.RecordImportedCommand.CanExecute(null));
         Assert.False(vm.MarkNotNeededCommand.CanExecute(null));
         Assert.Equal(2, vm.NotCopiedDays.Count);
+        Assert.Null(vm.SelectionText);
+        Assert.True(vm.SelectAllPhotosAndSetsCommand.CanExecute(null));
+        Assert.False(vm.ClearSelectionCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Verdict_SelectAll_SelectsEveryDecidablePhotoAndSetAcrossDays_NeverVideosUnknownOrUndecidable()
+    {
+        var rig = new Rig(withSet: true);
+        var verdict = rig.With(rig.Photo25b, AuditCategory.Unaccounted, 200_000_000, CardDiffResult.ChangedDetail);
+        var vm = rig.Vm(verdict: verdict);
+        Assert.All(vm.NotCopied, r => Assert.False(r.IsSelected));               // nothing preselected
+        Row(vm, rig.Video).ToggleCommand.Execute(null);                          // a selected video is cleared, as a day click does
+
+        vm.SelectAllPhotosAndSetsCommand.Execute(null);
+
+        Assert.Equal<ItemId>([rig.Photo25a, rig.Photo26, rig.Set26], vm.NotCopied.Where(r => r.IsSelected).Select(r => r.Unit));
+        Assert.Equal(NotCopiedKind.Set, Row(vm, rig.Set26).Kind);
+        Assert.False(Row(vm, rig.Photo25b).IsSelected);                          // can't be decided
+        Assert.False(Row(vm, rig.Video).IsSelected);
+        Assert.False(Row(vm, rig.Unknown).IsSelected);
+        Assert.Equal("2 photos, 1 set · 0.5 GB", vm.SelectionText);
+        Assert.True(vm.RecordImportedCommand.CanExecute(null));
+        Assert.False(vm.SelectAllPhotosAndSetsCommand.CanExecute(null));         // nothing left to select
+        Assert.True(vm.ClearSelectionCommand.CanExecute(null));
+
+        // exactly the union of clicking every day button
+        var byDays = rig.Vm(verdict: verdict);
+        foreach (var day in byDays.NotCopiedDays) day.SelectDayCommand.Execute(null);
+        Assert.Equal(byDays.NotCopied.Where(r => r.IsSelected).Select(r => r.Unit), vm.NotCopied.Where(r => r.IsSelected).Select(r => r.Unit));
+        Assert.Equal(byDays.SelectionText, vm.SelectionText);
+    }
+
+    [Fact]
+    public void Verdict_ClearSelection_DeselectsEverything()
+    {
+        var rig = new Rig(withSet: true);
+        var vm = rig.Vm();
+        vm.SelectAllPhotosAndSetsCommand.Execute(null);
+        Assert.Equal("3 photos, 1 set · 0.7 GB", vm.SelectionText);
+
+        vm.ClearSelectionCommand.Execute(null);
+
+        Assert.All(vm.NotCopied, r => Assert.False(r.IsSelected));
+        Assert.Null(vm.SelectionText);
+        Assert.False(vm.ClearSelectionCommand.CanExecute(null));
+        Assert.True(vm.SelectAllPhotosAndSetsCommand.CanExecute(null));
+        Assert.False(vm.RecordImportedCommand.CanExecute(null));
+        Assert.False(vm.MarkNotNeededCommand.CanExecute(null));
+
+        Row(vm, rig.Video).ToggleCommand.Execute(null);                          // a single video selection is cleared too
+        Assert.True(vm.ClearSelectionCommand.CanExecute(null));
+        vm.ClearSelectionCommand.Execute(null);
+        Assert.False(Row(vm, rig.Video).IsSelected);
+        Assert.Null(vm.SelectionText);
+    }
+
+    [Fact]
+    public void Verdict_SelectAll_DisabledWhenNoPhotoOrSetCanBeDecided()
+    {
+        var rig = new Rig();
+        var stuck = rig.Verdict with
+        {
+            Units = [.. rig.Verdict.Units.Select(u => u.Unit == rig.Photo25a || u.Unit == rig.Photo25b || u.Unit == rig.Photo26
+                                                     ? Rig.U(u.Unit, AuditCategory.Unaccounted, 200_000_000, CardDiffResult.ChangedDetail) : u)],
+        };
+        var vm = rig.Vm(verdict: stuck);
+
+        Assert.Empty(vm.NotCopiedDays);
+        Assert.False(vm.SelectAllPhotosAndSetsCommand.CanExecute(null));
+        vm.SelectAllPhotosAndSetsCommand.Execute(null);
+        Assert.All(vm.NotCopied, r => Assert.False(r.IsSelected));
+        Assert.Null(vm.SelectionText);
     }
 
     [Fact]

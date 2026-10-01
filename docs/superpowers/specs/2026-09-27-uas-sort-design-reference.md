@@ -2051,9 +2051,10 @@ Nothing is written to the ledger before Commit, except explicit user actions: Ve
 - The verdict, with a count for each category (expandable to per-file lines).
 - One row per group with **Open folder**. **Open photo root** (for the Lightroom import).
 - The "Not copied" list. **Nothing is preselected.**
-  - **[Record selected photos as already imported]** writes `decision` records of kind `assumedImported`. Selection is per tile or per day; it covers photos and sets only.
+  - **[Record selected photos as already imported]** writes `decision` records of kind `assumedImported`. Selection is per tile, per day or all at once; it covers photos and sets only.
   - **[Mark selected as not needed]** writes `decision` records of kind `dismissed`.
-    - **Photos and sets** can be selected individually or per day.
+    - **Photos and sets** can be selected individually or per day. The per-day buttons wrap onto as many lines as the dates need, so every day stays reachable at the minimum window size.
+    - **[Select all photos and sets]** selects every photo and set that can be decided, across all days: exactly what clicking every day button selects. It never selects a video, an unknown file or a row that can't be decided, and it clears a selected video or unknown file, as a day button does. **[Clear selection]** deselects everything. Each is disabled when it has nothing to do.
     - **Unknown files, truncated clips and all other videos only one at a time.** Truncated clips are videos, and bulk selection is never offered for videos. Unknown files usually have no local date, so they are never selected per day either.
   - Both actions open a confirmation dialog showing counts by kind and total GB. Then they append to the ledger and recompute the verdict.
   - **[Undo]** on the page, and later [Un-dismiss] on the Other and Photos tabs, append `revoke` records.
@@ -2745,7 +2746,7 @@ Every row of the §10.3 outcome table, including:
 - Draft resume with dropped edits and pin warnings; a changed `InventoryHash` still offers the draft with the right dropped count.
 - Rename: validation, `Rejected` on Append, suggestion ranking; `SuggestionVm.ToString()` equals the text.
 - Offload enabled or disabled by blocking issues; preflight acknowledgements; **[Accept and continue]** turns a Blocking `LedgerParseIssue` into a RequiresAck Warning for this session, the draft doesn't carry it, and a rescan raises it again.
-- Verdict page: nothing preselected; per-day selection only for photos and sets; unknown files, truncated clips and other videos one at a time; confirmation counts and GB; undo writes `revoke`.
+- Verdict page: nothing preselected; per-day selection and [Select all photos and sets] only for photos and sets; [Clear selection]; unknown files, truncated clips and other videos one at a time; confirmation counts and GB; undo writes `revoke`.
 - Cleanup page: [Clean up card…] disabled during Commit, during a scan, on a write-protected card, for a browsed folder and for a volume that fails the volume check, each with its tooltip; Preparation's Blocking InfoBars (identity mismatch at page open; ledger folder cloud-only or unwritable) disable Delete; Continue disabled until a date is picked; **with the PC zone Alaska and a picked value carrying a late-evening time or a UTC offset, `Request.Before` equals the displayed day**; Free up / Have at least switch the target and the "= free up ≈ Y GB" text; the review list required when the switch is on; "ticked for offload" rows start on Keep and [Delete all] leaves them; rows that join later are undecided and the button reads "Decide N new rows"; Keep/Delete, [Keep all] and [Delete all] recompute the summary; the acknowledgements clear on any fingerprint change; the cutoff line is worded from the plan; the summary shows the evidence split and the "files uas-sort never copies" line; the button reads "Delete 152 files (61.4 GB)" and is disabled until every box is ticked; `CleanupRowVm.ToString()` equals its text.
 - Map/grid selection sync.
 - `MapBridge` JSON golden messages: deserialise the exact objects of §9.6, the ones map.js produces (**`v` before `type`**), including `ping`/`pong`; `[lon,lat]`; miles labels; an unknown type is logged, not thrown.

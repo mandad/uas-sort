@@ -89,6 +89,8 @@ public sealed partial class VerdictVm : ObservableObject
         RecordImportedCommand = new AsyncRelayCommand(() => DecideAsync(DecisionKind.AssumedImported), () => CanDecide(DecisionKind.AssumedImported));
         MarkNotNeededCommand = new AsyncRelayCommand(() => DecideAsync(DecisionKind.Dismissed), () => CanDecide(DecisionKind.Dismissed));
         UndoCommand = new AsyncRelayCommand(UndoAsync, () => _lastDecisionIds.Length > 0);
+        SelectAllPhotosAndSetsCommand = new RelayCommand(SelectAllPhotosAndSets, () => NotCopied.Any(r => InSomeDay(r) && !r.IsSelected));
+        ClearSelectionCommand = new RelayCommand(ClearSelection, () => NotCopied.Any(r => r.IsSelected));
         OpenPhotoRootCommand = new RelayCommand(() => _ports.Shell.OpenFolder(plan.Base.Scan.Settings.PhotoRoot));
         OpenReportCommand = new RelayCommand(() => _ports.Shell.OpenFile(_reportPath!), () => _reportPath is not null);
         CleanupCommand = new RelayCommand(() => CleanupRequested?.Invoke(), () => _cleanupEnabled);
@@ -129,6 +131,12 @@ public sealed partial class VerdictVm : ObservableObject
     public IAsyncRelayCommand RecordImportedCommand { get; }
     public IAsyncRelayCommand MarkNotNeededCommand { get; }
     public IAsyncRelayCommand UndoCommand { get; }
+    /// <summary>Selects every photo and set that a day button covers (decidable, with a local date): exactly the union of
+    /// clicking every day button. Never selects a video, an unknown file or a row that can't be decided. Disabled when
+    /// every such row is already selected (or there is none).</summary>
+    public IRelayCommand SelectAllPhotosAndSetsCommand { get; }
+    /// <summary>Deselects every row; disabled when nothing is selected.</summary>
+    public IRelayCommand ClearSelectionCommand { get; }
     public IRelayCommand OpenPhotoRootCommand { get; }
     public IRelayCommand OpenReportCommand { get; }
     public IRelayCommand CleanupCommand { get; }
@@ -218,6 +226,24 @@ public sealed partial class VerdictVm : ObservableObject
         SelectionChanged();
     }
 
+    /// <summary>A row some day button covers: NotCopiedDays is built from exactly these rows.</summary>
+    private static bool InSomeDay(NotCopiedRowVm r) => r.IsPhotoLike && r.CanDecide && r.LocalDate is not null;
+
+    /// <summary>The union of SelectDay over every day: covered rows are added, selected photos and sets stay, and a selected
+    /// video or unknown file is cleared.</summary>
+    private void SelectAllPhotosAndSets()
+    {
+        foreach (var r in NotCopied)
+            r.IsSelected = r.IsPhotoLike && r.CanDecide && (r.IsSelected || InSomeDay(r));
+        SelectionChanged();
+    }
+
+    private void ClearSelection()
+    {
+        foreach (var r in NotCopied) r.IsSelected = false;
+        SelectionChanged();
+    }
+
     private List<NotCopiedRowVm> Selected() => [.. NotCopied.Where(r => r.IsSelected)];
 
     private bool CanDecide(DecisionKind kind) => VerdictDecisions.Check(kind, [.. Selected().Select(r => r.Row)]).Ok;
@@ -228,6 +254,8 @@ public sealed partial class VerdictVm : ObservableObject
         SelectionText = s.Count == 0 ? null : $"{Describe(s)} · {Fmt.Size(s.Sum(r => r.Bytes))}";
         RecordImportedCommand.NotifyCanExecuteChanged();
         MarkNotNeededCommand.NotifyCanExecuteChanged();
+        SelectAllPhotosAndSetsCommand.NotifyCanExecuteChanged();
+        ClearSelectionCommand.NotifyCanExecuteChanged();
     }
 
     private static string Describe(IReadOnlyList<NotCopiedRowVm> rows)

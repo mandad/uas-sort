@@ -1,8 +1,10 @@
 // src/UasSort.App/SelfTest/SelfTestChecks.Pages.cs
+using System.Globalization;
 using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Windows.Foundation;
 
 namespace UasSort.App.SelfTest;
 
@@ -142,5 +144,99 @@ internal static partial class SelfTestChecks
                       : SelfTestCheck.Fail("cleanup.toggleResync", $"commands [{string.Join(",", decisions)}], decision {row.Decision}, delete {delete.IsChecked}, keep {keep.IsChecked}");
         }
         finally { popup.IsOpen = false; }
+    }
+
+    /// <summary>Task U2 (user-reported): with many days of not-copied photos, the Verdict page's per-day buttons must wrap onto
+    /// several lines and stay inside the page at the minimum window size, and [Select all photos and sets] / [Clear selection]
+    /// must work through the real buttons. The verdict is synthetic, built on the scanned plan: <see cref="ManyDays"/> photo days
+    /// cloned from the fixture DNG, plus clip A as a failed video. It is shown in its own VerdictPage at 1100×700. Nothing is
+    /// decided or written.</summary>
+    private static async Task<SelfTestCheck> VerdictDaySelection(SelfTestContext ctx)
+    {
+        const string name = "verdict.daySelection";
+        var review = await EnsureReviewAsync(ctx);
+        var (plan, verdict, video) = ManyPhotoDays(review.Plan, ManyDays);
+        var p = ctx.Services.Platform;
+        var vm = new VerdictVm(verdict, plan, null, null, new VerdictPorts(p.LedgerFor(ctx.Sandbox.VideoRoot), p.Machine, p.Clock,
+                                                                          ctx.Services.Dialogs, p.Shell, p.Eject, () => verdict));
+        var frame = new Frame { Width = MainWindow.MinWidth, Height = MainWindow.MinHeight };
+        var popup = new Popup { XamlRoot = ctx.Window.Content.XamlRoot, Child = frame, IsOpen = true };
+        try
+        {
+            frame.Navigate(typeof(VerdictPage), new StageArgs(vm, ctx.Window));
+            var texts = vm.NotCopiedDays.Select(d => d.Text).ToHashSet(StringComparer.Ordinal);
+            List<Button> DayButtons(VerdictPage page) => VisualTree.FindAll<Button>(page.DayList, b => b.Content is string t && texts.Contains(t));
+            if (!await WaitUntilAsync(() => frame.Content is VerdictPage { IsLoaded: true } pg
+                                            && DayButtons(pg) is { Count: ManyDays } bs && bs.All(b => b.ActualWidth > 0), TimeSpan.FromSeconds(5)))
+                return SelfTestCheck.Fail(name, $"{ManyDays} day buttons not laid out (days {vm.NotCopiedDays.Count})");
+            var page = (VerdictPage)frame.Content;
+
+            var lines = new HashSet<long>();
+            double right = 0;
+            foreach (var b in DayButtons(page))
+            {
+                var at = b.TransformToVisual(page).TransformPoint(new Point(0, 0));
+                lines.Add((long)Math.Round(at.Y));
+                right = Math.Max(right, at.X + b.ActualWidth);
+            }
+            if (lines.Count < 2 || right > page.ActualWidth + 0.5)
+                return SelfTestCheck.Fail(name, $"day buttons on {lines.Count} line(s), rightmost edge {right:0} vs page width {page.ActualWidth:0}");
+
+            int Checked() => VisualTree.FindAll<CheckBox>(page.NotCopiedList, c => c.IsChecked == true).Count;
+            bool startedEmpty = Checked() == 0 && vm.SelectionText is null && page.SelectAllButton.IsEnabled && !page.ClearSelectionButton.IsEnabled;
+            new ButtonAutomationPeer(page.SelectAllButton).Invoke();
+            bool all = await WaitUntilAsync(() => Checked() == ManyDays && !page.SelectAllButton.IsEnabled && page.ClearSelectionButton.IsEnabled,
+                                            TimeSpan.FromSeconds(3));
+            var selected = vm.NotCopied.Where(r => r.IsSelected).ToList();
+            var selectionText = vm.SelectionText;
+            bool onlyPhotos = selected.Count == ManyDays && selected.All(r => r.Kind == NotCopiedKind.Photo)
+                              && !vm.NotCopied.Single(r => r.Unit == video).IsSelected
+                              && selectionText?.StartsWith($"{ManyDays} photos · ", StringComparison.Ordinal) == true;
+            new ButtonAutomationPeer(page.ClearSelectionButton).Invoke();
+            bool cleared = await WaitUntilAsync(() => Checked() == 0 && vm.SelectionText is null && !page.ClearSelectionButton.IsEnabled
+                                                      && page.SelectAllButton.IsEnabled, TimeSpan.FromSeconds(3));
+            return startedEmpty && all && onlyPhotos && cleared
+                ? SelfTestCheck.Pass(name, $"{ManyDays} day buttons on {lines.Count} lines, rightmost edge {right:0} within page {page.ActualWidth:0}; "
+                                           + $"Select all checked {ManyDays} photos ('{selectionText}'), not the video; Clear unchecked all")
+                : SelfTestCheck.Fail(name, $"startedEmpty {startedEmpty}, selectAll {all} (selected {selected.Count}, onlyPhotos {onlyPhotos}, "
+                                           + $"'{selectionText}'), cleared {cleared}");
+        }
+        finally { popup.IsOpen = false; }
+    }
+
+    private const int ManyDays = 40;
+
+    /// <summary>The scanned plan plus <paramref name="days"/> photos, one per local day from 2026-06-01, cloned from the fixture DNG;
+    /// the verdict has each clone as AssumedByRule and the first video (clip A) as Unaccounted.</summary>
+    private static (Plan Plan, FormatVerdict Verdict, ItemId Video) ManyPhotoDays(Plan plan, int days)
+    {
+        var dng = plan.Base.Items.First(i => i.Raw.Unit is PhotoUnit);
+        var unit = (PhotoUnit)dng.Raw.Unit;
+        var video = plan.Base.Items.First(i => i.Raw.Unit is VideoUnit).Raw.Unit.Id;
+        var first = new DateOnly(2026, 6, 1);
+        List<Item> clones = [.. Enumerable.Range(0, days).Select(k =>
+        {
+            var id = new ItemId(string.Create(CultureInfo.InvariantCulture, $"DCIM/DJI_002/DJI_SELFTEST_{k:000}_D.DNG"));
+            var u = unit with { Id = id, Primary = unit.Primary with { RelPath = id.CardRelPath }, JpgTwin = null };
+            return dng with { Raw = dng.Raw with { Unit = u, Name = Path.GetFileName(id.CardRelPath) }, Time = dng.Time with { LocalDate = first.AddDays(k) } };
+        })];
+        var inventory = plan.Base.Scan.Inventory;
+        var withClones = plan with
+        {
+            Base = plan.Base with
+            {
+                Scan = plan.Base.Scan with { Inventory = inventory with { Units = [.. inventory.Units, .. clones.Select(c => c.Raw.Unit)] } },
+                Items = [.. plan.Base.Items, .. clones],
+            },
+        };
+        static UnitAudit Audit(ItemId id, AuditCategory c, long size, string detail) => new(id, c, [new AuditLine(id.CardRelPath, size, c, detail)]);
+        ImmutableArray<UnitAudit> units =
+        [
+            Audit(video, AuditCategory.Unaccounted, 1_000_000, "failed: verify"),
+            .. clones.Select(c => Audit(c.Raw.Unit.Id, AuditCategory.AssumedByRule, unit.Primary.Size, "probably imported")),
+        ];
+        var verdict = new FormatVerdict(VerdictLevel.NotSafe, new CardIdentity(0, "SELFTEST", "exFAT", 0), "selftest verdict",
+                                        ImmutableDictionary<AuditCategory, int>.Empty, 0, 0, units, [], null);
+        return (withClones, verdict, video);
     }
 }

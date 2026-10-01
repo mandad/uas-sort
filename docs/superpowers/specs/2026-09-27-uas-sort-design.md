@@ -486,7 +486,7 @@ A unit takes the category of its worst file.
 
 **The headline** names the card and splits the evidence: "E: · DJI Air 3S · serial 1A2B-3C4D: Safe to format: 17 verified, 4 matched by name+size only". It counts buffered verifies. Non-NTFS destinations add "Safely remove D: before formatting the card" and **[Eject D:]**.
 
-**Verdict page:** "Not copied" list with **nothing preselected**; [Record selected photos as already imported] → `assumedImported` (photos, sets; tile or day); [Mark selected as not needed] → `dismissed`. **Only photos and sets may be selected per day. Truncated clips are videos, and like every other video they are dismissed one at a time; unknown files are also one at a time (they usually have no local date).** Both actions confirm counts and GB; [Undo] → `revoke`; the report saves automatically. **[Clean up card…]** opens Card cleanup (§7.5).
+**Verdict page:** "Not copied" list with **nothing preselected**; [Record selected photos as already imported] → `assumedImported` (photos, sets; tile or day); [Mark selected as not needed] → `dismissed`. **Only photos and sets may be selected per day, or all at once with [Select all photos and sets]; [Clear selection] deselects everything. Truncated clips are videos, and like every other video they are dismissed one at a time; unknown files are also one at a time (they usually have no local date).** Both actions confirm counts and GB; [Undo] → `revoke`; the report saves automatically. **[Clean up card…]** opens Card cleanup (§7.5).
 
 ### 7.5 Card cleanup (Ref §10.6; added 2026-09-27)
 
