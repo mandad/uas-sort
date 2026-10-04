@@ -18,6 +18,21 @@ public class CleanupPiecesTests
         Assert.Equal((enabled, tooltip), CleanupAvailability.For(new CleanupContext(commit, scan, source, present, refusal)));
     }
 
+    // Task U4: the visible reason; for a volume that fails the check it names the failing rule and its facts.
+    [Theory]
+    [InlineData(false, false, "This doesn't look like a drone card (it may be a backup drive)", "rule 4: bus Usb, removable media false",
+                "This doesn't look like a drone card (rule 4: bus Usb, removable media false)")]
+    [InlineData(false, false, "This doesn't look like a drone card (it may be a backup drive)", null,
+                "This doesn't look like a drone card (it may be a backup drive)")]
+    [InlineData(true, false, null, null, "The card is write-protected (lock switch)")]
+    [InlineData(false, true, null, null, null)]
+    public void CleanupAvailability_Text_IsTheVisibleReason(bool writeProtected, bool enabled, string? refusal, string? detail, string? text)
+    {
+        var context = new CleanupContext(false, false, new CardSource(@"E:\", TestPlans.Card, false, writeProtected), true, refusal, detail);
+        Assert.Equal(enabled, CleanupAvailability.For(context).Enabled);
+        Assert.Equal(text, CleanupAvailability.Text(context));
+    }
+
     [Fact]
     public void CleanupAvailability_NoCardScanned_RescanFirst()
         => Assert.Equal((false, "Rescan first"), CleanupAvailability.For(new CleanupContext(false, false, null, false, null)));

@@ -118,6 +118,9 @@ public sealed partial class VerdictVm : ObservableObject
     [ObservableProperty] public partial string? SelectionText { get; private set; }
     [ObservableProperty] public partial bool CanCleanup { get; private set; }
     [ObservableProperty] public partial string? CleanupTooltip { get; private set; }
+    /// <summary>Why [Clean up card…] is disabled, as visible text next to the button (a disabled button shows no tooltip); null while
+    /// it is enabled (Task U4).</summary>
+    [ObservableProperty] public partial string? CleanupUnavailableText { get; private set; }
     /// <summary>Why the Commit stopped before it finished (CopyVm.ErrorText: the IO stop, or the history file that couldn't be
     /// opened); null after a run that finished. ShellVm sets it; the Verdict page shows it as an error InfoBar at the top.</summary>
     [ObservableProperty] public partial string? StopText { get; internal set; }
@@ -167,11 +170,12 @@ public sealed partial class VerdictVm : ObservableObject
         _ => c.ToString(),
     };
 
-    public void SetCleanupAvailability(bool enabled, string? tooltip)
+    public void SetCleanupAvailability(bool enabled, string? tooltip, string? unavailableText = null)
     {
         _cleanupEnabled = enabled;
         CanCleanup = enabled;
         CleanupTooltip = tooltip;
+        CleanupUnavailableText = enabled ? null : unavailableText ?? tooltip;
         CleanupCommand.NotifyCanExecuteChanged();
     }
 

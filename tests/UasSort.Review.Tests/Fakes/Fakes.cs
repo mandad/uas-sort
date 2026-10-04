@@ -80,7 +80,9 @@ internal sealed class FakeFreeSpace : IFreeSpace
 internal sealed class ListLog : IReviewLog
 {
     public List<string> Warnings { get; } = [];
+    public List<string> Infos { get; } = [];
     public void Warn(string message) => Warnings.Add(message);
+    public void Info(string message) => Infos.Add(message);
 }
 
 internal static class Fake

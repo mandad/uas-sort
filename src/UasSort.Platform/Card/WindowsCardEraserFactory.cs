@@ -40,8 +40,7 @@ public sealed class WindowsCardEraserFactory : ICardEraserFactory
         if (v.Identity.FileSystem is not ("exFAT" or "FAT32")) throw Refuse($"file system {v.Identity.FileSystem} is not exFAT or FAT32");
         if (v.Identity != pinned) throw Refuse("the volume's identity differs from the scanned card");
         if (v.IsReadOnlyVolume) throw Refuse("the volume is write-protected");
-        if (!(v.BusType is "Sd" or "Mmc" || (v.BusType == "Usb" && v.RemovableMedia)))
-            throw Refuse($"bus {v.BusType} (removable media: {v.RemovableMedia}) is not a card reader");
+        if (BusRefusal(v.BusType, v.RemovableMedia) is { } bus) throw Refuse(bus);
         if (v.IsSystemBootOrPaging || Same(root, _systemVolumeRoot)) throw Refuse("it is the system, boot or paging volume");
         foreach (var configured in new[] { _settings.VideoRoot, _settings.PhotoRoot, _appDataDir }.Concat(_settings.PreviousPhotoRoots))
             if (_volumes.VolumePathName(_facts.Canonical(configured)) is { } on && Same(on, root))
@@ -59,6 +58,14 @@ public sealed class WindowsCardEraserFactory : ICardEraserFactory
         };
         return new WindowsCardEraser(ctx);
     }
+
+    /// <summary>Rule 4 of the cleanup volume check (Ref §10.6, user decision 2026-10-04): removable media on any bus (an SD/MMC slot,
+    /// a USB reader, or a PCIe card reader that reports Scsi or Unknown), or an Sd/Mmc bus. Fixed media (a USB or SATA disk, NVMe:
+    /// RemovableMedia false) is refused. Null when it passes, else why.</summary>
+    internal static string? BusRefusal(string busType, bool removableMedia)
+        => removableMedia || busType is "Sd" or "Mmc"
+            ? null
+            : $"rule 4: bus {(busType.Length == 0 ? "(none)" : busType)}, removable media false: fixed media, not a card";
 
     private static UnsafeIoException Refuse(string why) => new($"Card cleanup refused: {why}");
     private static string Sep(string p) => p.EndsWith('\\') ? p : p + '\\';

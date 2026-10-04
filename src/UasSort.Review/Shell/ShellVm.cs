@@ -19,8 +19,12 @@ public sealed record ShellDeps(
     Func<Settings, SettingsPageVm> CreateSettings,
     Func<ReviewVm, FormatVerdict> AuditNow,
     Func<CardSource, bool> CardPresent,
-    Func<CardSource, string?> VolumeRefusal,
-    Action<Settings> SaveSettings);
+    Func<CardSource, (string? Refusal, string? Detail)> VolumeRefusal,
+    Action<Settings> SaveSettings)
+{
+    /// <summary>Where the shell logs each change of [Clean up card…]'s availability for a card source (Info, Task U4); none: not logged.</summary>
+    public IReviewLog? Log { get; init; }
+}
 
 /// <summary>The stage machine behind MainWindow's Frame and TitleBar (Ref §9.1, §9.2).</summary>
 public sealed partial class ShellVm : ObservableObject
@@ -29,6 +33,7 @@ public sealed partial class ShellVm : ObservableObject
     private (Stage Stage, object? Current)? _beforeSettings;
     private CommitResult? _lastResult;
     private SettingsPageVm? _settingsPage;
+    private string? _loggedCleanupAvailability;
 
     public ShellVm(ShellDeps deps)
     {
@@ -58,6 +63,9 @@ public sealed partial class ShellVm : ObservableObject
     [ObservableProperty] public partial bool CanUndoRedo { get; private set; }
     [ObservableProperty] public partial bool CleanupEnabled { get; private set; }
     [ObservableProperty] public partial string? CleanupTooltip { get; private set; }
+    /// <summary>Why [Clean up card…] is disabled, as visible text (a disabled button shows no tooltip); for a volume that fails the
+    /// cleanup volume check it names the failing rule. Null while the button is enabled (Task U4).</summary>
+    [ObservableProperty] public partial string? CleanupUnavailableText { get; private set; }
     [ObservableProperty] public partial bool IsScanning { get; private set; }
 
     public IAsyncRelayCommand RescanCommand { get; }
@@ -356,14 +364,31 @@ public sealed partial class ShellVm : ObservableObject
         CanOpenSettings = !PlanFromVerdict && Stage is Stage.Card or Stage.Review;
         CanBrowse = Stage == Stage.Card;
         CanUndoRedo = Stage == Stage.Review && Review is { IsReadOnly: false };
-        var (enabled, tooltip) = CleanupAvailability.For(new CleanupContext(committing, IsScanning, Source,
-            Source is { } s && _deps.CardPresent(s), Source is { } s2 ? _deps.VolumeRefusal(s2) : null));
-        if (Stage is Stage.Cleanup or Stage.Settings or Stage.Setup) enabled = false;
+        var (refusal, detail) = Source is { } s2 ? _deps.VolumeRefusal(s2) : default;
+        var context = new CleanupContext(committing, IsScanning, Source, Source is { } s && _deps.CardPresent(s), refusal, detail);
+        var (enabled, tooltip) = CleanupAvailability.For(context);
+        var text = CleanupAvailability.Text(context);
+        LogCleanupAvailability(enabled, text);
+        var pageWithoutCleanup = Stage is Stage.Cleanup or Stage.Settings or Stage.Setup;
+        if (pageWithoutCleanup) enabled = false;
         CleanupEnabled = enabled;
         CleanupTooltip = tooltip;
-        Verdict?.SetCleanupAvailability(enabled, tooltip);
+        CleanupUnavailableText = enabled || pageWithoutCleanup ? null : text;   // those pages need no reason shown
+        Verdict?.SetCleanupAvailability(enabled, tooltip, text);
         RescanCommand.NotifyCanExecuteChanged();
         SettingsCommand.NotifyCanExecuteChanged();
         CleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Task U4: one Info line per change of the card's cleanup availability (deduped by source root and reason), so a later
+    /// "why is it disabled" can be answered from the log. Uses the card's availability (Ref §10.6 table), not the stage override
+    /// (the Cleanup, Settings and Setup pages disable the title-bar button without a reason).</summary>
+    private void LogCleanupAvailability(bool enabled, string? text)
+    {
+        if (_deps.Log is not { } log || Source is not { } source) return;
+        var line = enabled ? $"Card cleanup on {source.Root} available" : $"Card cleanup on {source.Root} unavailable: {text}";
+        if (string.Equals(line, _loggedCleanupAvailability, StringComparison.Ordinal)) return;
+        _loggedCleanupAvailability = line;
+        log.Info(line);
     }
 }

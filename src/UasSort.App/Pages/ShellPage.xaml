@@ -36,6 +36,11 @@
                             ToolTipService.ToolTip="Redo (Ctrl+Y)" Style="{StaticResource SubtleButtonStyle}">
                         <FontIcon Glyph="&#xE7A6;" FontSize="14" />
                     </Button>
+                    <!-- Why [Clean up card…] is disabled, as visible text: a disabled button shows no tooltip (Task U4) -->
+                    <TextBlock x:Name="CleanupReasonText" x:FieldModifier="internal" Text="{x:Bind Vm.CleanupUnavailableText, Mode=OneWay}"
+                               Style="{StaticResource CaptionText}" VerticalAlignment="Center" MaxWidth="420" Margin="8,0,4,0"
+                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.CleanupUnavailableText), Mode=OneWay}"
+                               ToolTipService.ToolTip="{x:Bind Vm.CleanupUnavailableText, Mode=OneWay}" />
                     <Button x:Name="CleanUpButton" Content="Clean up card…" Command="{x:Bind Vm.CleanupCommand}"
                             IsEnabled="{x:Bind Vm.CleanupEnabled, Mode=OneWay}" Style="{StaticResource SubtleButtonStyle}"
                             ToolTipService.ToolTip="{x:Bind Vm.CleanupTooltip, Mode=OneWay}" />

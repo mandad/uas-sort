@@ -270,5 +270,6 @@ public class PreflightCopyTests
     {
         public List<string> Lines { get; } = [];
         public void Warn(string message) => Lines.Add(message);
+        public void Info(string message) { }
     }
 }

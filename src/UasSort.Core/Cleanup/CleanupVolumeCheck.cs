@@ -29,57 +29,64 @@ public static partial class CleanupVolumeCheck
                                  [.. top.Errors, .. inner.Errors]);
     }
 
+    /// <summary>The button's refusal (<see cref="NotACard"/> or <see cref="WriteProtected"/>), null when the volume passes.</summary>
     public static string? Refusal(VolumeInfo volume, ListingResult card, Settings settings, string appDataDir)
+        => Evaluate(volume, card, settings, appDataDir).Refusal;
+
+    /// <summary>The check with the reason: Refusal as <see cref="Refusal"/>, and Detail naming the failing rule and its facts
+    /// ("rule 4: bus Scsi, removable media false"), for the visible reason and the log (Task U4). Both null when the volume passes.</summary>
+    public static (string? Refusal, string? Detail) Evaluate(VolumeInfo volume, ListingResult card, Settings settings, string appDataDir)
     {
         ArgumentNullException.ThrowIfNull(volume);
         ArgumentNullException.ThrowIfNull(card);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(appDataDir);
 
-        if (volume.IsReadOnlyVolume) return WriteProtected;
+        if (volume.IsReadOnlyVolume) return (WriteProtected, "the volume is read-only");
 
         // 2. a volume root, and the card listing was taken at that root
         var root = volume.Root.Replace('/', '\\');
         if (!root.EndsWith('\\')) root += "\\";
-        if (!DriveRoot().IsMatch(root)) return NotACard;
+        if (!DriveRoot().IsMatch(root)) return (NotACard, $"rule 2: {root} is not a drive root");
         foreach (var e in card.Entries)
         {
-            var listedRoot = e.FullPath.Length >= e.RelPath.Length ? e.FullPath[..^e.RelPath.Length] : "";
-            if (!listedRoot.Replace('/', '\\').Equals(root, StringComparison.OrdinalIgnoreCase)) return NotACard;
+            var listedRoot = (e.FullPath.Length >= e.RelPath.Length ? e.FullPath[..^e.RelPath.Length] : "").Replace('/', '\\');
+            if (!listedRoot.Equals(root, StringComparison.OrdinalIgnoreCase))
+                return (NotACard, $"rule 2: the card was listed at {listedRoot}, not at {root}");
         }
 
         // 3. exFAT or FAT32
         var fs = volume.Identity.FileSystem;
         if (!fs.Equals("exFAT", StringComparison.OrdinalIgnoreCase) && !fs.Equals("FAT32", StringComparison.OrdinalIgnoreCase))
-            return NotACard;
+            return (NotACard, $"rule 3: file system {fs}");
 
-        // 4. SD/MMC bus, or USB with removable media
+        // 4. removable media on any bus (an SD/MMC slot, a USB reader, or a PCIe card reader that reports Scsi or Unknown), or an
+        //    SD/MMC bus; fixed media (a USB or SATA disk, NVMe: RemovableMedia false) fails (user decision 2026-10-04)
         var bus = volume.BusType;
-        var busOk = bus.Equals("Sd", StringComparison.OrdinalIgnoreCase)
-                 || bus.Equals("Mmc", StringComparison.OrdinalIgnoreCase)
-                 || (bus.Equals("Usb", StringComparison.OrdinalIgnoreCase) && volume.RemovableMedia);
-        if (!busOk) return NotACard;
+        var busOk = volume.RemovableMedia
+                 || bus.Equals("Sd", StringComparison.OrdinalIgnoreCase)
+                 || bus.Equals("Mmc", StringComparison.OrdinalIgnoreCase);
+        if (!busOk) return (NotACard, $"rule 4: bus {(bus.Length == 0 ? "(none)" : bus)}, removable media false");
 
         // 5. not system/boot/paging; no configured root, previous photo root or app data on it
-        if (volume.IsSystemBootOrPaging) return NotACard;
+        if (volume.IsSystemBootOrPaging) return (NotACard, "rule 5: the system, boot or paging volume");
         var configured = new List<string> { settings.VideoRoot, settings.PhotoRoot, appDataDir };
         configured.AddRange(settings.PreviousPhotoRoots);
         foreach (var p in configured)
         {
             var q = p.Replace('/', '\\');
             if (q.StartsWith(root, StringComparison.OrdinalIgnoreCase)
-                || (q + "\\").Equals(root, StringComparison.OrdinalIgnoreCase)) return NotACard;
+                || (q + "\\").Equals(root, StringComparison.OrdinalIgnoreCase)) return (NotACard, $"rule 5: {p} lies on this volume");
         }
 
         // 6. the drone-written index: MISC\FC*.db or a MISC\IDX folder
-        var hasIndex = false;
         foreach (var e in card.Entries)
         {
             var rel = CleanupPaths.Rel(e.RelPath);
             if ((!e.IsDirectory && MiscDb().IsMatch(rel))
                 || (e.IsDirectory && rel.Equals("MISC/IDX", StringComparison.OrdinalIgnoreCase)))
-            { hasIndex = true; break; }
+                return (null, null);
         }
-        return hasIndex ? null : NotACard;
+        return (NotACard, @"rule 6: no MISC\FC*.db or MISC\IDX");
     }
 }

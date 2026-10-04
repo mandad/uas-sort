@@ -72,7 +72,7 @@ public static class CompositionRoot
                 review => Audit(review, null),
                 CardPresent,
                 VolumeRefusal,
-                p.Settings.Save));
+                p.Settings.Save) { Log = _log });
             Shell.Faulted += e => p.Log.Error("scan failed", e);      // already shown on the Card stage (Ref §12 log, keep running)
         }
 
@@ -220,15 +220,15 @@ public static class CompositionRoot
             ? _p.Volumes.GetVolumes().Any(v => PathRules.Equal(v.Root, s.Root) && v.Identity == id)
             : _p.Lister.Enumerate(s.Root, false, NoExcludes).Errors.IsEmpty;
 
-        /// <summary>CleanupVolumeCheck on the card's volume (the root's and MISC's children, so the drone index is seen); browsed
-    /// folders are refused by CleanupAvailability.</summary>
-        private string? VolumeRefusal(CardSource s)
+        /// <summary>CleanupVolumeCheck on the card's volume (the root's and MISC's children, so the drone index is seen), with the
+        /// detail naming the failing rule (Task U4); browsed folders are refused by CleanupAvailability.</summary>
+        private (string? Refusal, string? Detail) VolumeRefusal(CardSource s)
         {
-            if (s.IsBrowsedFolder) return null;
+            if (s.IsBrowsedFolder) return default;
             var volume = _p.Volumes.GetVolumes().FirstOrDefault(v => PathRules.Equal(v.Root, s.Root));
             return volume is null
-                ? CleanupVolumeCheck.NotACard
-                : CleanupVolumeCheck.Refusal(volume, CleanupVolumeCheck.CardListing(_p.Lister, s.Root), Current, _p.AppDataDir);
+                ? (CleanupVolumeCheck.NotACard, $"rule 2: {s.Root} is not a mounted volume root")
+                : CleanupVolumeCheck.Evaluate(volume, CleanupVolumeCheck.CardListing(_p.Lister, s.Root), Current, _p.AppDataDir);
         }
 
         /// <summary>The identity of a detected card, or of the volume holding a browsed folder (as ScanService does).</summary>

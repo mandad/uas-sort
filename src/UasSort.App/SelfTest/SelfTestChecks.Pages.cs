@@ -79,17 +79,21 @@ internal static partial class SelfTestChecks
         return Task.FromResult(SelfTestCheck.Pass("pages.construct", "loaded " + string.Join(", ", built)));
     }
 
-    /// <summary>Ref §10.6: the selftest card came from Browse to folder, so [Clean up card…] must be disabled with that reason.</summary>
+    /// <summary>Ref §10.6: the selftest card came from Browse to folder, so [Clean up card…] must be disabled with that reason, shown
+    /// as the tooltip and as visible text beside the button (Task U4: a disabled button shows no tooltip).</summary>
     private static async Task<SelfTestCheck> CleanupEntry(SelfTestContext ctx)
     {
         await ReviewPageAsync(ctx);
         var shell = ctx.Services.Shell;
         const string reason = "Cleanup works only on a detected card. A browsed folder could be a backup copy.";
         var button = VisualTree.FindDescendant<Button>(ctx.Window.Shell!, b => b.Name == "CleanUpButton");
+        var text = VisualTree.FindDescendant<TextBlock>(ctx.Window.Shell!, t => t.Name == "CleanupReasonText");
         bool ok = !shell.CleanupEnabled && shell.CleanupTooltip == reason && button is { IsEnabled: false }
-                  && (ToolTipService.GetToolTip(button) as string) == reason;
-        return ok ? SelfTestCheck.Pass("cleanup.entry", "title-bar [Clean up card…] disabled: " + reason)
-                  : SelfTestCheck.Fail("cleanup.entry", $"enabled {shell.CleanupEnabled}, tooltip '{shell.CleanupTooltip}', button enabled {button?.IsEnabled}");
+                  && (ToolTipService.GetToolTip(button) as string) == reason
+                  && shell.CleanupUnavailableText == reason && text is { Visibility: Microsoft.UI.Xaml.Visibility.Visible } && text.Text == reason;
+        return ok ? SelfTestCheck.Pass("cleanup.entry", "title-bar [Clean up card…] disabled, reason shown: " + reason)
+                  : SelfTestCheck.Fail("cleanup.entry", $"enabled {shell.CleanupEnabled}, tooltip '{shell.CleanupTooltip}', button enabled {button?.IsEnabled}, "
+                                                        + $"visible text '{text?.Text}' ({text?.Visibility})");
     }
 
     private static async Task<SelfTestCheck> DeviceHook(SelfTestContext ctx)

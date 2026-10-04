@@ -143,6 +143,11 @@
             <Button Content="Open report" Command="{x:Bind Vm.OpenReportCommand}" />
             <!-- the read-only plan; its footer's [Back to verdict] (ReviewVm.ShowVerdictCommand) returns to this same verdict -->
             <Button Grid.Column="1" Content="Show plan" Command="{x:Bind Vm.ShowPlanCommand}" />
+            <!-- Why [Clean up card…] is disabled, as visible text: a disabled button shows no tooltip (Task U4) -->
+            <TextBlock x:Name="VerdictCleanupReasonText" x:FieldModifier="internal" Grid.Column="2" Text="{x:Bind Vm.CleanupUnavailableText, Mode=OneWay}"
+                       Style="{StaticResource CaptionText}" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right"
+                       TextWrapping="Wrap" MaxLines="2" ToolTipService.ToolTip="{x:Bind Vm.CleanupUnavailableText, Mode=OneWay}"
+                       Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.CleanupUnavailableText), Mode=OneWay}" />
             <Button x:Name="VerdictCleanUpButton" Grid.Column="3" Content="Clean up card…" Command="{x:Bind Vm.CleanupCommand}"
                     IsEnabled="{x:Bind Vm.CanCleanup, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind Vm.CleanupTooltip, Mode=OneWay}" />
             <Button Grid.Column="4" Content="Done" Style="{StaticResource AccentButtonStyle}" Command="{x:Bind Vm.DoneCommand}" />

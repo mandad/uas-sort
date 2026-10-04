@@ -38,6 +38,8 @@ public class CleanupVolumeCheckTests
     {
         { "fixed USB exFAT volume holding a card copy", V(bus: "Usb", removable: false), Card(), S() },
         { "NVMe bus", V(bus: "Nvme", removable: false), Card(), S() },
+        { "fixed SATA disk", V(bus: "Sata", removable: false), Card(), S() },
+        { "fixed disk behind a SCSI or PCIe bridge", V(bus: "Scsi", removable: false), Card(), S() },
         { "a non-root folder", V(root: @"E:\backup\card\"), Card(@"E:\backup\card\"), S() },
         { "listing not taken at the volume root", V(), Card(@"E:\backup\card\"), S() },
         { "NTFS", V(fs: "NTFS"), Card(), S() },
@@ -87,6 +89,57 @@ public class CleanupVolumeCheckTests
         fs.AddFile(@"E:\DCIM\DJI_001\DJI_20260927140627_0128_D.MP4", 10, T);
         Assert.Equal(CleanupVolumeCheck.NotACard, CleanupVolumeCheck.Refusal(V(), CleanupVolumeCheck.CardListing(fs, @"E:\"), S(), AppData));
     }
+
+    // Task U4 (user decision 2026-10-04): rule 4 accepts removable media on any bus (a PCIe card reader reports Scsi or Unknown);
+    // Sd and Mmc pass regardless of the flag; fixed media (removable false) on any other bus stays refused.
+    [Theory]
+    [InlineData("Sd", true)]
+    [InlineData("Sd", false)]
+    [InlineData("Mmc", true)]
+    [InlineData("Mmc", false)]
+    [InlineData("Usb", true)]
+    [InlineData("Scsi", true)]
+    [InlineData("Unknown", true)]
+    [InlineData("Sata", true)]
+    public void Bus_rule_accepts_removable_media_on_any_bus(string bus, bool removable)
+        => Assert.Equal((null, null), CleanupVolumeCheck.Evaluate(V(bus: bus, removable: removable), Card(), S(), AppData));
+
+    [Theory]
+    [InlineData("Usb", "rule 4: bus Usb, removable media false")]
+    [InlineData("Scsi", "rule 4: bus Scsi, removable media false")]
+    [InlineData("Unknown", "rule 4: bus Unknown, removable media false")]
+    [InlineData("Sata", "rule 4: bus Sata, removable media false")]
+    [InlineData("Nvme", "rule 4: bus Nvme, removable media false")]
+    public void Bus_rule_refuses_fixed_media_with_a_rule_4_detail(string bus, string detail)
+        => Assert.Equal((CleanupVolumeCheck.NotACard, detail),
+                        CleanupVolumeCheck.Evaluate(V(bus: bus, removable: false), Card(), S(), AppData));
+
+    public static TheoryData<string, VolumeInfo, ListingResult, Settings, string, string> Details() => new()
+    {
+        { "read-only", V(readOnly: true), Card(), S(), CleanupVolumeCheck.WriteProtected, "the volume is read-only" },
+        { "non-root", V(root: @"E:\backup\card\"), Card(@"E:\backup\card\"), S(), CleanupVolumeCheck.NotACard,
+          @"rule 2: E:\backup\card\ is not a drive root" },
+        { "listing elsewhere", V(), Card(@"E:\backup\card\"), S(), CleanupVolumeCheck.NotACard,
+          @"rule 2: the card was listed at E:\backup\card\, not at E:\" },
+        { "NTFS", V(fs: "NTFS"), Card(), S(), CleanupVolumeCheck.NotACard, "rule 3: file system NTFS" },
+        { "system", V(system: true), Card(), S(), CleanupVolumeCheck.NotACard, "rule 5: the system, boot or paging volume" },
+        { "photo root", V(), Card(), S(photo: @"E:\Photos"), CleanupVolumeCheck.NotACard, @"rule 5: E:\Photos lies on this volume" },
+        { "no index", V(), Card(misc: false), S(), CleanupVolumeCheck.NotACard, @"rule 6: no MISC\FC*.db or MISC\IDX" },
+    };
+
+    [Theory]
+    [MemberData(nameof(Details))]
+    public void Evaluate_names_the_failing_rule_and_its_facts(string why, VolumeInfo v, ListingResult card, Settings s, string refusal, string detail)
+    {
+        Assert.NotNull(why);
+        Assert.Equal((refusal, detail), CleanupVolumeCheck.Evaluate(v, card, s, AppData));
+        Assert.Equal(refusal, CleanupVolumeCheck.Refusal(v, card, s, AppData));       // Refusal is Evaluate's first half
+    }
+
+    [Fact]
+    public void AppData_on_the_volume_names_rule_5()
+        => Assert.Equal((CleanupVolumeCheck.NotACard, @"rule 5: E:\AppData\uas-sort lies on this volume"),
+                        CleanupVolumeCheck.Evaluate(V(), Card(), S(), @"E:\AppData\uas-sort"));
 
     [Fact] // F7: a MISC\IDX folder is the other drone index
     public void CardListing_WithMiscIdxFolder_Passes()

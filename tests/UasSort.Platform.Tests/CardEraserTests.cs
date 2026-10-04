@@ -10,7 +10,8 @@ public sealed class CardEraserTests
     private const string ReadOnlyDng = @"DCIM\DJI_001\DJI_20260725233000_0116_D.DNG";
     private const string Set = @"DCIM\PANORAMA\001_0087";
 
-    public enum Fault { None, NotVolumeRoot, NoFacts, Ntfs, OtherIdentity, ReadOnlyVolume, FixedUsb, Nvme, SystemVolume, RootOnVolume, NoMisc }
+    public enum Fault { None, NotVolumeRoot, NoFacts, Ntfs, OtherIdentity, ReadOnlyVolume, FixedUsb, Nvme, SystemVolume, RootOnVolume, NoMisc,
+                        PcieReaderScsi, PcieReaderUnknown, FixedScsi }
 
     private sealed class FakeVolumeFacts(string cardRoot, Fault fault, string videoRoot) : IVolumeFacts
     {
@@ -32,6 +33,9 @@ public sealed class CardEraserTests
             Fault.ReadOnlyVolume => new(Card, true, "Sd", true, false),
             Fault.FixedUsb => new(Card, false, "Usb", false, false),
             Fault.Nvme => new(Card, false, "Nvme", false, false),
+            Fault.PcieReaderScsi => new(Card, false, "Scsi", true, false),       // a Realtek RTS5208 PCIe SD slot (Task U4)
+            Fault.PcieReaderUnknown => new(Card, false, "Unknown", true, false),
+            Fault.FixedScsi => new(Card, false, "Scsi", false, false),
             Fault.SystemVolume => new(Card, false, "Sd", true, true),
             _ => new(Card, false, "Sd", true, false),
         };
@@ -130,6 +134,7 @@ public sealed class CardEraserTests
     [InlineData(Fault.ReadOnlyVolume)]
     [InlineData(Fault.FixedUsb)]
     [InlineData(Fault.Nvme)]
+    [InlineData(Fault.FixedScsi)]
     [InlineData(Fault.SystemVolume)]
     [InlineData(Fault.RootOnVolume)]
     [InlineData(Fault.NoMisc)]
@@ -158,6 +163,47 @@ public sealed class CardEraserTests
         var production = new WindowsCardEraserFactory(env.Settings, env.AppData, TestEnv.Machine, env.Facts, new WindowsDirectoryLister());
         var ex = Assert.Throws<UnsafeIoException>(() => production.Open(Source(env), Card, Plan(env, [Mp4], [])));
         Assert.Contains("volume root", ex.Message, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Join(env.CardRoot, Mp4)));
+    }
+
+    // Task U4 (user decision 2026-10-04): the bus check passes for removable media on any bus, or for an Sd/Mmc bus;
+    // fixed media (RemovableMedia false) on any other bus is refused, naming rule 4 and the facts.
+    [Theory]
+    [InlineData("Sd", true, null)]
+    [InlineData("Sd", false, null)]
+    [InlineData("Mmc", true, null)]
+    [InlineData("Mmc", false, null)]
+    [InlineData("Usb", true, null)]
+    [InlineData("Scsi", true, null)]
+    [InlineData("Unknown", true, null)]
+    [InlineData("Sata", true, null)]
+    [InlineData("Usb", false, "rule 4: bus Usb, removable media false: fixed media, not a card")]
+    [InlineData("Scsi", false, "rule 4: bus Scsi, removable media false: fixed media, not a card")]
+    [InlineData("Unknown", false, "rule 4: bus Unknown, removable media false: fixed media, not a card")]
+    [InlineData("Sata", false, "rule 4: bus Sata, removable media false: fixed media, not a card")]
+    [InlineData("Nvme", false, "rule 4: bus Nvme, removable media false: fixed media, not a card")]
+    public void BusRefusal_AcceptsRemovableMediaOnAnyBus_RefusesFixedMedia(string bus, bool removable, string? expected)
+        => Assert.Equal(expected, WindowsCardEraserFactory.BusRefusal(bus, removable));
+
+    [Theory]
+    [InlineData(Fault.PcieReaderScsi)]
+    [InlineData(Fault.PcieReaderUnknown)]
+    public void Factory_OpensACardInAPcieReader(Fault fault)
+    {
+        using var env = new TestEnv();
+        MakeCard(env);
+        using var eraser = Factory(env, fault).Open(Source(env), Card, Plan(env, [Mp4], []));
+        Assert.True(eraser.DeleteFile(Mp4) is EraseOk);
+        Assert.False(File.Exists(Path.Join(env.CardRoot, Mp4)));
+    }
+
+    [Fact]
+    public void Factory_RefusesFixedMedia_NamingRule4()
+    {
+        using var env = new TestEnv();
+        MakeCard(env);
+        var ex = Assert.Throws<UnsafeIoException>(() => Factory(env, Fault.FixedUsb).Open(Source(env), Card, Plan(env, [Mp4], [])));
+        Assert.Equal("Card cleanup refused: rule 4: bus Usb, removable media false: fixed media, not a card", ex.Message);
         Assert.True(File.Exists(Path.Join(env.CardRoot, Mp4)));
     }
 }

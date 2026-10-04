@@ -1,10 +1,12 @@
 // src/UasSort.Review/Services/ReviewServices.cs
 namespace UasSort.Review;
 
-/// <summary>Log sink for things the VMs report but never throw (unknown map messages, ignored plans).</summary>
+/// <summary>Log sink for things the VMs report but never throw (unknown map messages, ignored plans), and facts worth keeping for a
+/// later "why" (Info: why [Clean up card…] is unavailable, Task U4).</summary>
 public interface IReviewLog
 {
     void Warn(string message);
+    void Info(string message);
 }
 
 /// <summary>Free-space readout for the footer, Setup and Settings (Part 11 binds it to IFileOps.FreeBytes).</summary>

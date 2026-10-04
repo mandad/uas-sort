@@ -266,6 +266,22 @@ public class VerdictVmTests
         Assert.True(vm.CleanupCommand.CanExecute(null));
     }
 
+    [Fact] // Task U4: a disabled control shows no tooltip, so the reason is also visible text next to the button
+    public void Verdict_CleanupUnavailableText_ShownWhileDisabled_NullWhenEnabled()
+    {
+        var vm = new Rig().Vm();
+        const string text = "This doesn't look like a drone card (rule 4: bus Usb, removable media false)";
+
+        vm.SetCleanupAvailability(false, CleanupVolumeCheck.NotACard, text);
+        Assert.Equal((false, CleanupVolumeCheck.NotACard, text), (vm.CanCleanup, vm.CleanupTooltip, vm.CleanupUnavailableText));
+
+        vm.SetCleanupAvailability(true, null, null);
+        Assert.Equal((true, null, null), (vm.CanCleanup, vm.CleanupTooltip, vm.CleanupUnavailableText));
+
+        vm.SetCleanupAvailability(false, "Rescan first");                 // no separate text: the tooltip is the visible reason
+        Assert.Equal("Rescan first", vm.CleanupUnavailableText);
+    }
+
     [Fact]
     public void Verdict_ChangedSinceScanPhoto_CannotBeSelected_AndSaysRescanFirst()
     {

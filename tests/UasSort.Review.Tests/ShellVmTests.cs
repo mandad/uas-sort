@@ -49,6 +49,9 @@ public class ShellVmTests
         public FakeDialogService Dialogs { get; } = new();
         public IDraftStore CommitDrafts { get; set; } = new FakeDraftStore();
         public List<(CleanupOrigin Origin, OffloadResult? Offload)> CleanupOpens { get; } = [];
+        /// <summary>ShellDeps.VolumeRefusal: the cleanup volume check's refusal and detail (default: the volume passes).</summary>
+        public Func<CardSource, (string? Refusal, string? Detail)> Refusal { get; set; } = _ => default;
+        public ListLog Log { get; } = new();
 
         public ShellVm Shell(bool rootsConfirmed = true)
         {
@@ -84,8 +87,8 @@ public class ShellVmTests
                                         new FakeTimeProvider(), Ui, () => TestPlans.Ledger(), r => @"C:\AppData\backup"),
                 r => verdict,
                 _ => true,
-                _ => null,
-                Saved.Add));
+                s => Refusal(s),
+                Saved.Add) { Log = Log });
             shell.Faulted += Faults.Add;
             return shell;
         }
@@ -187,6 +190,52 @@ public class ShellVmTests
 
         Assert.Equal((false, "The card is write-protected (lock switch)"), (shell.CleanupEnabled, shell.CleanupTooltip));
         Assert.False(shell.CleanupCommand.CanExecute(null));
+    }
+
+    [Fact] // Task U4: a refused volume shows the failing rule as visible text (a disabled button shows no tooltip)
+    public async Task Shell_RefusedVolume_ShowsTheRuleAsVisibleText_NullOnceEnabled()
+    {
+        var rig = new Rig { Refusal = _ => (CleanupVolumeCheck.NotACard, "rule 4: bus Usb, removable media false") };
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+
+        const string text = "This doesn't look like a drone card (rule 4: bus Usb, removable media false)";
+        Assert.Equal((false, CleanupVolumeCheck.NotACard, text), (shell.CleanupEnabled, shell.CleanupTooltip, shell.CleanupUnavailableText));
+
+        shell.BeginOffload();
+        Assert.Equal("Wait until the offload finishes", shell.CleanupUnavailableText);
+        await shell.StartCopyAsync();
+        Assert.Equal(Stage.Verdict, shell.Stage);
+        Assert.Equal((false, CleanupVolumeCheck.NotACard, text),
+                     (shell.Verdict!.CanCleanup, shell.Verdict.CleanupTooltip, shell.Verdict.CleanupUnavailableText));
+
+        rig.Refusal = _ => default;
+        shell.DeviceChanged();
+        Assert.Equal((true, null, null), (shell.CleanupEnabled, shell.CleanupTooltip, shell.CleanupUnavailableText));
+        Assert.Equal((true, null), (shell.Verdict.CanCleanup, shell.Verdict.CleanupUnavailableText));
+    }
+
+    [Fact] // Task U4: the availability is logged (Info) once per change for a card source, not on every flag update
+    public async Task Shell_CleanupAvailability_IsLoggedOncePerChange()
+    {
+        var rig = new Rig { Refusal = _ => (CleanupVolumeCheck.NotACard, "rule 4: bus Scsi, removable media false") };
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        var root = shell.Source!.Root;
+
+        shell.DeviceChanged();
+        shell.DeviceChanged();
+        rig.Refusal = _ => default;
+        shell.DeviceChanged();
+        shell.DeviceChanged();
+
+        Assert.Equal([$"Card cleanup on {root} unavailable: Wait until the scan finishes",
+                      $"Card cleanup on {root} unavailable: This doesn't look like a drone card (rule 4: bus Scsi, removable media false)",
+                      $"Card cleanup on {root} available"],
+                     rig.Log.Infos);
+        Assert.Empty(rig.Log.Warnings);
     }
 
     [Fact]

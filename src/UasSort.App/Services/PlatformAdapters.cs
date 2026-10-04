@@ -17,6 +17,7 @@ public sealed class VolumeFreeSpace(IVolumeProvider volumes) : IFreeSpace
 public sealed class FileReviewLog(FileLog log) : IReviewLog
 {
     public void Warn(string message) => log.Warn(message);
+    public void Info(string message) => log.Info(message);
 }
 
 /// <summary>The selftest's Card stage volume list: always empty (Ref §13 Isolation).</summary>
