@@ -71,7 +71,11 @@ public static class PhotoCleanupVerifier
             : 0;
         var loose = lr.Where(p => p.Stamp.SameShot(stamp) && !known.Exists(r => r.BothHaveSubSec(p.Stamp) && r.SameShot(p.Stamp))).ToList();
         if (loose.Count == 0)
-            return (false, lr.Count == 0 ? "not found in Lightroom" : "not found in Lightroom (another shot in the same second is)");
+        {
+            // Branch-2 ruling: when part of the library couldn't be read, the shot may be in that part.
+            var notFound = ctx.Index.Incomplete ? "not found in the part of the Lightroom library that could be read" : "not found in Lightroom";
+            return (false, lr.Count == 0 ? notFound : notFound + " (another shot in the same second is)");
+        }
         if (unknown > 0)
             return (false, $"{known.Count + unknown} shots in the same second, {unknown} of them couldn't be read — can't tell which");
         var peers = Math.Max(1, known.Count(r => !lr.Exists(p => p.Stamp.BothHaveSubSec(r) && p.Stamp.SameShot(r))));

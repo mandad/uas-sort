@@ -10,7 +10,11 @@ public sealed record PhotoCleanupReportLine(string Item, string Kind /* photo|pa
 public sealed record PhotoCleanupReport(int V, string RunId, string PhotoRoot, PhotoCleanupMode Mode, DateOnly Cutoff, string? LightroomFolder,
                                         ImmutableArray<PhotoCleanupReportLine> Items, ImmutableArray<string> NotEligible,
                                         ImmutableArray<string> NotTouched, PhotoCleanupStop? Stop, ImmutableArray<string> Unrecorded,
-                                        DateTime StartUtc, DateTime EndUtc);
+                                        DateTime StartUtc, DateTime EndUtc)
+{
+    /// <summary>Verify mode: what the Lightroom walk read and couldn't read (branch-2 ruling); null in date mode.</summary>
+    public LightroomIndexSummary? Lightroom { get; init; }
+}
 
 public static class PhotoCleanupReports
 {
@@ -41,7 +45,10 @@ public static class PhotoCleanupReports
         }
         return new PhotoCleanupReport(1, result.RunId, plan.PhotoRoot, plan.Request.Mode, plan.Request.Cutoff, plan.Request.LightroomFolder,
             [.. lines], [.. plan.NotEligible.Select(r => $"{r.Key}: {r.Why}")], plan.NotTouched, result.Stop, result.Unrecorded,
-            result.StartUtc, result.EndUtc);
+            result.StartUtc, result.EndUtc)
+        {
+            Lightroom = plan.Lightroom,
+        };
     }
 
     private static string KindText(PhotoItem item) => item.Kind == PhotoItemKind.Photo ? "photo" : item.SetKind switch

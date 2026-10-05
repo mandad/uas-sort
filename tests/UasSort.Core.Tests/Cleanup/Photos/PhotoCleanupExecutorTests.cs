@@ -261,5 +261,25 @@ public sealed class PhotoCleanupExecutorTests
         var json = JsonSerializer.Serialize(report, CoreJsonContext.Default.PhotoCleanupReport);
         Assert.Contains("\"mode\": \"Verify\"", json, StringComparison.Ordinal);
         Assert.Contains("\"outcome\": \"moved to the Recycle Bin\"", json, StringComparison.Ordinal);
+        Assert.Null(report.Lightroom);
+    }
+
+    [Fact] // branch-2 ruling: the report says what of the Lightroom library couldn't be read
+    public async Task Report_CarriesTheLightroomIndexSummary()
+    {
+        var rig = new Rig();
+        var a = rig.PhotoRow("A.DNG");
+        var summary = new LightroomIndexSummary(@"X:\Lightroom", 12, [new LightroomFolderError(@"X:\Lightroom\2026", 5)], [@"X:\Lightroom\b.dng"]);
+        var plan = Plan(PhotoCleanupMode.Verify, new DateOnly(2026, 6, 30), [a], lightroom: summary);
+        var result = await rig.Run(plan.Confirm(new PhotoCleanupAck(plan.Fingerprint, [a.Key], true, false), rig.Clock));
+
+        var report = PhotoCleanupReports.Build(result);
+
+        Assert.Same(summary, report.Lightroom);
+        var json = JsonSerializer.Serialize(report, CoreJsonContext.Default.PhotoCleanupReport);
+        Assert.Contains("\"indexed\": 12", json, StringComparison.Ordinal);
+        Assert.Contains("\"win32Error\": 5", json, StringComparison.Ordinal);
+        Assert.Contains("\"unreadableFiles\": [", json, StringComparison.Ordinal);
+        Assert.Contains("\"problem\": \"Part of the Lightroom library couldn", json, StringComparison.Ordinal);
     }
 }

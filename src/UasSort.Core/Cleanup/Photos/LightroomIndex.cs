@@ -10,6 +10,40 @@ public sealed record LightroomPhoto(string FullPath, ExifStamp Stamp)
     public bool IsDng => PhotoCleanupRules.IsDng(FullPath);
 }
 
+/// <summary>A library folder the walk couldn't list (Win32 error; <see cref="LightroomIndex.TooDeepError"/> past the depth limit,
+/// <see cref="LightroomIndex.ProtectedFolderError"/> for a library folder inside a protected root).</summary>
+public sealed record LightroomFolderError(string Path, int Win32Error);
+
+/// <summary>What the Lightroom walk read and couldn't read (branch-2 ruling): carried by the plan, shown on the Review page and written to
+/// the report, so a library that couldn't be read never looks like "not found in Lightroom".</summary>
+public sealed record LightroomIndexSummary(string Folder, int Indexed, ImmutableArray<LightroomFolderError> FolderErrors,
+                                           ImmutableArray<string> UnreadableFiles)
+{
+    /// <summary>Null when everything could be read; otherwise one sentence for the Review page and the report.</summary>
+    public string? Problem
+    {
+        get
+        {
+            if (FolderErrors.IsDefaultOrEmpty && UnreadableFiles.IsDefaultOrEmpty) return null;
+            var inv = CultureInfo.InvariantCulture;
+            var parts = new List<string>();
+            if (!FolderErrors.IsDefaultOrEmpty)
+            {
+                var first = FolderErrors[0];
+                var more = FolderErrors.Length > 1 ? string.Create(inv, $", and {FolderErrors.Length - 1} more") : "";
+                parts.Add(string.Create(inv, $"{Count(FolderErrors.Length, "library folder couldn't", "library folders couldn't")} be listed ")
+                          + string.Create(inv, $"({first.Path}: Win32 error {first.Win32Error}{more})"));
+            }
+            if (!UnreadableFiles.IsDefaultOrEmpty)
+                parts.Add($"{Count(UnreadableFiles.Length, "library file couldn't", "library files couldn't")} be read (cloud-only or corrupt)");
+            return $"Part of the Lightroom library couldn't be read: {string.Join("; ", parts)}. "
+                   + "Rows may show “not found” although the photo is in Lightroom.";
+        }
+    }
+
+    private static string Count(int n, string one, string many) => n == 1 ? "1 " + one : string.Create(CultureInfo.InvariantCulture, $"{n} {many}");
+}
+
 /// <summary>The Lightroom library folder, read-only (spec 2026-10-04 §4): its DNG files (and JPGs, for stitched panoramas only) shot within
 /// the range ± 1 day, by (DateTimeOriginal second, Model). Walks folder by folder so the catalog (LightroomRules) is never listed into or
 /// opened, dated folders outside the range are not entered, files written before the range are not opened, and a cloud-only file is never
@@ -27,6 +61,10 @@ public sealed class LightroomIndex
     /// <summary>The listing error recorded for a folder below <see cref="MaxDepth"/>: ERROR_CANT_RESOLVE_FILENAME, what Windows reports
     /// for a link loop.</summary>
     public const int TooDeepError = 1921;
+
+    /// <summary>The listing error recorded when the library folder itself is (under) a protected root, so it is never read: ERROR_ACCESS_DENIED
+    /// (branch-2 ruling: an Errors entry, never a silent empty index).</summary>
+    public const int ProtectedFolderError = 5;
 
     private const uint ReparsePoint = 0x400;   // FILE_ATTRIBUTE_REPARSE_POINT
     private static readonly IReadOnlySet<string> NoExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -53,12 +91,20 @@ public sealed class LightroomIndex
     public static LightroomIndex Empty(string folder)
         => new(PathRules.Normalize(folder), new Dictionary<(DateTime Second, string Model), List<LightroomPhoto>>(), 0, [], []);
 
-    internal static LightroomIndex From(string folder, IEnumerable<LightroomPhoto> photos)
+    internal static LightroomIndex From(string folder, IEnumerable<LightroomPhoto> photos, IEnumerable<(string Path, int Win32Error)>? errors = null,
+                                        IEnumerable<string>? unreadable = null)
     {
         var map = new Dictionary<(DateTime Second, string Model), List<LightroomPhoto>>();
         foreach (var p in photos) Add(map, p);
-        return new LightroomIndex(PathRules.Normalize(folder), map, 0, [], []);
+        return new LightroomIndex(PathRules.Normalize(folder), map, 0, [.. errors ?? []], [.. unreadable ?? []]);
     }
+
+    /// <summary>Some of the library couldn't be read: a listing failed (or was refused or too deep), or a file couldn't be read. A shot that
+    /// is "not found" may then be in the part that wasn't read.</summary>
+    public bool Incomplete => !Errors.IsEmpty || !Unreadable.IsEmpty;
+
+    public LightroomIndexSummary Summary()
+        => new(Folder, Count, [.. Errors.Select(e => new LightroomFolderError(e.Path, e.Win32Error))], Unreadable);
 
     public IReadOnlyList<LightroomPhoto> SameSecond(ExifStamp stamp)
     {
@@ -82,7 +128,8 @@ public sealed class LightroomIndex
         var candidates = new List<FsEntry>();
         var dirs = new Queue<(string Path, int Depth)>();
         var root = PathRules.Normalize(folder);
-        if (!Protected(root)) dirs.Enqueue((root, 0));
+        if (Protected(root)) errors.Add((root, ProtectedFolderError));
+        else dirs.Enqueue((root, 0));
         while (dirs.TryDequeue(out var dir))
         {
             ct.ThrowIfCancellationRequested();

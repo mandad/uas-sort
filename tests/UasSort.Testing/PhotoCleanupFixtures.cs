@@ -27,9 +27,10 @@ public static class PhotoCleanupFixtures
                null);
 
     public static PhotoCleanupPlan Plan(PhotoCleanupMode mode, DateOnly cutoff, IEnumerable<PhotoRow> rows, string photoRoot = PhotoRoot,
-                                        IEnumerable<PhotoRow>? notEligible = null, IEnumerable<string>? notTouched = null)
+                                        IEnumerable<PhotoRow>? notEligible = null, IEnumerable<string>? notTouched = null,
+                                        LightroomIndexSummary? lightroom = null)
         => new("fixture-photos", photoRoot, new PhotoCleanupRequest(mode, cutoff, mode == PhotoCleanupMode.Verify ? @"X:\Lightroom" : null),
-               [.. rows], [.. notEligible ?? []], [.. notTouched ?? []]);
+               [.. rows], [.. notEligible ?? []], [.. notTouched ?? []]) { Lightroom = lightroom };
 
     /// <summary>Every row set to Delete and confirmed through PhotoCleanupPlan.Confirm (both acknowledgements as needed).</summary>
     public static ConfirmedPhotoCleanupPlan Confirmed(TimeProvider clock, PhotoCleanupMode mode, IEnumerable<PhotoRow> rows, string photoRoot = PhotoRoot)

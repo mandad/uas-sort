@@ -25,6 +25,9 @@ public sealed class PhotoCleanupPlan
     public ImmutableArray<string> NotTouched { get; }           // other files and folders in the photo root
     public string Fingerprint { get; }
 
+    /// <summary>Verify mode: what the Lightroom walk read and couldn't read (branch-2 ruling); null in date mode.</summary>
+    public LightroomIndexSummary? Lightroom { get; init; }
+
     /// <summary>Date mode: every row starts Delete. Verify mode: verified rows start Delete, unverified rows Keep.</summary>
     public ImmutableHashSet<string> DefaultDelete()
         => Rows.Where(r => Request.Mode == PhotoCleanupMode.BeforeDate || r.Verification.Verified)

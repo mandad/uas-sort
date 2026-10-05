@@ -44,6 +44,8 @@
                 <!-- ── Review ── -->
                 <StackPanel x:Name="ReviewPanel" Spacing="6" Visibility="Collapsed">
                     <TextBlock Text="{x:Bind Vm.ModeText, Mode=OneWay}" TextWrapping="Wrap" />
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{x:Bind Vm.LightroomProblemText, Mode=OneWay}"
+                             Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.LightroomProblemText), Mode=OneWay}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{x:Bind Vm.TotalsText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
                         <Button Content="Delete all" Command="{x:Bind Vm.DeleteAllCommand}" />
@@ -98,6 +100,8 @@
                 <StackPanel x:Name="ConfirmPanel" Spacing="8" Visibility="Collapsed">
                     <TextBlock Text="{x:Bind Vm.TotalsText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <TextBlock Text="{x:Bind Vm.ModeText, Mode=OneWay}" TextWrapping="Wrap" />
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{x:Bind Vm.LightroomProblemText, Mode=OneWay}"
+                             Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.LightroomProblemText), Mode=OneWay}" />
                     <CheckBox IsChecked="{x:Bind Vm.AckMove, Mode=TwoWay}">
                         <TextBlock Text="{x:Bind Vm.AckMoveText, Mode=OneWay}" TextWrapping="Wrap" />
                     </CheckBox>

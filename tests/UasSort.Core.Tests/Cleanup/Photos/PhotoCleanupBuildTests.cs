@@ -117,6 +117,19 @@ public sealed class PhotoCleanupBuildTests
                      (plan.Rows.Single(r => r.Key == "C.DNG").Verification.Verified, plan.Rows.Single(r => r.Key == "C.DNG").Verification.Text));
     }
 
+    [Fact] // branch-2 ruling: the plan carries what the Lightroom walk couldn't read; date mode has no index
+    public void Build_VerifyMode_ThePlanCarriesTheLightroomIndexSummary()
+    {
+        var stamp = new ExifStamp(new DateTime(2026, 6, 1, 12, 10, 0), null, "FC9113");
+        var index = LightroomIndex.From(@"X:\Lightroom", [new LightroomPhoto(@"X:\Lightroom\a.dng", stamp)],
+                                        errors: [(@"X:\Lightroom\2026", 5)], unreadable: [@"X:\Lightroom\b.dng"]);
+        var lr = Build(Survey(Photo("A.DNG", Jun1, stamp: stamp)), PhotoCleanupMode.Verify, index).Lightroom!;
+        Assert.Equal((@"X:\Lightroom", 1), (lr.Folder, lr.Indexed));
+        Assert.Equal([new LightroomFolderError(@"X:\Lightroom\2026", 5)], lr.FolderErrors);
+        Assert.Equal([@"X:\Lightroom\b.dng"], lr.UnreadableFiles);
+        Assert.Null(Build(Survey(Photo("A.DNG", Jun1))).Lightroom);
+    }
+
     [Fact]
     public void VerifyRange_IsTheFirstEligibleDateThroughTheCutoff()
     {

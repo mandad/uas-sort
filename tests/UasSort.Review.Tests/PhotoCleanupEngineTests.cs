@@ -56,6 +56,22 @@ public sealed class PhotoCleanupEngineTests
         Assert.Equal((false, "not found in Lightroom"), (plan.Rows[0].Verification.Verified, plan.Rows[0].Verification.Text));
     }
 
+    [Fact] // branch-2 ruling: a Lightroom folder inside the photo root is reported as unread, never a silent "not found"
+    public async Task Engine_VerifyMode_ALightroomFolderInsideThePhotoRoot_IsReportedUnread()
+    {
+        var lr = PhotoRoot + @"\Lightroom";
+        var rig = new Rig(lr);
+        rig.Dng(PhotoRoot + @"\A.DNG", Shot);
+        var engine = rig.Engine();
+        var prep = await Prepare(engine);
+
+        var plan = await engine.Plan(prep.Survey!, new PhotoCleanupRequest(PhotoCleanupMode.Verify, new DateOnly(2026, 6, 30), lr),
+                                     new Progress<PhotoScanProgress>(), CancellationToken.None);
+
+        Assert.Equal([new LightroomFolderError(lr, LightroomIndex.ProtectedFolderError)], plan.Lightroom!.FolderErrors);
+        Assert.Equal("not found in the part of the Lightroom library that could be read", plan.Rows.Single().Verification.Text);
+    }
+
     private static Task<PhotoCleanupPreparation> Prepare(PhotoCleanupEngine e) => e.Prepare(new Progress<PhotoScanProgress>(), CancellationToken.None);
 
     [Fact]

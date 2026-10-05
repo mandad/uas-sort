@@ -17,6 +17,7 @@ public sealed class PhotoCleanupVmTests
         public PhotoCleanupPreparation Preparation { get; set; } =
             new(new PhotoSurvey(PhotoRoot, [], ["notes.txt"], TestPlans.Ledger()), null, null, @"X:\Lightroom");
         public List<PhotoRow> Rows { get; } = [];
+        public LightroomIndexSummary? Lightroom { get; set; }
         public List<PhotoCleanupRequest> Requests { get; } = [];
         public ConfirmedPhotoCleanupPlan? Confirmed { get; private set; }
         public PhotoCleanupReport? Report { get; private set; }
@@ -33,7 +34,7 @@ public sealed class PhotoCleanupVmTests
                 (survey, request, progress, ct) =>
                 {
                     Requests.Add(request);
-                    return Task.FromResult(Plan(request.Mode, request.Cutoff, Rows, notTouched: survey.NotTouched));
+                    return Task.FromResult(Plan(request.Mode, request.Cutoff, Rows, notTouched: survey.NotTouched, lightroom: Lightroom));
                 },
                 (confirmed, progress, ct) =>
                 {
@@ -108,6 +109,29 @@ public sealed class PhotoCleanupVmTests
         await vm.RunCommand.ExecuteAsync(null);
         Assert.True(rig.Confirmed!.Ack.UnverifiedIncluded);
         Assert.Equal(2, rig.Confirmed.Items.Length);
+    }
+
+    [Fact] // branch-2 ruling: what the Lightroom walk couldn't read is shown on the Review page, never swallowed
+    public async Task VerifyMode_APartlyReadLightroomLibrary_IsShownOnTheReviewPage()
+    {
+        var rig = new Rig
+        {
+            Lightroom = new LightroomIndexSummary(@"X:\Lightroom", 0, [new LightroomFolderError(@"X:\Lightroom", 5)], []),
+        };
+        rig.Rows.Add(Row(Photo("A.DNG", Jun1), verified: false));
+        using var vm = rig.Vm();
+        await vm.OpenAsync();
+        Assert.Null(vm.LightroomProblemText);
+        vm.Verify = true;
+        vm.PickDate(new DateTimeOffset(2026, 6, 30, 0, 0, 0, TimeSpan.Zero));
+        await vm.NextCommand.ExecuteAsync(null);
+
+        Assert.Equal(rig.Lightroom.Problem, vm.LightroomProblemText);
+        Assert.StartsWith("Part of the Lightroom library couldn't be read: 1 library folder couldn't be listed", vm.LightroomProblemText, StringComparison.Ordinal);
+        vm.BackCommand.Execute(null);
+        rig.Lightroom = null;
+        await vm.NextCommand.ExecuteAsync(null);
+        Assert.Null(vm.LightroomProblemText);
     }
 
     [Fact]

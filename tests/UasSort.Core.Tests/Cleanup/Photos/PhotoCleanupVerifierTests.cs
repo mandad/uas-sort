@@ -54,6 +54,22 @@ public sealed class PhotoCleanupVerifierTests
                      Verify(a, [a], null, L("x.jpg", St(sub: "045")), L("x.dng", St(sub: "045"))));        // a DNG and its export: the DNG
     }
 
+    [Fact] // branch-2 ruling: when part of the library couldn't be read, "not found" says so
+    public void Verify_WhenPartOfTheLibraryCouldntBeRead_NotFoundSaysWhichPartWasSearched()
+    {
+        var a = P("A.DNG", St(sub: "100"));
+        var b = P("B.DNG", St(sub: "600"));
+        PhotoVerification Check(PhotoItem item, LightroomIndex index)
+            => PhotoCleanupVerifier.Verify(item, PhotoCleanupVerifier.ContextFor([a, b], index, TestLedger.Empty()));
+        var listingFailed = LightroomIndex.From(Lr, [L("a.dng", St(sub: "100"))], errors: [(Lr + @"\2026", 5)]);
+        Assert.Equal("not found in the part of the Lightroom library that could be read (another shot in the same second is)",
+                     Check(b, listingFailed).Text);
+        var unreadable = LightroomIndex.From(Lr, [], unreadable: [Lr + @"\x.dng"]);
+        Assert.Equal("not found in the part of the Lightroom library that could be read", Check(a, unreadable).Text);
+        Assert.True(Check(a, listingFailed).Verified);
+        Assert.Equal("not found in Lightroom", Check(b, LightroomIndex.From(Lr, [])).Text);
+    }
+
     [Fact] // [Review Focus 1]
     public void Verify_ACloudOnlyPhoto_CantBeChecked()
     {

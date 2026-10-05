@@ -50,6 +50,7 @@ public sealed partial class PhotoCleanupVm : ObservableObject, IDisposable
     [ObservableProperty] public partial string? VerifyUnavailableText { get; private set; }
     [ObservableProperty] public partial PhotoCleanupPlan? Plan { get; private set; }
     [ObservableProperty] public partial string ModeText { get; private set; } = "";
+    [ObservableProperty] public partial string? LightroomProblemText { get; private set; }
     [ObservableProperty] public partial string TotalsText { get; private set; } = "";
     [ObservableProperty] public partial string? NotTouchedText { get; private set; }
     [ObservableProperty] public partial string? NotEligibleText { get; private set; }
@@ -245,6 +246,7 @@ public sealed partial class PhotoCleanupVm : ObservableObject, IDisposable
         if (Plan is not { } p)
         {
             ModeText = "";
+            LightroomProblemText = null;
             TotalsText = "";
             NotTouchedText = null;
             NotEligibleText = null;
@@ -258,6 +260,7 @@ public sealed partial class PhotoCleanupVm : ObservableObject, IDisposable
             ? "By date: rows are not checked against Lightroom."
             : string.Create(CultureInfo.InvariantCulture,
                 $"Checked against {p.Request.LightroomFolder}: {p.Rows.Count(r => r.Verification.Verified)} of {Fmt.Count(p.Rows.Length, "row", "rows")} confirmed.");
+        LightroomProblemText = p.Lightroom?.Problem;                                                     // branch-2 ruling: never swallowed
         TotalsText = $"{Fmt.Count(t.Photos, "photo", "photos")}, {Fmt.Count(t.Sets, "set", "sets")}, {Fmt.Size(t.Bytes)} to the Recycle Bin";
         NotTouchedText = p.NotTouched.IsEmpty ? null
             : $"Not touched: {Fmt.Count(p.NotTouched.Length, "other file or folder", "other files and folders")} in Picture Offload";

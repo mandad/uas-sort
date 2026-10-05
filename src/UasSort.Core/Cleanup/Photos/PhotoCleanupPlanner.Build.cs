@@ -60,7 +60,10 @@ public static partial class PhotoCleanupPlanner
                     break;
             }
         }
-        return new PhotoCleanupPlan(Guid.NewGuid().ToString("N"), survey.PhotoRoot, request, [.. Order(rows)], [.. Order(notEligible)], survey.NotTouched);
+        return new PhotoCleanupPlan(Guid.NewGuid().ToString("N"), survey.PhotoRoot, request, [.. Order(rows)], [.. Order(notEligible)], survey.NotTouched)
+        {
+            Lightroom = verify is null ? null : index!.Summary(),
+        };
     }
 
     internal static (PhotoEligibility Eligibility, string? Why) Eligibility(PhotoItem item, DateOnly cutoff)

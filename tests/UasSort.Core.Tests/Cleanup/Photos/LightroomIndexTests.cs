@@ -218,6 +218,49 @@ public sealed class LightroomIndexTests
         Assert.Equal([Lr + @"\2026\2026-06-01\Damian_20260601_002.dng"], index.Unreadable);
     }
 
+    [Fact] // branch-2 ruling: a library folder under a protected root is an Errors entry, never a silent empty index
+    public void Build_ALibraryFolderInsideAProtectedRoot_IsAnError_NotASilentEmptyIndex()
+    {
+        var rig = new Rig();
+        rig.Fs.AddFile(PhotoRoot + @"\Lightroom\x.dng", new SyntheticDngBuilder().WithDateTimeOriginal(Shot).Build(), ImportedAt);
+        var index = rig.Build(PhotoRoot + @"\Lightroom");
+        Assert.Equal((PhotoRoot + @"\Lightroom", LightroomIndex.ProtectedFolderError), Assert.Single(index.Errors));
+        Assert.Equal(0, index.Count);
+        Assert.Empty(rig.Lister.Listed);
+        Assert.Empty(rig.Reader.Opened);
+    }
+
+    [Fact] // branch-2 ruling: what the walk couldn't read travels with the plan, the Review page and the report
+    public void Summary_CarriesTheIndexedCountListingErrorsAndUnreadableFiles_WithAText()
+    {
+        var rig = new Rig();
+        rig.Dng(@"2026\2026-06-01\Damian_20260601_001.dng", Shot);
+        rig.Dng(@"2026\2026-06-02\Damian_20260602_001.dng", Shot.AddDays(1), attributes: FakeFileSystem.CloudOnlyPlaceholder);
+        rig.Fs.AddDirectory(Lr + @"\2026\2026-06-03");
+        rig.Fs.Faults.EnumerationErrors[Lr + @"\2026\2026-06-03"] = 5;
+
+        var summary = rig.Build().Summary();
+
+        Assert.Equal((Lr, 1), (summary.Folder, summary.Indexed));
+        Assert.Equal([new LightroomFolderError(Lr + @"\2026\2026-06-03", 5)], summary.FolderErrors);
+        Assert.Equal([Lr + @"\2026\2026-06-02\Damian_20260602_001.dng"], summary.UnreadableFiles);
+        Assert.Equal("Part of the Lightroom library couldn't be read: 1 library folder couldn't be listed (" + Lr + @"\2026\2026-06-03: Win32 error 5); "
+                     + "1 library file couldn't be read (cloud-only or corrupt). Rows may show “not found” although the photo is in Lightroom.",
+                     summary.Problem);
+        Assert.Null(LightroomIndex.From(Lr, []).Summary().Problem);
+    }
+
+    [Fact]
+    public void Summary_Text_CountsPlurals_AndNamesTheFirstFolderOnly()
+    {
+        var two = new LightroomIndexSummary(Lr, 0, [new LightroomFolderError(@"X:\Lightroom\a", 5), new LightroomFolderError(@"X:\Lightroom\b", 21)], []);
+        Assert.Equal(@"Part of the Lightroom library couldn't be read: 2 library folders couldn't be listed (X:\Lightroom\a: Win32 error 5, and 1 more). "
+                     + "Rows may show “not found” although the photo is in Lightroom.", two.Problem);
+        var files = new LightroomIndexSummary(Lr, 3, [], [@"X:\Lightroom\a.dng", @"X:\Lightroom\b.dng"]);
+        Assert.Equal("Part of the Lightroom library couldn't be read: 2 library files couldn't be read (cloud-only or corrupt). "
+                     + "Rows may show “not found” although the photo is in Lightroom.", files.Problem);
+    }
+
     [Fact]
     public void Build_ACancelDuringARead_StillCancels()
     {
