@@ -65,7 +65,7 @@ internal static partial class SelfTestChecks
     [
         () => new SetupPage(), () => new CardPage(), () => new ScanPage(), () => new SettingsPage(),
         () => new PreflightPage(), () => new CopyPage(), () => new VerdictPage(),
-        () => new CleanupPage(),
+        () => new CleanupPage(), () => new PhotoCleanupPage(),
     ];
 
     private static Task<SelfTestCheck> PagesConstruct(SelfTestContext ctx)

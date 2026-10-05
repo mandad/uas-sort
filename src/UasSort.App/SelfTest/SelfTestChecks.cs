@@ -45,6 +45,7 @@ internal static partial class SelfTestChecks
         ("cleanup.toggleResync", CleanupToggleResync),
         ("cleanup.entry", CleanupEntry),
         ("verdict.daySelection", VerdictDaySelection),
+        ("photoCleanup.flow", PhotoCleanupFlow),
         ("debug.hang", DebugHang),                                       // never in the default run
         ("debug.throw", DebugThrow),                                     // never in the default run
         ("debug.throwPosted", DebugThrowPosted),                         // never in the default run
