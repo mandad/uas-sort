@@ -43,11 +43,16 @@ public static class SettingsCodec
             : null;
         if (error is not null) return new SettingsParse(null, error);
 
-        return new SettingsParse(s with
+        var fixedUp = s with
         {
             PreviousPhotoRoots = s.PreviousPhotoRoots.IsDefault ? [] : s.PreviousPhotoRoots,
             Map = s.Map ?? SettingsDefaults.Map(),
             Layout = s.Layout ?? SettingsDefaults.Layout(),
-        }, null);
+        };
+        // Spec 2026-10-04 §2: an unusable Lightroom folder is dropped (verify mode is then simply unavailable), never fatal.
+        var lightroom = fixedUp.LightroomFolder is { } lr && LightroomRules.FolderRefusal(lr, fixedUp) is null
+            ? PathRules.Normalize(lr.Trim())
+            : null;
+        return new SettingsParse(fixedUp with { LightroomFolder = lightroom }, null);
     }
 }

@@ -3,7 +3,8 @@ namespace UasSort.Core;
 public sealed record Settings(int Schema, string VideoRoot, string PhotoRoot, ImmutableArray<string> PreviousPhotoRoots,
                               double RadiusMiles, int GapDays, StoredClockMode DroneClockMode /* last learned; default Zone */,
                               string DroneClockZone /* last learned zone; default America/New_York */, bool CopyJpgTwin,
-                              MapSettings Map, LayoutSettings Layout, bool RootsConfirmed);
+                              MapSettings Map, LayoutSettings Layout, bool RootsConfirmed,
+                              string? LightroomFolder = null /* Picture Offload cleanup's verify mode (spec 2026-10-04 §2); only ever read */);
                               // deliberately NO ledger-folder property: STJ would serialise a computed getter as "ledgerDir"
 
 public sealed record MapSettings(string Base /* streets|satellite|none */, string StreetsStyleUrl, string StreetsDarkStyleUrl,
