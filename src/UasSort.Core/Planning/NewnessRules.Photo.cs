@@ -27,6 +27,10 @@ public static partial class NewnessRules
             var by = recs.Any(r => r!.Verify == VerifyKind.NameSize) ? Evidence.LedgerNameSize : Evidence.LedgerVerified;
             return new Imported(by, null, $"copied on {PlanText.ShortDate(DateOnly.FromDateTime(recs.Max(r => r!.AtUtc)))}");
         }
+        // 1 (Picture Offload cleanup, spec 2026-10-04 §6): an unrevoked photoDelete counts like a file record, member by member
+        var removed = keys.Select(k => ledger.PhotoDeletes.TryGetValue(k, out var pd) && InSet(pd.Set) ? pd : null).ToList();
+        if (removed.Any(r => r is not null) && recs.Zip(removed).All(p => p.First is not null || p.Second is not null))
+            return new Imported(Evidence.LedgerVerified, null, PhotoDeleteTexts.Newness(removed.Where(r => r is not null).MaxBy(r => r!.AtUtc)!));
         var decs = keys.Select(k => ledger.Decisions.TryGetValue(k, out var d) && InSet(d.Set) ? d : null).ToList();
         if (decs.All(d => d is not null))
         {

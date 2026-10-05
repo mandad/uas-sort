@@ -146,6 +146,9 @@ public static class AuditCategorizer
         private LedgerDecision? Decision(CardEntry e, SetUnit? set)
             => _ledger.Decisions.TryGetValue(OffloadPaths.Key(e.RelPath, e.Size), out var d) && Fits(set, d.Set) ? d : null;
 
+        private LedgerPhotoDelete? PhotoDelete(CardEntry e, SetUnit? set)
+            => _ledger.PhotoDeletes.TryGetValue(OffloadPaths.Key(e.RelPath, e.Size), out var d) && Fits(set, d.Set) ? d : null;
+
         private (AuditLine Line, UnaccountedKind? Kind) FromEvidence(CardEntry e, Item? item, Role role, SetUnit? set)
         {
             var key = OffloadPaths.Key(e.RelPath, e.Size);
@@ -154,6 +157,8 @@ public static class AuditCategorizer
             if (file is not null && !Fits(set, file.Set)) file = null;
             if (file is { Verify: VerifyKind.Unbuffered or VerifyKind.Cached }) return Line(e, AuditCategory.InLedger, "in the history, verified");
             if (Decision(e, set) is { } d) return Line(e, AuditCategory.ConfirmedByYou, DecisionText(d));
+            if (role != Role.Video && PhotoDelete(e, set) is { } removed)                               // Picture Offload cleanup (photoDelete)
+                return Line(e, AuditCategory.InLedger, PhotoDeleteTexts.Evidence(removed));
             if (file is { Verify: VerifyKind.NameSize }) return Line(e, AuditCategory.NameSizeMatch, "in the history, matched by name and size");
             if (set is not null)
             {

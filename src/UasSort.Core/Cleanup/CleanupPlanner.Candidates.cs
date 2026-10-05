@@ -101,8 +101,11 @@ public static partial class CleanupPlanner
             var key = CleanupKeys.Key(rel, e.Size);
             inputs.FreshLedger.Decisions.TryGetValue(key, out var decision);
             inputs.FreshLedger.Files.TryGetValue(key, out var record);
+            inputs.FreshLedger.PhotoDeletes.TryGetValue(key, out var removed);
+            if (kind == ItemKind.Video
+                || (unit is SetUnit su && !string.Equals(removed?.Set, su.SetName, StringComparison.OrdinalIgnoreCase))) removed = null;
             return new FileFacts(e, kind, companion, ctx.Changed(rel), ctx.UnderEnumerationError(rel), probeError, truncated,
-                                 category, item.Newness, decision, ctx.Fresh.ListedFolder(key) is not null, record, tz);
+                                 category, item.Newness, decision, ctx.Fresh.ListedFolder(key) is not null, record, tz, removed);
         }
 
         var primaryVerdicts = primaries.Select(p => (File: p, Facts: Facts(p, false), Verdict: CleanupRules.Classify(Facts(p, false))!)).ToList();

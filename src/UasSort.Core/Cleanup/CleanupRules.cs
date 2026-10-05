@@ -4,7 +4,8 @@ namespace UasSort.Core.Cleanup;
 /// <summary>Everything Ref §10.6 eligibility rows 2–20 look at, for one card file of a unit (defined here).</summary>
 public sealed record FileFacts(CardEntry Entry, ItemKind UnitKind, bool IsCompanion, bool ChangedSinceScan,
     bool UnderEnumerationError, bool UnitProbeError, bool UnitTruncated, AuditCategory Category, Newness? Newness,
-    LedgerDecision? Decision, bool Listed, LedgerFile? LedgerRecord, string TzId);
+    LedgerDecision? Decision, bool Listed, LedgerFile? LedgerRecord, string TzId,
+    LedgerPhotoDelete? PhotoDelete = null /* Picture Offload cleanup: this photo was moved out of the photo root (spec 2026-10-04 §6) */);
 
 /// <summary>A file's eligibility, reason text, not-in-library reason and evidence source (defined here).</summary>
 public sealed record FileVerdict(CleanupEligibility Eligibility, string Reason, NotInLibraryReason? NotInLibrary, EvidenceSource? Source);
@@ -62,6 +63,8 @@ public static class CleanupRules
                     day is null ? "no longer in your library" : $"copied on {day}, no longer in your library");
             if (f.LedgerRecord is { Verify: VerifyKind.Unbuffered or VerifyKind.Cached })                 // row 15
                 return Proven(EvidenceSource.HistoryOnly, $"copied and verified on {day}; Lightroom may have moved it");
+            if (f.PhotoDelete is { } removed)                                                             // photoDelete (spec 2026-10-04 §6)
+                return Proven(EvidenceSource.HistoryOnly, PhotoDeleteTexts.Evidence(removed));
             if (f.LedgerRecord is { Verify: VerifyKind.NameSize })                                        // row 16
                 return Nil(NotInLibraryReason.NoLongerInLibrary, $"matched by name and size on {day}, no longer in your library");
         }

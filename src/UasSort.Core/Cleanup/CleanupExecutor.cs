@@ -32,6 +32,20 @@ public static partial class CleanupExecutor
         return (proof.ListedFolder is null ? "historyOnly:" : "") + proof.Category;
     }
 
+    /// <summary>One proof of the evidence re-check: a video needs its library listing; a photo listed at plan time needs a listing or a
+    /// verified ledger record; a HistoryOnly photo needs the record. An unrevoked photoDelete counts as a verified record for photos
+    /// (Picture Offload cleanup, spec 2026-10-04 §6).</summary>
+    internal static bool ProofHolds(ItemKind kind, FileProof p, FreshEvidence fresh, LedgerSnapshot ledger)
+    {
+        ArgumentNullException.ThrowIfNull(p);
+        ArgumentNullException.ThrowIfNull(fresh);
+        ArgumentNullException.ThrowIfNull(ledger);
+        var listed = fresh.ListedFolder(p.Key) is not null;
+        var verified = (ledger.Files.TryGetValue(p.Key, out var lf) && lf.Verify is VerifyKind.Unbuffered or VerifyKind.Cached)
+                       || (kind != ItemKind.Video && ledger.PhotoDeletes.ContainsKey(p.Key));
+        return kind == ItemKind.Video ? listed : p.ListedFolder is not null ? listed || verified : verified;
+    }
+
     private sealed partial class Run
     {
         private readonly ConfirmedCleanupPlan _confirmed;
@@ -144,16 +158,9 @@ public static partial class CleanupExecutor
         private (string Path, string Why)? EvidenceGone(CleanupCandidate c)
         {
             foreach (var p in c.Proofs)
-            {
-                var listed = _fresh!.ListedFolder(p.Key) is not null;
-                var verified = _ledger!.Files.TryGetValue(p.Key, out var lf) && lf.Verify is VerifyKind.Unbuffered or VerifyKind.Cached;
-                var ok = c.Kind == ItemKind.Video ? listed                         // a ledger record alone is never enough for a video
-                       : p.ListedFolder is not null ? listed || verified          // Listed at plan time: Lightroom may have moved it since
-                       : verified;                                                // HistoryOnly
-                if (!ok)
+                if (!ProofHolds(c.Kind, p, _fresh!, _ledger!))
                     return (p.CardRelPath, c.Kind == ItemKind.Video ? "no longer in the library listing"
                                                                     : "no longer in the library listing or the history");
-            }
             return null;
         }
 
