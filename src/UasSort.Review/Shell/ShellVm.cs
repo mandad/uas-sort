@@ -1,7 +1,9 @@
 // src/UasSort.Review/Shell/ShellVm.cs
+using System.ComponentModel;
+
 namespace UasSort.Review;
 
-public enum Stage { Setup, Card, Scan, Review, Preflight, Copy, Verdict, Cleanup, Settings }
+public enum Stage { Setup, Card, Scan, Review, Preflight, Copy, Verdict, Cleanup, Settings, PhotoCleanup }
 
 public enum CleanupOrigin { Review, Verdict }
 
@@ -24,6 +26,12 @@ public sealed record ShellDeps(
 {
     /// <summary>Where the shell logs each change of [Clean up card…]'s availability for a card source (Info, Task U4); none: not logged.</summary>
     public IReviewLog? Log { get; init; }
+
+    /// <summary>Builds the Picture Offload cleanup page for the current settings (spec 2026-10-04); none: [Clean up Picture Offload…] stays off.</summary>
+    public Func<Settings, PhotoCleanupVm>? CreatePhotoCleanup { get; init; }
+
+    /// <summary>Whether a folder exists (attributes only; Platform's FolderFacts.Exists): the photo root's availability.</summary>
+    public Func<string, bool>? FolderExists { get; init; }
 }
 
 /// <summary>The stage machine behind MainWindow's Frame and TitleBar (Ref §9.1, §9.2).</summary>
@@ -31,6 +39,7 @@ public sealed partial class ShellVm : ObservableObject
 {
     private readonly ShellDeps _deps;
     private (Stage Stage, object? Current)? _beforeSettings;
+    private (Stage Stage, object? Current)? _beforePhotoCleanup;
     private CommitResult? _lastResult;
     private SettingsPageVm? _settingsPage;
     private string? _loggedCleanupAvailability;
@@ -43,6 +52,7 @@ public sealed partial class ShellVm : ObservableObject
         SettingsCommand = new RelayCommand(OpenSettings, () => CanOpenSettings);
         CleanupCommand = new RelayCommand(() => OpenCleanup(Stage == Stage.Verdict || PlanFromVerdict ? CleanupOrigin.Verdict : CleanupOrigin.Review),
                                           () => CleanupEnabled);
+        PhotoCleanupCommand = new RelayCommand(OpenPhotoCleanup, () => PhotoCleanupEnabled);
     }
 
     public Settings Settings { get; private set; }
@@ -53,6 +63,7 @@ public sealed partial class ShellVm : ObservableObject
     public CopyVm? Copy { get; private set; }
     public VerdictVm? Verdict { get; private set; }
     public CleanupVm? Cleanup { get; private set; }
+    public PhotoCleanupVm? PhotoCleanup { get; private set; }
 
     [ObservableProperty] public partial Stage Stage { get; private set; }
     [ObservableProperty] public partial object? Current { get; private set; }
@@ -66,11 +77,15 @@ public sealed partial class ShellVm : ObservableObject
     /// <summary>Why [Clean up card…] is disabled, as visible text (a disabled button shows no tooltip); for a volume that fails the
     /// cleanup volume check it names the failing rule. Null while the button is enabled (Task U4).</summary>
     [ObservableProperty] public partial string? CleanupUnavailableText { get; private set; }
+    [ObservableProperty] public partial bool PhotoCleanupEnabled { get; private set; }
+    /// <summary>Why [Clean up Picture Offload…] is disabled, as visible text; null while it is enabled (spec 2026-10-04 §2).</summary>
+    [ObservableProperty] public partial string? PhotoCleanupUnavailableText { get; private set; }
     [ObservableProperty] public partial bool IsScanning { get; private set; }
 
     public IAsyncRelayCommand RescanCommand { get; }
     public IRelayCommand SettingsCommand { get; }
     public IRelayCommand CleanupCommand { get; }
+    public IRelayCommand PhotoCleanupCommand { get; }
 
     /// <summary>An unexpected fault of a fire-and-forget scan or rescan (Ref §12 "log, keep running"): the App logs it; the shell has
     /// already shown it on the Card stage.</summary>
@@ -116,7 +131,7 @@ public sealed partial class ShellVm : ObservableObject
 
     public Task RescanAsync()
     {
-        if (Stage is Stage.Preflight or Stage.Copy or Stage.Verdict or Stage.Cleanup or Stage.Setup || PlanFromVerdict) return Task.CompletedTask;
+        if (Stage is Stage.Preflight or Stage.Copy or Stage.Verdict or Stage.Cleanup or Stage.Setup or Stage.PhotoCleanup || PlanFromVerdict) return Task.CompletedTask;
         if (Source is { } s) return UseCardAsync(s);
         ShowCard();
         return Task.CompletedTask;
@@ -214,7 +229,45 @@ public sealed partial class ShellVm : ObservableObject
         if (!CanOpenSettings) return;
         _beforeSettings = (Stage, Current);
         _settingsPage = _deps.CreateSettings(Settings);
+        _settingsPage.PropertyChanged += OnSettingsPageChanged;
         Go(Stage.Settings, _settingsPage);
+    }
+
+    /// <summary>The settings Picture Offload cleanup sees: on the Settings stage the page's own, possibly unsaved, edits (ShellVm.Settings
+    /// only takes them in CloseSettings, and the page saves 500 ms after a change).</summary>
+    private Settings PhotoCleanupSettings => Stage == Stage.Settings && _settingsPage is { } page ? page.Current : Settings;
+
+    private void OnSettingsPageChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SettingsPageVm.PhotoRoot) or nameof(SettingsPageVm.VideoRoot) or nameof(SettingsPageVm.LightroomFolder))
+            UpdateFlags();
+    }
+
+    /// <summary>Opens Picture Offload cleanup from the Card, Review, Verdict or Settings stage; Done or Back returns to that stage. From
+    /// Settings, the page's pending save is written first, so the recycler factory (which re-reads the saved photo root) and the page agree.</summary>
+    public void OpenPhotoCleanup()
+    {
+        UpdateFlags();                                                   // availability against the settings the page will use
+        if (!PhotoCleanupEnabled || _deps.CreatePhotoCleanup is not { } create) return;
+        if (Stage == Stage.Settings) _settingsPage?.FlushPendingSave();
+        var settings = PhotoCleanupSettings;
+        _beforePhotoCleanup = (Stage, Current);
+        var vm = create(settings);
+        vm.Closed += () => ClosePhotoCleanup(vm);
+        PhotoCleanup = vm;
+        Go(Stage.PhotoCleanup, vm);
+        Observed.Forget(vm.OpenAsync(), e => Faulted?.Invoke(e));
+    }
+
+    private void ClosePhotoCleanup(PhotoCleanupVm vm)
+    {
+        if (!ReferenceEquals(PhotoCleanup, vm)) return;
+        PhotoCleanup = null;
+        vm.Dispose();
+        var back = _beforePhotoCleanup;
+        _beforePhotoCleanup = null;
+        if (back is { } b) Go(b.Stage, b.Current);
+        else ShowCard();
     }
 
     /// <summary>Back from Settings. New roots, a new JPG-twin choice or drone clock (anything the plan was derived from) invalidate
@@ -226,6 +279,7 @@ public sealed partial class ShellVm : ObservableObject
         if (_settingsPage is { } page)
         {
             Settings = page.Current;
+            page.PropertyChanged -= OnSettingsPageChanged;
             page.Dispose();
             _settingsPage = null;
         }
@@ -369,13 +423,23 @@ public sealed partial class ShellVm : ObservableObject
         var (enabled, tooltip) = CleanupAvailability.For(context);
         var text = CleanupAvailability.Text(context);
         LogCleanupAvailability(enabled, text);
-        var pageWithoutCleanup = Stage is Stage.Cleanup or Stage.Settings or Stage.Setup;
+        var pageWithoutCleanup = Stage is Stage.Cleanup or Stage.Settings or Stage.Setup or Stage.PhotoCleanup;
         if (pageWithoutCleanup) enabled = false;
         var noCaption = pageWithoutCleanup || Stage == Stage.Verdict || Source is null;   // Verdict shows its own footer; no card, nothing to say
         CleanupEnabled = enabled;
         CleanupTooltip = tooltip;
         CleanupUnavailableText = enabled || noCaption ? null : text;
         Verdict?.SetCleanupAvailability(enabled, tooltip, text);
+        // Picture Offload cleanup (spec 2026-10-04 §2): no offload, card cleanup or scan running; the photo root set and available
+        // (on the Settings stage: the page's own edits).
+        var photoSettings = PhotoCleanupSettings;
+        var photoReason = PhotoCleanupAvailability.Reason(new PhotoCleanupContext(committing, IsScanning || Stage == Stage.Scan,
+            Stage == Stage.Cleanup, photoSettings.RootsConfirmed && Stage != Stage.Setup, photoSettings.PhotoRoot,
+            _deps.FolderExists?.Invoke(photoSettings.PhotoRoot) ?? false));
+        var photoPossible = _deps.CreatePhotoCleanup is not null && Stage != Stage.PhotoCleanup;
+        PhotoCleanupEnabled = photoPossible && photoReason is null;
+        PhotoCleanupUnavailableText = photoPossible ? photoReason : null;
+        PhotoCleanupCommand.NotifyCanExecuteChanged();
         RescanCommand.NotifyCanExecuteChanged();
         SettingsCommand.NotifyCanExecuteChanged();
         CleanupCommand.NotifyCanExecuteChanged();

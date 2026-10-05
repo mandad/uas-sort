@@ -52,12 +52,30 @@ public class ShellVmTests
         /// <summary>ShellDeps.VolumeRefusal: the cleanup volume check's refusal and detail (default: the volume passes).</summary>
         public Func<CardSource, (string? Refusal, string? Detail)> Refusal { get; set; } = _ => default;
         public ListLog Log { get; } = new();
+        public FakeSettingsStore? Store { get; private set; }
+        public bool PhotoRootExists { get; set; } = true;
+        public int PhotoCleanupOpens { get; private set; }
+        public Settings? PhotoCleanupSettings { get; private set; }
+
+        private PhotoCleanupVm CreatePhotoCleanup(Settings s)
+        {
+            PhotoCleanupOpens++;
+            PhotoCleanupSettings = s;
+            var engine = new PhotoCleanupEngine(
+                (p, ct) => Task.FromResult(new PhotoCleanupPreparation(new PhotoSurvey(s.PhotoRoot, [], [], TestPlans.Ledger()), null,
+                    s.LightroomFolder is null ? "Set a Lightroom library folder in Settings to verify against Lightroom" : null, s.LightroomFolder)),
+                (survey, request, p, ct) => throw new InvalidOperationException("not reached"),
+                (confirmed, p, ct) => throw new InvalidOperationException("not reached"),
+                r => "",
+                new FakeShellLauncher());
+            return new PhotoCleanupVm(engine, new FakeDialogService(), Ui, new FakeTimeProvider());
+        }
 
         public ShellVm Shell(bool rootsConfirmed = true)
         {
             var services = Fake.Services(Ui);
             var load = new SettingsLoad(TestPlans.Settings(rootsConfirmed), false, null, null);
-            var store = new FakeSettingsStore(load);
+            var store = Store = new FakeSettingsStore(load);
             var verdict = new FormatVerdict(VerdictLevel.Safe, TestPlans.Card, "E: · DJI Air 3S · serial 1A2B-3C4D: Safe to format: 3 verified",
                                             ImmutableDictionary<AuditCategory, int>.Empty, 0, 0, [], [], null);
             ShellVm? shell = null;
@@ -88,7 +106,7 @@ public class ShellVmTests
                 r => verdict,
                 _ => true,
                 s => Refusal(s),
-                Saved.Add) { Log = Log });
+                Saved.Add) { Log = Log, CreatePhotoCleanup = CreatePhotoCleanup, FolderExists = _ => PhotoRootExists });
             shell.Faulted += Faults.Add;
             return shell;
         }
@@ -599,5 +617,99 @@ public class ShellVmTests
         rig.Cards.Clear();
         shell.Verdict!.DoneCommand.Execute(null);
         Assert.Null(shell.RunId);
+    }
+
+    [Fact]
+    public async Task PhotoCleanup_OpensFromReview_DisablesTheOtherCommands_AndBackReturnsToReview()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        Assert.True(shell.PhotoCleanupEnabled);
+        Assert.Null(shell.PhotoCleanupUnavailableText);
+        var review = shell.Current;
+
+        shell.PhotoCleanupCommand.Execute(null);
+
+        Assert.Equal(Stage.PhotoCleanup, shell.Stage);
+        var vm = Assert.IsType<PhotoCleanupVm>(shell.Current);
+        Assert.Same(vm, shell.PhotoCleanup);
+        Assert.False(shell.CanRescan);
+        Assert.False(shell.CanOpenSettings);
+        Assert.False(shell.CleanupEnabled);
+        Assert.False(shell.PhotoCleanupEnabled);
+        await Eventually.TrueAsync(() => !vm.IsBusy, rig.Ui);
+        vm.BackCommand.Execute(null);                                    // Back on Choose closes the page
+        Assert.Equal(Stage.Review, shell.Stage);
+        Assert.Same(review, shell.Current);
+        Assert.Null(shell.PhotoCleanup);
+        Assert.True(shell.PhotoCleanupEnabled);
+    }
+
+    [Fact]
+    public async Task PhotoCleanup_IsDisabledWithAVisibleReason_WhenThePhotoFolderIsMissing()
+    {
+        var rig = new Rig { PhotoRootExists = false };
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        Assert.False(shell.PhotoCleanupEnabled);
+        Assert.Equal($"The photo folder {TestPlans.PhotoRoot} is not available", shell.PhotoCleanupUnavailableText);
+        shell.OpenPhotoCleanup();
+        Assert.Equal(Stage.Review, shell.Stage);
+        Assert.Equal(0, rig.PhotoCleanupOpens);
+    }
+
+    [Fact]
+    public async Task PhotoCleanup_FromSettings_ReturnsToTheSameSettingsPage()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        shell.OpenSettings();
+        var settings = shell.Current;
+        Assert.True(shell.PhotoCleanupEnabled);
+        shell.OpenPhotoCleanup();
+        Assert.Equal(Stage.PhotoCleanup, shell.Stage);
+        Assert.IsType<PhotoCleanupVm>(shell.Current).BackCommand.Execute(null);
+        Assert.Equal(Stage.Settings, shell.Stage);
+        Assert.Same(settings, shell.Current);
+        shell.CloseSettings();
+        Assert.Equal(Stage.Review, shell.Stage);
+    }
+
+    [Fact]
+    public async Task PhotoCleanup_FromSettings_UsesTheEditsMadeOnThatPage_AndSavesThemFirst()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        shell.OpenSettings();
+        var page = Assert.IsType<SettingsPageVm>(shell.Current);
+        page.ChangeLightroomFolder(@"X:\Photos\Lightroom");                 // saved 500 ms later; ShellVm.Settings is still the old one
+        shell.OpenPhotoCleanup();
+        var vm = Assert.IsType<PhotoCleanupVm>(shell.Current);
+        await Eventually.TrueAsync(() => !vm.IsBusy, rig.Ui);
+        Assert.Equal(@"X:\Photos\Lightroom", rig.PhotoCleanupSettings!.LightroomFolder);
+        Assert.True(vm.VerifyEnabled);
+        Assert.Equal(@"X:\Photos\Lightroom", rig.Store!.Saved[^1].LightroomFolder);   // flushed before the page opened
+    }
+
+    [Fact]
+    public async Task PhotoCleanup_OnTheSettingsPage_FollowsThePagesPhotoFolder()
+    {
+        var rig = new Rig();
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Review, rig.Ui);
+        shell.OpenSettings();
+        Assert.True(shell.PhotoCleanupEnabled);
+        rig.PhotoRootExists = false;                                       // the new folder below is not available
+        Assert.IsType<SettingsPageVm>(shell.Current).ChangePhotoRoot(@"X:\New Offload");
+        Assert.False(shell.PhotoCleanupEnabled);
+        Assert.Equal(@"The photo folder X:\New Offload is not available", shell.PhotoCleanupUnavailableText);
     }
 }

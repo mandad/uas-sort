@@ -46,6 +46,7 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         OpenBackupCommand = new RelayCommand(() => _shell.OpenFolder(BackupFolder));
         CopyLedgerCommand = new AsyncRelayCommand(CopyLedgerAsync);
         StartEmptyCommand = new AsyncRelayCommand(StartEmptyAsync);
+        ClearLightroomCommand = new RelayCommand(ClearLightroom);
 
         _loading = true;
         VideoRoot = settings.VideoRoot;
@@ -59,6 +60,7 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         StreetsUrl = settings.Map.StreetsStyleUrl;
         StreetsDarkUrl = settings.Map.StreetsDarkStyleUrl;
         SatelliteUrl = settings.Map.SatelliteUrl;
+        LightroomFolder = settings.LightroomFolder;
         _loading = false;
         RebuildPrevious();
         RefreshLedger();
@@ -86,18 +88,23 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
     [ObservableProperty] public partial string StreetsUrl { get; set; } = "";
     [ObservableProperty] public partial string StreetsDarkUrl { get; set; } = "";
     [ObservableProperty] public partial string SatelliteUrl { get; set; } = "";
+    [ObservableProperty] public partial string? LightroomFolder { get; private set; }
+    [ObservableProperty] public partial string? LightroomError { get; private set; }
 
     public IRelayCommand KeepOnDeviceCommand { get; }
     public IRelayCommand OpenLedgerCommand { get; }
     public IRelayCommand OpenBackupCommand { get; }
     public IAsyncRelayCommand CopyLedgerCommand { get; }
     public IAsyncRelayCommand StartEmptyCommand { get; }
+    public IRelayCommand ClearLightroomCommand { get; }
 
     public IReadOnlyDictionary<string, string> SatellitePresets => Current.Map.SatellitePresets;
 
     public string ClockLearnedText => Current.DroneClockMode == StoredClockMode.SiteLocal
         ? "Last learned: follows local time at each site"
         : $"Last learned: {Current.DroneClockZone}";
+
+    public string LightroomText => LightroomFolder ?? "Not set";
 
     public string AboutText { get; } =
         "uas-sort · Maps: OpenFreeMap, © OpenStreetMap contributors · Imagery: Esri World Imagery, USGS · Places: GeoNames CC-BY 4.0 · MapLibre GL JS (BSD-3-Clause)";
@@ -107,6 +114,7 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
     {
         StopSave();
         Current = Current with { VideoRoot = newRoot.TrimEnd('\\'), RootsConfirmed = true };
+        RecheckLightroom();
         _store.Save(Current);
         _loading = true;
         VideoRoot = Current.VideoRoot;
@@ -130,8 +138,44 @@ public sealed partial class SettingsPageVm : ObservableObject, IDisposable
         _loading = false;
         RebuildPrevious();
         RefreshLedger();
+        RecheckLightroom();
         ScheduleSave();
     }
+
+    /// <summary>Spec 2026-10-04 §2: the Lightroom library folder, refused with the reason shown when it is inside the photo root, the video
+    /// root, a previous photo root or the Lightroom catalog, or above the photo root; saved 500 ms later like the other settings.</summary>
+    public void ChangeLightroomFolder(string folder)
+    {
+        LightroomError = LightroomRules.FolderRefusal(folder, Current);
+        if (LightroomError is not null) return;
+        Current = Current with { LightroomFolder = PathRules.Normalize(folder.Trim()) };
+        LightroomFolder = Current.LightroomFolder;
+        ScheduleSave();
+    }
+
+    private void ClearLightroom()
+    {
+        LightroomError = null;
+        if (Current.LightroomFolder is null) return;
+        Current = Current with { LightroomFolder = null };
+        LightroomFolder = null;
+        ScheduleSave();
+    }
+
+    partial void OnLightroomFolderChanged(string? value) => OnPropertyChanged(nameof(LightroomText));
+
+    /// <summary>A root change can make the Lightroom folder invalid (e.g. the new photo root lies inside it): it is cleared, with the
+    /// reason shown, instead of staying in force until the next start.</summary>
+    private void RecheckLightroom()
+    {
+        if (Current.LightroomFolder is not { } folder || LightroomRules.FolderRefusal(folder, Current) is not { } reason) return;
+        Current = Current with { LightroomFolder = null };
+        LightroomFolder = null;
+        LightroomError = "Lightroom folder cleared: " + reason;
+    }
+
+    /// <summary>Writes a save still waiting for its debounce now (ShellVm, before opening Picture Offload cleanup from this page).</summary>
+    internal void FlushPendingSave() => SaveNow();
 
     /// <summary>Closing the page flushes a save still waiting for its 500 ms debounce, so an edit made just before closing is kept.</summary>
     public void Dispose() => SaveNow();
