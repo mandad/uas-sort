@@ -3,6 +3,19 @@ namespace UasSort.Core.Tests.Cleanup.Photos;
 
 public sealed class PhotoCleanupRulesTests
 {
+    [Fact] // branch-2 ruling: the Recycle Bin is the safety net, so a run it can't hold (or a bin that deletes at once) is refused
+    public void RecycleBinRefusal_TooSmallOrNukeOnDelete_IsRefused_ElseNull()
+    {
+        var bin = new RecycleBinCapacity("C:", 50_000_000_000, 12_000_000_000, false);
+        Assert.Null(PhotoCleanupRules.RecycleBinRefusal(bin, 38_000_000_000));                      // exactly fits
+        Assert.Equal("The Recycle Bin on C: holds 50.0 GB (12.0 GB already in it); this cleanup needs 38.0 GB — choose an earlier cutoff "
+                     + "or empty the Recycle Bin first. Nothing was moved.",
+                     PhotoCleanupRules.RecycleBinRefusal(bin, 38_000_000_001));
+        Assert.Equal("The Recycle Bin on C: is set to remove files immediately (\"Don't move files to the Recycle Bin\"); this cleanup needs it to "
+                     + "keep them — change that in the Recycle Bin's properties first. Nothing was moved.",
+                     PhotoCleanupRules.RecycleBinRefusal(bin with { NukeOnDelete = true }, 1));
+    }
+
     [Theory]
     [InlineData("001_0087", true, "001_0087")]
     [InlineData("001_0087 2026-09-27", true, "001_0087")]

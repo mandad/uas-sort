@@ -110,11 +110,16 @@ public sealed record RecycleError(int Code, string Message, bool NotRecyclable /
 public sealed record RecycleNotInBin(string Message);             // the shell deleted it, but nothing arrived in the Recycle Bin (P.11)
 public union RecycleResult(RecycleOk, RecycleError, RecycleNotInBin);
 
+/// <summary>The Recycle Bin of the volume holding a folder (branch-2 ruling): its maximum size, what it holds now, and whether Windows
+/// removes files at once instead (NukeOnDelete). Volume is "C:" (or the volume's mount path).</summary>
+public sealed record RecycleBinCapacity(string Volume, long MaxBytes, long UsedBytes, bool NukeOnDelete);
+
 public interface IPhotoRootRecycler : IDisposable                 // IoGuardPolicy.Check(PhotoRootRecycle, …) before every move
 {
     PhotoItemStat? Stat(string fullPath);                         // attributes only, never opens; null = gone
     RecycleResult Recycle(string fullPath);                       // one file or one set folder → the Recycle Bin; never a permanent delete
-}
+    RecycleBinCapacity Capacity(string fullPath);                 // the Recycle Bin of fullPath's volume (registry + shell, read-only);
+}                                                                 // throws IOException when it can't be read
 
 public interface IPhotoRootRecyclerFactory                        // Platform: re-derives the photo root from the saved settings and builds
 {                                                                 // the recycler's own GuardContext with the plan; throws UnsafeIoException

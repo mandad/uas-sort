@@ -27,6 +27,7 @@ public sealed class PhotoCleanupResultVm
             PhotoCleanupStop.Cancelled => "Stopped after the current item.",
             PhotoCleanupStop.LedgerWriteFailed => "Recording a move in the history failed; stopped. The report names the file.",
             PhotoCleanupStop.InternalSafetyStop => "Internal safety stop; stopped.",
+            PhotoCleanupStop.RecycleBinTooSmall => r.StopDetail ?? "The Recycle Bin can't hold this cleanup; nothing was moved.",
             _ => r.Stop.ToString(),
         };
         LedgerWarning = r.Unrecorded.IsEmpty ? null

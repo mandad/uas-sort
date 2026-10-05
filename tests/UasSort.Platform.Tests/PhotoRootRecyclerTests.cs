@@ -65,6 +65,29 @@ public sealed class PhotoRootRecyclerTests
         Assert.True(File.Exists(named) && File.Exists(other) && File.Exists(nested) && File.Exists(video));
     }
 
+    [Fact] // branch-2 ruling: the photo root volume's Recycle Bin size, use and NukeOnDelete (read-only: registry + SHQueryRecycleBinW)
+    public void Capacity_ReadsThePhotoRootVolumesRecycleBin_ReadOnly()
+    {
+        using var env = new TestEnv();
+        var root = env.C(env.PhotoRoot);
+        using var recycler = Open(env, PlanFor(root, Row(Photo("A.DNG", D))));
+        var bin = recycler.Capacity(root);
+        Assert.Equal(Path.GetPathRoot(Path.GetFullPath(root))!.TrimEnd('\\'), bin.Volume, StringComparer.OrdinalIgnoreCase);
+        Assert.True(bin.MaxBytes > 0, $"MaxBytes {bin.MaxBytes}");
+        Assert.True(bin.UsedBytes >= 0, $"UsedBytes {bin.UsedBytes}");
+    }
+
+    [Fact]
+    public void RecycleBinQuery_UsesTheRegistryValues_OrTheDocumentedDefaults()
+    {
+        const long total = 1_000_000_000_000;
+        Assert.Equal(new RecycleBinCapacity("C:", 50_772L * 1024 * 1024, 7, false), RecycleBinQuery.FromSettings("C:", total, 7, 50_772, 0));
+        Assert.Equal(new RecycleBinCapacity("C:", 50_000_000_000, 7, false), RecycleBinQuery.FromSettings("C:", total, 7, null, null));   // 5 % of the volume
+        Assert.True(RecycleBinQuery.FromSettings("C:", total, 0, 50_772, 1).NukeOnDelete);
+        Assert.Equal("{b375712d-995b-48b1-ada5-ae49a63220f1}", RecycleBinQuery.VolumeGuidOf(@"\\?\Volume{b375712d-995b-48b1-ada5-ae49a63220f1}\"));
+        Assert.Null(RecycleBinQuery.VolumeGuidOf(@"\\server\share\"));
+    }
+
     [Fact]
     public void Open_APlanForAnotherPhotoFolder_IsRefused()
     {

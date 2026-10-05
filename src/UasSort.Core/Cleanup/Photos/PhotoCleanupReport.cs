@@ -14,6 +14,9 @@ public sealed record PhotoCleanupReport(int V, string RunId, string PhotoRoot, P
 {
     /// <summary>Verify mode: what the Lightroom walk read and couldn't read (branch-2 ruling); null in date mode.</summary>
     public LightroomIndexSummary? Lightroom { get; init; }
+
+    /// <summary>The stop's own sentence (RecycleBinTooSmall: the Recycle Bin's size and what the run needed); null otherwise.</summary>
+    public string? StopDetail { get; init; }
 }
 
 public static class PhotoCleanupReports
@@ -50,6 +53,7 @@ public static class PhotoCleanupReports
             result.StartUtc, result.EndUtc)
         {
             Lightroom = plan.Lightroom,
+            StopDetail = result.StopDetail,
         };
     }
 

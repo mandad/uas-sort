@@ -1,7 +1,11 @@
 // src/UasSort.Core/Cleanup/Photos/PhotoCleanupRun.cs
 namespace UasSort.Core.Cleanup;
 
-public enum PhotoCleanupStop { OffloadLockHeld, LedgerUnavailable, RecyclerRefused, Cancelled, LedgerWriteFailed, InternalSafetyStop }
+public enum PhotoCleanupStop
+{
+    OffloadLockHeld, LedgerUnavailable, RecyclerRefused, Cancelled, LedgerWriteFailed, InternalSafetyStop,
+    RecycleBinTooSmall,   // branch-2 ruling: the bin can't hold the run, removes files at once, or couldn't be checked (StopDetail says which)
+}
 
 /// <summary>Outcome per row set to Delete (spec 2026-10-04 §2 result page: moved / skipped-because-changed / failed).</summary>
 public closed record class PhotoCleanupOutcome(string Item);
@@ -30,4 +34,8 @@ public sealed record PhotoCleanupEnvironment(IPhotoRootRecyclerFactory Recyclers
 public sealed record PhotoCleanupResult(string RunId, ConfirmedPhotoCleanupPlan Plan, ImmutableArray<PhotoCleanupOutcome> Outcomes,
                                         PhotoCleanupStop? Stop /* null = ran to the end */,
                                         ImmutableArray<string> Unrecorded /* moved, but the photoDelete record couldn't be written */,
-                                        DateTime StartUtc, DateTime EndUtc);
+                                        DateTime StartUtc, DateTime EndUtc)
+{
+    /// <summary>The stop's own sentence when its enum alone can't say it (RecycleBinTooSmall: the sizes); null otherwise.</summary>
+    public string? StopDetail { get; init; }
+}

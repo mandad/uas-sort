@@ -41,6 +41,20 @@ public static partial class PhotoCleanupRules
     public static (int Width, int Height)? PixelsOf(StillInfo? info)
         => info is { PixelWidth: { } w, PixelHeight: { } h } && w > 0 && h > 0 ? (w, h) : null;
 
+    /// <summary>Branch-2 ruling: the Recycle Bin is the safety net, so a run is refused before any move when Windows would remove files at
+    /// once (NukeOnDelete), or when the bytes chosen plus what the bin already holds exceed its maximum size (Windows would then purge
+    /// its oldest items, this run's first photos among them). Null: the bin can hold the run.</summary>
+    public static string? RecycleBinRefusal(RecycleBinCapacity bin, long neededBytes)
+    {
+        ArgumentNullException.ThrowIfNull(bin);
+        if (bin.NukeOnDelete)
+            return $"The Recycle Bin on {bin.Volume} is set to remove files immediately (\"Don't move files to the Recycle Bin\"); this cleanup "
+                   + "needs it to keep them — change that in the Recycle Bin's properties first. Nothing was moved.";
+        if (neededBytes + bin.UsedBytes <= bin.MaxBytes) return null;
+        return $"The Recycle Bin on {bin.Volume} holds {CleanupFormat.Gb(bin.MaxBytes)} ({CleanupFormat.Gb(bin.UsedBytes)} already in it); "
+               + $"this cleanup needs {CleanupFormat.Gb(neededBytes)} — choose an earlier cutoff or empty the Recycle Bin first. Nothing was moved.";
+    }
+
     public static bool LooksLikePanorama((int Width, int Height)? pixels)
         => pixels is { } p && p.Width > 0 && p.Height > 0 && Math.Max(p.Width, p.Height) >= PanoramaAspect * Math.Min(p.Width, p.Height);
 }

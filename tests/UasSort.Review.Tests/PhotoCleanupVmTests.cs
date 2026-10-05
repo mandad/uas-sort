@@ -182,6 +182,21 @@ public sealed class PhotoCleanupVmTests
         Assert.Equal(["A.DNG: removed, not in the Recycle Bin — Windows deleted A.DNG instead of moving it there"], vm.Problems);
     }
 
+    [Fact] // branch-2 ruling: the refusal names the Recycle Bin's size and what the cleanup needs
+    public void Result_ARecycleBinRefusal_ShowsItsDetail()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 20, 0, 0, TimeSpan.Zero));
+        var confirmed = Confirmed(time, PhotoCleanupMode.BeforeDate, [Row(Photo("A.DNG", Jun1))]);
+        var at = time.GetUtcNow().UtcDateTime;
+        const string detail = "The Recycle Bin on C: holds 50.0 GB (49.0 GB already in it); this cleanup needs 25.0 GB — choose an earlier "
+                              + "cutoff or empty the Recycle Bin first. Nothing was moved.";
+        var result = new PhotoCleanupResult("photos01", confirmed, [new PhotoNotStarted("A.DNG")], PhotoCleanupStop.RecycleBinTooSmall, [], at, at)
+        {
+            StopDetail = detail,
+        };
+        Assert.Equal(detail, new PhotoCleanupResultVm(result, ReportFile, null, new FakeShellLauncher()).StopText);
+    }
+
     [Fact]
     public async Task ABlockedPreparation_ShowsItsReason_AndKeepOnDevicePreparesAgain()
     {

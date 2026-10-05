@@ -258,6 +258,55 @@ public sealed class PhotoCleanupExecutorTests
         Assert.Empty(cloud.Recyclers.Recycled);
     }
 
+    [Fact] // branch-2 ruling: a run the photo root's Recycle Bin can't hold never starts moving
+    public async Task Run_ARecycleBinTooSmallForTheRun_IsRefusedBeforeAnyMove()
+    {
+        var rig = new Rig();
+        var a = rig.PhotoRow("A.DNG", "A.JPG");                                                     // 1,400 bytes
+        var b = rig.PhotoRow("B.DNG");                                                              // 1,000 bytes
+        rig.Recyclers.Bin = new RecycleBinCapacity("C:", 10_000, 7_601, false);                    // 2,399 bytes free
+
+        var result = await rig.Run(Confirmed(rig.Clock, PhotoCleanupMode.BeforeDate, [a, b]));
+
+        Assert.Equal(PhotoCleanupStop.RecycleBinTooSmall, result.Stop);
+        Assert.Equal(PhotoCleanupRules.RecycleBinRefusal(rig.Recyclers.Bin, 2_400), result.StopDetail);
+        Assert.Equal([PhotoRoot], rig.Recyclers.BinQueries);
+        Assert.Empty(rig.Recyclers.Recycled);
+        Assert.Empty(rig.Records);
+        Assert.All(result.Outcomes, o => Assert.IsType<PhotoNotStarted>(o));
+        Assert.Equal((0, 1), (rig.Lock.Holds, rig.Recyclers.Disposed));
+        var report = PhotoCleanupReports.Build(result);
+        Assert.Equal((PhotoCleanupStop.RecycleBinTooSmall, result.StopDetail), (report.Stop, report.StopDetail));
+
+        var fits = new Rig();
+        var c = fits.PhotoRow("C.DNG");
+        fits.Recyclers.Bin = new RecycleBinCapacity("C:", 10_000, 9_000, false);                   // exactly 1,000 bytes free
+        var ok = await fits.Run(Confirmed(fits.Clock, PhotoCleanupMode.BeforeDate, [c]));
+        Assert.Null(ok.Stop);
+        Assert.Null(ok.StopDetail);
+    }
+
+    [Fact] // branch-2 ruling
+    public async Task Run_ARecycleBinThatDeletesAtOnce_OrCantBeRead_IsRefusedBeforeAnyMove()
+    {
+        var nuke = new Rig();
+        var a = nuke.PhotoRow("A.DNG");
+        nuke.Recyclers.Bin = new RecycleBinCapacity("C:", 50_000_000_000, 0, true);
+        var r1 = await nuke.Run(Confirmed(nuke.Clock, PhotoCleanupMode.BeforeDate, [a]));
+        Assert.Equal(PhotoCleanupStop.RecycleBinTooSmall, r1.Stop);
+        Assert.StartsWith("The Recycle Bin on C: is set to remove files immediately", r1.StopDetail, StringComparison.Ordinal);
+        Assert.Empty(nuke.Recyclers.Recycled);
+
+        var unreadable = new Rig();
+        var b = unreadable.PhotoRow("B.DNG");
+        unreadable.Recyclers.BinThrows = true;
+        var r2 = await unreadable.Run(Confirmed(unreadable.Clock, PhotoCleanupMode.BeforeDate, [b]));
+        Assert.Equal(PhotoCleanupStop.RecycleBinTooSmall, r2.Stop);
+        Assert.Equal($"The Recycle Bin for {PhotoRoot} couldn't be checked (SHQueryRecycleBinW failed (HRESULT 0x80070015)). Nothing was moved.",
+                     r2.StopDetail);
+        Assert.True(unreadable.Fs.Exists(PhotoRoot + @"\B.DNG"));
+    }
+
     [Fact]
     public async Task Run_Cancelled_StopsAfterTheCurrentItem()
     {

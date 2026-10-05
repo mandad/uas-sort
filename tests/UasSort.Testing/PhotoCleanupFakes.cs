@@ -34,6 +34,11 @@ public sealed class FakePhotoRootRecyclerFactory(FakeFileSystem fs, GuardContext
     /// <summary>The shell reports a delete without a Recycle Bin item, yet the item is still there.</summary>
     public HashSet<string> ClaimsRemovedButStays { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Action<string>? BeforeRecycle { get; set; }
+
+    /// <summary>What Capacity reports: a roomy 50 GB Recycle Bin on C: by default; BinThrows makes the read fail.</summary>
+    public RecycleBinCapacity Bin { get; set; } = new("C:", 50_000_000_000, 0, false);
+    public bool BinThrows { get; set; }
+    public List<string> BinQueries { get; } = [];
     public bool OpenThrows { get; set; }
     public int Opened { get; private set; }
     public int Disposed { get; private set; }
@@ -62,6 +67,12 @@ public sealed class FakePhotoRootRecyclerFactory(FakeFileSystem fs, GuardContext
             if (owner.RemovedNotInBin.Contains(p)) return new RecycleNotInBin("Windows removed it without putting it in the Recycle Bin");
             owner.Recycled.Add(p);
             return new RecycleOk();
+        }
+
+        public RecycleBinCapacity Capacity(string fullPath)
+        {
+            owner.BinQueries.Add(fullPath);
+            return owner.BinThrows ? throw new IOException("SHQueryRecycleBinW failed (HRESULT 0x80070015)") : owner.Bin;
         }
 
         public void Dispose() => owner.Disposed++;

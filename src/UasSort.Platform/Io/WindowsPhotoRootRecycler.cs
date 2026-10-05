@@ -28,6 +28,9 @@ public sealed class WindowsPhotoRootRecycler : IPhotoRootRecycler
         return _sta.Invoke(() => FileOperationCom.Recycle(path));
     }
 
+    /// <summary>Branch-2 ruling: the Recycle Bin of the photo root's volume (registry + SHQueryRecycleBinW; nothing is opened).</summary>
+    public RecycleBinCapacity Capacity(string fullPath) => RecycleBinQuery.Read(fullPath);
+
     public void Dispose()
     {
         if (_disposed) return;

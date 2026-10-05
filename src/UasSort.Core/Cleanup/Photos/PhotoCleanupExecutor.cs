@@ -30,6 +30,7 @@ public static class PhotoCleanupExecutor
         private readonly DateTime _start;
         private readonly long _bytesTotal;
         private PhotoCleanupStop? _stop;
+        private string? _stopDetail;
         private ILedgerWriter? _writer;
         private IPhotoRootRecycler? _recycler;
         private int _itemsDone;
@@ -65,6 +66,7 @@ public static class PhotoCleanupExecutor
                 held.Push(_env.Power.KeepSystemAwake("Cleaning up Picture Offload"));
                 if (!PrepareLedger(held)) return Complete();
                 if (!OpenRecycler(held)) return Complete();
+                if (!RecycleBinHoldsTheRun()) return Complete();
                 for (var i = 0; i < _items.Length && _stop is null; i++)
                 {
                     if (_ct.IsCancellationRequested)
@@ -116,6 +118,23 @@ public static class PhotoCleanupExecutor
             }
             catch (UnsafeIoException) { _stop = PhotoCleanupStop.RecyclerRefused; return false; }
             catch (IOException) { _stop = PhotoCleanupStop.RecyclerRefused; return false; }
+        }
+
+        /// <summary>Branch-2 ruling: before the first move, the photo root volume's Recycle Bin must hold every byte chosen on top of what
+        /// it holds now, and must not remove files at once; a bin that can't be checked refuses too. Never starts moving otherwise.</summary>
+        private bool RecycleBinHoldsTheRun()
+        {
+            try
+            {
+                _stopDetail = PhotoCleanupRules.RecycleBinRefusal(_recycler!.Capacity(Plan.PhotoRoot), _bytesTotal);
+            }
+            catch (IOException e)
+            {
+                _stopDetail = $"The Recycle Bin for {Plan.PhotoRoot} couldn't be checked ({e.Message}). Nothing was moved.";
+            }
+            if (_stopDetail is null) return true;
+            _stop = PhotoCleanupStop.RecycleBinTooSmall;
+            return false;
         }
 
         private PhotoCleanupOutcome One(PhotoRow row)
@@ -310,7 +329,10 @@ public static class PhotoCleanupExecutor
             for (var i = 0; i < _items.Length; i++) _outcomes[i] ??= new PhotoNotStarted(_items[i].Item.RelPath);
             _progress.Report(new PhotoCleanupProgress(_itemsDone, _items.Length, _bytesDone, _bytesTotal, null));
             return new PhotoCleanupResult(_runId, _confirmed, [.. _outcomes.Select(o => o!)], _stop, [.. _unrecorded], _start,
-                                          _env.Clock.GetUtcNow().UtcDateTime);
+                                          _env.Clock.GetUtcNow().UtcDateTime)
+            {
+                StopDetail = _stopDetail,
+            };
         }
     }
 }
