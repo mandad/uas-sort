@@ -15,6 +15,9 @@ public sealed class ReportStore(string appDataDir, string machine, IPathFacts fa
     public string Save(CleanupReport r)
         => StoreFiles.WriteNew(Name(r.RunId, "-cleanup"), JsonSerializer.Serialize(r, CoreJsonContext.Default.CleanupReport), _ctx);
 
+    public string Save(PhotoCleanupReport r)
+        => StoreFiles.WriteNew(Name(r.RunId, "-photos"), JsonSerializer.Serialize(r, CoreJsonContext.Default.PhotoCleanupReport), _ctx);
+
     private string Name(string runId, string suffix)
     {
         var stamp = clock.GetLocalNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);

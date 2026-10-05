@@ -59,6 +59,7 @@ public sealed class MemReportStore : IReportStore
 {
     public List<OffloadReport> Offload { get; } = [];
     public List<CleanupReport> Cleanup { get; } = [];
+    public List<PhotoCleanupReport> Photos { get; } = [];
     public bool Throws { get; set; }
 
     public string Save(OffloadReport r)
@@ -73,6 +74,13 @@ public sealed class MemReportStore : IReportStore
         if (Throws) throw new IOException("The report couldn't be written.");
         Cleanup.Add(r);
         return $@"{FakeLayout.AppDataDir}\reports\{r.RunId}-cleanup.json";
+    }
+
+    public string Save(PhotoCleanupReport r)
+    {
+        if (Throws) throw new IOException("The report couldn't be written.");
+        Photos.Add(r);
+        return $@"{FakeLayout.AppDataDir}\reports\{r.RunId}-photos.json";
     }
 }
 

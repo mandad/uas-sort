@@ -82,7 +82,7 @@ public interface ILedgerStore                                     // folder = Le
 public interface ISettingsStore { SettingsLoad Load(bool readOnly = false); void Save(Settings s); }
 #pragma warning restore CA1716
 public interface IDraftStore { Draft? Load(string cardKey); void Save(string cardKey, Draft d); void Delete(string cardKey); }
-public interface IReportStore { string Save(OffloadReport r); string Save(CleanupReport r); }
+public interface IReportStore { string Save(OffloadReport r); string Save(CleanupReport r); string Save(PhotoCleanupReport r); }
 public interface IAppAssets { Stream OpenPlaces(); Stream OpenSelfTest(string name); }   // Part 11 adds OpenMapAsset only at its fallback 2
 public interface IPowerRequest { IDisposable KeepSystemAwake(string reason); }
 public interface IOffloadLock { IDisposable? TryAcquire(); }                    // named mutex Local\uas-sort-offload

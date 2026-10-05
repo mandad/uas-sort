@@ -12,6 +12,7 @@ namespace UasSort.Core.Json;
 [JsonSerializable(typeof(TargetChoice))]
 [JsonSerializable(typeof(OffloadReport))]
 [JsonSerializable(typeof(CleanupReport))]
+[JsonSerializable(typeof(PhotoCleanupReport))]
 [JsonSerializable(typeof(GeoPoint))]
 public sealed partial class CoreJsonContext : JsonSerializerContext
 {
