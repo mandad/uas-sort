@@ -96,3 +96,26 @@ public interface IThumbnailSource                                 // bytes, not 
     ValueTask<ReadOnlyMemory<byte>> GetAsync(ItemId id, CancellationToken ct);
     IDisposable Pause();                                          // Commit and Card cleanup: closes the cached card handles
 }
+
+// ── Picture Offload cleanup (spec 2026-10-04 §5)
+public interface IPhotoFileReader                                 // Platform: IoGuardPolicy.Check(PhotoCleanupRead, …) before every open;
+{                                                                 // read-only, FileShare.ReadWrite | Delete; a placeholder is refused, never hydrated
+    Stream OpenRead(string fullPath);
+}
+
+public sealed record PhotoItemStat(long Size, DateTime MtimeUtc, uint Attributes, bool IsDirectory);
+
+public sealed record RecycleOk;
+public sealed record RecycleError(int Code, string Message, bool NotRecyclable /* the shell would have deleted it permanently */);
+public union RecycleResult(RecycleOk, RecycleError);
+
+public interface IPhotoRootRecycler : IDisposable                 // IoGuardPolicy.Check(PhotoRootRecycle, …) before every move
+{
+    PhotoItemStat? Stat(string fullPath);                         // attributes only, never opens; null = gone
+    RecycleResult Recycle(string fullPath);                       // one file or one set folder → the Recycle Bin; never a permanent delete
+}
+
+public interface IPhotoRootRecyclerFactory                        // Platform: re-derives the photo root from the saved settings and builds
+{                                                                 // the recycler's own GuardContext with the plan; throws UnsafeIoException
+    IPhotoRootRecycler Open(ConfirmedPhotoCleanupPlan plan);
+}

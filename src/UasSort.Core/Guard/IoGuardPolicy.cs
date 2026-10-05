@@ -28,11 +28,17 @@ public static class IoGuardPolicy
         // Rule 1: attributes first. Null = the target doesn't exist, accepted only by the creating ops.
         if (attributes is null && op is not (IoOp.CreateNew or IoOp.CreateDir or IoOp.AppendOwnLedger))
             return Unsafe(op, path, "the target doesn't exist or its attributes couldn't be read");
-        if (attributes is uint a && (a & PlaceholderBits) != 0 && op != IoOp.SetPinned)
+        if (attributes is uint a && (a & PlaceholderBits) != 0 && op is not (IoOp.SetPinned or IoOp.PhotoRootRecycle))
             return IsTopLevelLedgerFile(path, ledgerDir) ? new GuardCloudOnly(path) : new GuardHydration(path, a);
 
         // Rules 1b and 2 for CardDelete (Card cleanup only, Ref §10.6); then rule 2 for every other op.
         if (op == IoOp.CardDelete) return CheckCardDelete(path, attributes!.Value, ledgerDir, ctx);
+        // Picture Offload cleanup (spec 2026-10-04 §5): its own read and recycle ops; the Lightroom folder and catalog are never written.
+        if (op == IoOp.PhotoCleanupRead) return CheckPhotoCleanupRead(path, attributes!.Value, ledgerDir, ctx);
+        if (op == IoOp.PhotoRootRecycle) return CheckPhotoRootRecycle(path, ledgerDir, ctx);
+        if (ctx.LightroomFolder is { } lightroom && PathRules.IsSameOrUnder(path, lightroom))
+            return Unsafe(op, path, "the Lightroom folder is only ever read, by Picture Offload cleanup");
+        if (LightroomRules.IsCatalogPath(path)) return Unsafe(op, path, "the Lightroom catalog is never opened");
         if (ctx.CardRoot is { } card && PathRules.IsSameOrUnder(path, card))
             return op == IoOp.ReadData ? Allow() : Unsafe(op, path, "nothing on the card is ever created, written, renamed or changed");
 
@@ -69,6 +75,39 @@ public static class IoGuardPolicy
         if (!isDirectory && PathRules.SetContains(plan.FilePaths, path)) return Allow();
         if (isDirectory && PathRules.SetContains(plan.SetFolders, path)) return Allow();
         return Unsafe(IoOp.CardDelete, path, isDirectory ? "not a set folder the confirmed plan names" : "not a file the confirmed plan names");
+    }
+
+    private static GuardDecision CheckPhotoCleanupRead(string path, uint attributes, string ledgerDir, GuardContext ctx)
+    {
+        const IoOp op = IoOp.PhotoCleanupRead;
+        if ((attributes & FileAttributeDirectory) != 0) return Unsafe(op, path, "only files are read");
+        if (LightroomRules.IsCatalogPath(path)) return Unsafe(op, path, "the Lightroom catalog is never opened");
+        if (PathRules.IsSameOrUnder(path, ledgerDir)) return Unsafe(op, path, "ledger files are read by the ledger store only");
+        if (ctx.LightroomFolder is { } lightroom && PathRules.IsStrictlyUnder(path, lightroom)) return Allow();
+        var parent = PathRules.Parent(path);
+        if (parent is not null && (PathRules.Equal(parent, ctx.PhotoRoot)
+                                   || (PathRules.Parent(parent) is { } grand && PathRules.Equal(grand, ctx.PhotoRoot))))
+            return Allow();
+        return Unsafe(op, path, "only Picture Offload photos, their set folders' members and Lightroom library files are read");
+    }
+
+    private static GuardDecision CheckPhotoRootRecycle(string path, string ledgerDir, GuardContext ctx)
+    {
+        const IoOp op = IoOp.PhotoRootRecycle;
+        if (PathRules.IsSameOrUnder(path, ledgerDir)) return Unsafe(op, path, "a Picture Offload cleanup never touches the ledger folder");
+        if (ctx.LightroomFolder is { } lightroom && PathRules.Overlaps(path, lightroom))
+            return Unsafe(op, path, "a Picture Offload cleanup never touches the Lightroom folder");
+        if (LightroomRules.IsCatalogPath(path)) return Unsafe(op, path, "a Picture Offload cleanup never touches the Lightroom catalog");
+        foreach (var previous in ctx.PreviousPhotoRoots)
+            if (PathRules.IsSameOrUnder(path, previous) && !PathRules.IsStrictlyUnder(ctx.PhotoRoot, previous))
+                return Unsafe(op, path, "a Picture Offload cleanup never touches a previous photo root");
+        if (PathRules.Overlaps(path, ctx.AppDataDir)) return Unsafe(op, path, "a Picture Offload cleanup never touches the app's data folder");
+        if (ctx.CardRoot is { } card && PathRules.Overlaps(path, card)) return Unsafe(op, path, "a Picture Offload cleanup never touches the card");
+        if (ctx.PhotoCleanup is not { } plan) return Unsafe(op, path, "no confirmed Picture Offload plan");
+        if (!PathRules.Equal(plan.PhotoRoot, ctx.PhotoRoot)) return Unsafe(op, path, "the confirmed plan is for another photo folder");
+        if (PathRules.Parent(path) is not { } parent || !PathRules.Equal(parent, ctx.PhotoRoot))
+            return Unsafe(op, path, "only items directly in the photo folder are recycled");
+        return PathRules.SetContains(plan.Paths, path) ? Allow() : Unsafe(op, path, "not an item the confirmed plan names");
     }
 
     private static string? ProtectedRootOf(string path, string ledgerDir, GuardContext ctx)
