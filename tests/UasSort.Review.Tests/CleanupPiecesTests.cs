@@ -33,6 +33,15 @@ public class CleanupPiecesTests
         Assert.Equal(text, CleanupAvailability.Text(context));
     }
 
+    [Fact] // Task U6: a locked card whose volume check says WriteProtected is never mislabelled "doesn't look like a drone card"
+    public void CleanupAvailability_VolumeWriteProtectedRefusal_ShowsTheLockText()
+    {
+        var context = new CleanupContext(false, false, new CardSource(@"E:\", TestPlans.Card, false, false), true,
+                                         CleanupVolumeCheck.WriteProtected, "the volume is read-only");
+        Assert.Equal((false, CleanupVolumeCheck.WriteProtected), CleanupAvailability.For(context));
+        Assert.Equal("The card is write-protected (lock switch)", CleanupAvailability.Text(context));
+    }
+
     [Fact]
     public void CleanupAvailability_NoCardScanned_RescanFirst()
         => Assert.Equal((false, "Rescan first"), CleanupAvailability.For(new CleanupContext(false, false, null, false, null)));

@@ -107,6 +107,18 @@ public class CleanupVmTests
         Assert.True(refused.OfferRescan);
     }
 
+    [Theory] // Task U6: removable media on any other bus (a PCIe reader) is a "card reader", not the raw bus name
+    [InlineData("Sd", "SD card")]
+    [InlineData("Usb", "USB drive")]
+    [InlineData("Scsi", "card reader")]
+    [InlineData("Unknown", "card reader")]
+    public void Cleanup_Summary_LabelsTheReader(string bus, string label)
+    {
+        var inputs = CleanupFixture.Inputs();
+        var rig = new Rig { Preparation = new CleanupPreparation(inputs with { Volume = inputs.Volume with { BusType = bus } }, null, false) };
+        Assert.Equal($"E: · {label} · exFAT · 256.1 GB · serial 1A2B-3C4D", rig.Vm().CardSummary);
+    }
+
     [Fact]
     public void Cleanup_ContinueDisabledUntilADateIsPicked_PickerDayIsTheCutoffDay()
     {

@@ -209,6 +209,7 @@ public class ShellVmTests
         Assert.Equal(Stage.Verdict, shell.Stage);
         Assert.Equal((false, CleanupVolumeCheck.NotACard, text),
                      (shell.Verdict!.CanCleanup, shell.Verdict.CleanupTooltip, shell.Verdict.CleanupUnavailableText));
+        Assert.Null(shell.CleanupUnavailableText);                  // Task U6: the Verdict footer already says it; no title-bar duplicate
 
         rig.Refusal = _ => default;
         shell.DeviceChanged();
@@ -478,6 +479,19 @@ public class ShellVmTests
         Assert.True(shell.CanBrowse);
         Assert.Contains(@"No volume found for \\server\share\card", shell.Card!.Message, StringComparison.Ordinal);
         Assert.IsType<InvalidOperationException>(Assert.Single(rig.Faults));
+    }
+
+    [Fact] // Task U6: no title-bar reason while there is no scanned card ("Rescan first" is chatter on the Card stage)
+    public async Task Shell_CardStageWithoutASource_ShowsNoCleanupReason()
+    {
+        var rig = new Rig { ReviewThrows = true };
+        var shell = rig.Shell();
+        await shell.StartAsync();
+        await Eventually.TrueAsync(() => shell.Stage == Stage.Card && shell.Card!.Message is not null, rig.Ui);
+
+        Assert.Null(shell.Source);
+        Assert.False(shell.CleanupEnabled);
+        Assert.Null(shell.CleanupUnavailableText);
     }
 
     [Fact] // F10: CreateReview throwing after the scan is handled the same way

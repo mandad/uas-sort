@@ -15,7 +15,10 @@ public static class CleanupAvailability
         if (c.Source is not { } s || !c.CardPresent) return (false, "Rescan first");
         if (s.IsWriteProtected) return (false, "The card is write-protected (lock switch)");
         if (s.IsBrowsedFolder) return (false, "Cleanup works only on a detected card. A browsed folder could be a backup copy.");
-        if (c.VolumeRefusal is not null) return (false, CleanupVolumeCheck.NotACard);
+        if (c.VolumeRefusal is not null)
+            return (false, string.Equals(c.VolumeRefusal, CleanupVolumeCheck.WriteProtected, StringComparison.Ordinal)
+                ? CleanupVolumeCheck.WriteProtected     // a locked card, not "doesn't look like a drone card"
+                : CleanupVolumeCheck.NotACard);
         return (true, null);
     }
 

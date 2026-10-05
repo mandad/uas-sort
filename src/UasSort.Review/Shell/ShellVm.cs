@@ -371,9 +371,10 @@ public sealed partial class ShellVm : ObservableObject
         LogCleanupAvailability(enabled, text);
         var pageWithoutCleanup = Stage is Stage.Cleanup or Stage.Settings or Stage.Setup;
         if (pageWithoutCleanup) enabled = false;
+        var noCaption = pageWithoutCleanup || Stage == Stage.Verdict || Source is null;   // Verdict shows its own footer; no card, nothing to say
         CleanupEnabled = enabled;
         CleanupTooltip = tooltip;
-        CleanupUnavailableText = enabled || pageWithoutCleanup ? null : text;   // those pages need no reason shown
+        CleanupUnavailableText = enabled || noCaption ? null : text;
         Verdict?.SetCleanupAvailability(enabled, tooltip, text);
         RescanCommand.NotifyCanExecuteChanged();
         SettingsCommand.NotifyCanExecuteChanged();

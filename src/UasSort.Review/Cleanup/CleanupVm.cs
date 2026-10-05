@@ -103,7 +103,8 @@ public sealed partial class CleanupVm : ObservableObject, IDisposable
         {
             _candidates = CleanupPlanner.Candidates(inputs);
             var v = inputs.Volume;
-            var bus = v.BusType switch { "Sd" or "Mmc" => "SD card", "Usb" => "USB drive", _ => v.BusType };
+            var bus = v.BusType switch { "Sd" or "Mmc" => "SD card", "Usb" => "USB drive",
+                _ when v.RemovableMedia => "card reader", _ => v.BusType };
             var volume = CleanupTexts.VolumeName(v.Root);
             CardSummary = $"{volume} · {bus} · {v.Identity.FileSystem} · {Fmt.Size(v.Identity.TotalBytes)} · serial {Fmt.Serial(v.Identity.VolumeSerial)}";
             FreeNowText = $"{volume} {Fmt.Size(inputs.Space.FreeBytes)} free of {Fmt.Size(inputs.Space.TotalBytes)}";
