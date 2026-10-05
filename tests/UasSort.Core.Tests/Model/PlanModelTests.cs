@@ -63,7 +63,7 @@ public class PlanModelTests
     }
 
     [Fact]
-    public void LedgerRecord_IsAClosedHierarchyOfEightKinds()
+    public void LedgerRecord_IsAClosedHierarchyOfNineKinds()
     {
         var card = new RunCard("1A2B3C4D", null, "exFAT", "FC9113", "9f3c0a6d12e4b7a1");
         var at = new DateTime(2026, 10, 6, 18, 2, 11, DateTimeKind.Utc);
@@ -77,13 +77,14 @@ public class PlanModelTests
             new RunRecord(1, "u", "DESKTOP-A", "r", at, at, "0.1.0", card, new RunRoots(@"C:\V", @"C:\V\P"), "Safe", ImmutableDictionary<string, int>.Empty),
             new TornRecord(1, "t", "DESKTOP-A", at, 412),
             new CardDeleteRecord(1, "x", "DESKTOP-A", "r", at, "a.MP4", 1, "DCIM/DJI_001/a.MP4", "DCIM/DJI_001/a.MP4", null, "InLedger", "in the history, verified", "beforeDate", card, null),
+            new PhotoDeleteRecord(1, "p", "DESKTOP-A", "r", at, "b.DNG", 2, @"C:\V\P\b.DNG", null, null, "lightroom", "verify", new DateOnly(2026, 9, 27)),
         ];
-        Assert.Equal(8, records.Select(Kind).Distinct().Count());
+        Assert.Equal(9, records.Select(Kind).Distinct().Count());
 
         static string Kind(LedgerRecord r) => r switch
         {
             FileRecord => "file", FolderRecord => "folder", SeenRecord => "seen", DecisionRecord => "decision",
-            RevokeRecord => "revoke", RunRecord => "run", TornRecord => "torn", CardDeleteRecord => "cardDelete",
+            RevokeRecord => "revoke", RunRecord => "run", TornRecord => "torn", CardDeleteRecord => "cardDelete", PhotoDeleteRecord => "photoDelete",
         };
     }
 }

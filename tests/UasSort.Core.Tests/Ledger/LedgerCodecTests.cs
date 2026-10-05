@@ -21,6 +21,7 @@ public sealed class LedgerCodecTests
         { "run", Run("u0000001", "8f1c0001", Utc(2026, 9, 27, 21, 0), Utc(2026, 9, 27, 21, 30), @"C:\Lib\UAS Videos", @"C:\Lib\UAS Videos\Picture Offload") },
         { "torn", Torn("t0000001", 412) },
         { "cardDelete", CardDelete("c0000001", "DJI_20260725232655_0117_D.MP4", 1_234_567_890) },
+        { "photoDelete", PhotoDelete("p0000001", "DJI_20260601121000_0002_D.DNG", 25_165_824) },
     };
 
     [Theory]

@@ -42,7 +42,7 @@ internal static partial class SelfTestChecks
                 return Task.FromResult(SelfTestCheck.Fail("json.ledger", "round-trip changed " + line));
             kinds.Add(record.GetType().Name);
         }
-        string[] expected = ["FileRecord", "FolderRecord", "SeenRecord", "DecisionRecord", "RevokeRecord", "RunRecord", "TornRecord", "CardDeleteRecord"];
+        string[] expected = ["FileRecord", "FolderRecord", "SeenRecord", "DecisionRecord", "RevokeRecord", "RunRecord", "TornRecord", "CardDeleteRecord", "PhotoDeleteRecord"];
         var missing = expected.Where(k => !kinds.Contains(k)).ToList();
         return Task.FromResult(missing.Count == 0
             ? SelfTestCheck.Pass("json.ledger", $"{lines.Length} lines, every record kind round-trips")

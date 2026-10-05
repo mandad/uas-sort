@@ -12,6 +12,7 @@ namespace UasSort.Core;
 [JsonDerivedType(typeof(RunRecord), "run")]
 [JsonDerivedType(typeof(TornRecord), "torn")]
 [JsonDerivedType(typeof(CardDeleteRecord), "cardDelete")]
+[JsonDerivedType(typeof(PhotoDeleteRecord), "photoDelete")]
 public closed record class LedgerRecord(int V, string Id, string Machine);
 
 public sealed record class FileRecord(int V, string Id, string Machine, string Run, DateTime At, string Kind /* video|photo|twin|setMember */,
@@ -42,3 +43,9 @@ public sealed record class CardDeleteRecord(int V, string Id, string Machine, st
     string Src /* card rel path */, string Unit /* ItemId */, DateTime? CaptureUtc,
     string Evidence /* VerifiedThisRun|InLedger|NameSizeMatch, "historyOnly:" prefix, notInLibraryConfirmed, companionOf:<evidence> */,
     string Reason, string Mode /* beforeDate|freeSpace */, RunCard Card, string? Set) : LedgerRecord(V, Id, Machine);
+
+/// <summary>Picture Offload cleanup (spec 2026-10-04 §6): one per file moved from the photo root to the Recycle Bin, written after the move.
+/// Evidence: lightroom|hyperlapseResult|panoramaStitch|dateOnly|unverifiedConfirmed. Mode: beforeDate|verify.</summary>
+public sealed record class PhotoDeleteRecord(int V, string Id, string Machine, string Run, DateTime At, string Name, long Size,
+    string Dest /* the Picture Offload path that went to the Recycle Bin */, DateTime? CaptureUtc, string? Set /* the card set name */,
+    string Evidence, string Mode, DateOnly Cutoff) : LedgerRecord(V, Id, Machine);

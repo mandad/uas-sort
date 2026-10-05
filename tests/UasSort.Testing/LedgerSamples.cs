@@ -33,6 +33,8 @@ public static class LedgerSamples
             new TornRecord(v, "sample-torn", machine, at.AddMinutes(2), 7),
             new CardDeleteRecord(v, "sample-card-delete", machine, "run-selftest-0002", at.AddDays(1), name, 1_048_576, src, src,
                                  at.AddHours(-2), "InLedger", "in the history, verified", "beforeDate", card, null),
+            new PhotoDeleteRecord(v, "sample-photo-delete", machine, "run-selftest-0003", at.AddDays(2), still, 25_165_824,
+                                  @"X:\UAS Videos\Picture Offload\" + still, at.AddHours(-2), null, "lightroom", "verify", new DateOnly(2025, 6, 1)),
         ];
         return [.. records.Select(LedgerCodec.Serialize)];
     }

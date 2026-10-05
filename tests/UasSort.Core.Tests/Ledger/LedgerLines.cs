@@ -47,6 +47,12 @@ internal static class LedgerLines
         => new(1, id, "DESKTOP-A", "c4e20001", Utc(2026, 10, 12, 19, 30, 5), name, size, "DCIM/DJI_001/" + name,
                "DCIM/DJI_001/" + name, Utc(2026, 7, 26, 3, 26, 55), "InLedger", "in the history, verified", "beforeDate", Card, null);
 
+    public static PhotoDeleteRecord PhotoDelete(string id, string name, long size, string evidence = "lightroom", string? set = null,
+                                                DateTime? at = null, string mode = "verify")
+        => new(1, id, "DESKTOP-A", "p7a10001", at ?? Utc(2026, 10, 4, 20, 15), name, size,
+               @"C:\Lib\UAS Videos\Picture Offload\" + (set is null ? "" : set + @"\") + name, Utc(2026, 6, 1, 20, 10), set,
+               evidence, mode, new DateOnly(2026, 6, 30));
+
     public static string Line(LedgerRecord r) => LedgerCodec.Serialize(r);
 
     /// <summary>Every record as one line, each terminated by '\n' (a cleanly closed file).</summary>

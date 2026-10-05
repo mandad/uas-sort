@@ -14,6 +14,8 @@ public sealed record LedgerRun(string Run, string Machine, DateTime StartUtc, Da
                                string? Model, string InventoryHash, string VideoRoot, string PhotoRoot, VerdictLevel Verdict,
                                ImmutableDictionary<AuditCategory, int> Counts);
 public sealed record LedgerCardDelete(string Run, DateTime AtUtc, FileKey Key, string Src, string Evidence, string Machine);
+public sealed record LedgerPhotoDelete(string Id, FileKey Key, string Dest, DateTime AtUtc, DateTime? CaptureUtc, string? Set,
+                                       string Evidence, string Mode, DateOnly Cutoff, string Machine, string Run);
 public sealed record LedgerParseIssue(string File, int Line, string Reason);
 
 public enum LedgerFolderState { Ok, Empty, Missing, NotPinned, Unwritable, CloudOnly, VideoRootMissing, Unlistable }
@@ -31,7 +33,12 @@ public sealed record LedgerSnapshot(
     ImmutableArray<LedgerRun> Runs,
     ImmutableArray<LedgerCardDelete> CardDeletes,             // Card cleanup's audit trail; informational, read by no rule
     ImmutableArray<LedgerParseIssue> ParseIssues,
-    ImmutableArray<string> SourceFiles, LedgerFolderStatus Status);
+    ImmutableArray<string> SourceFiles, LedgerFolderStatus Status)
+{
+    /// <summary>Unrevoked photoDelete records, the latest per key (spec 2026-10-04 §6). An init property, so every existing positional
+    /// construction keeps compiling and gets none.</summary>
+    public ImmutableDictionary<FileKey, LedgerPhotoDelete> PhotoDeletes { get; init; } = ImmutableDictionary<FileKey, LedgerPhotoDelete>.Empty;
+}
 
 public interface ILedgerWriter : IDisposable       // from ILedgerStore.OpenOwn(); one instance per Commit or user action
 {

@@ -19,6 +19,7 @@ public static class LedgerSnapshotBuilder
         var folders = new Dictionary<string, LedgerFolder>(StringComparer.OrdinalIgnoreCase);
         var runs = ImmutableArray.CreateBuilder<LedgerRun>();
         var cardDeletes = ImmutableArray.CreateBuilder<LedgerCardDelete>();
+        var photoDeletes = new List<LedgerPhotoDelete>();
 
         foreach (ParsedRecord p in parsed.Records)
         {
@@ -32,6 +33,7 @@ public static class LedgerSnapshotBuilder
                 case RevokeRecord r: error = string.IsNullOrEmpty(r.Decision) ? "missing decision id" : Revoke(r, revoked); break;
                 case RunRecord r: error = AddRun(r, runs); break;
                 case CardDeleteRecord c: error = AddCardDelete(c, cardDeletes); break;
+                case PhotoDeleteRecord d: error = AddPhotoDelete(d, photoDeletes); break;
                 case TornRecord: error = null; break;
                 default: error = "unknown record kind"; break;
             }
@@ -43,6 +45,13 @@ public static class LedgerSnapshotBuilder
         {
             if (revoked.Contains(d.Id)) continue;
             if (!live.TryGetValue(d.Key, out LedgerDecision? prev) || d.AtUtc > prev.AtUtc) live[d.Key] = d;
+        }
+
+        var removed = new Dictionary<FileKey, LedgerPhotoDelete>();
+        foreach (LedgerPhotoDelete d in photoDeletes)
+        {
+            if (revoked.Contains(d.Id)) continue;
+            if (!removed.TryGetValue(d.Key, out LedgerPhotoDelete? prev) || d.AtUtc > prev.AtUtc) removed[d.Key] = d;
         }
 
         ImmutableDictionary<string, ImmutableArray<LedgerSet>> setsByName = sets
@@ -57,7 +66,7 @@ public static class LedgerSnapshotBuilder
 
         return new LedgerSnapshot(files.ToImmutableDictionary(), setsByName, live.ToImmutableDictionary(), seen.ToImmutableDictionary(),
                                   folders.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase), runs.ToImmutable(), cardDeletes.ToImmutable(),
-                                  issues.ToImmutable(), parsed.SourceFiles, status);
+                                  issues.ToImmutable(), parsed.SourceFiles, status) { PhotoDeletes = removed.ToImmutableDictionary() };
     }
 
     private static string? AddFile(FileRecord f, Dictionary<FileKey, LedgerFile> files,
@@ -200,6 +209,17 @@ public static class LedgerSnapshotBuilder
     {
         if (string.IsNullOrEmpty(c.Name) || c.Size < 0) return "bad name or size";
         cardDeletes.Add(new LedgerCardDelete(c.Run, Utc(c.At), FileKey.Of(c.Name, c.Size), c.Src, c.Evidence, c.Machine));
+        return null;
+    }
+
+    private static string? AddPhotoDelete(PhotoDeleteRecord d, List<LedgerPhotoDelete> photoDeletes)
+    {
+        if (string.IsNullOrEmpty(d.Name) || d.Size < 0) return "bad name or size";
+        if (string.IsNullOrEmpty(d.Dest) || string.IsNullOrEmpty(d.Run)) return "missing dest or run";
+        if (!PhotoDeleteRecords.IsEvidence(d.Evidence)) return $"bad evidence '{d.Evidence}'";
+        if (!PhotoDeleteRecords.IsMode(d.Mode)) return $"bad mode '{d.Mode}'";
+        photoDeletes.Add(new LedgerPhotoDelete(d.Id, FileKey.Of(d.Name, d.Size), d.Dest, Utc(d.At), d.CaptureUtc is { } c ? Utc(c) : null,
+                                               d.Set, d.Evidence, d.Mode, d.Cutoff, d.Machine, d.Run));
         return null;
     }
 
