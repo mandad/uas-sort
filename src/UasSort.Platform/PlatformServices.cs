@@ -13,7 +13,8 @@ public sealed record PlatformServices(
     IVolumeProvider Volumes, IDirectoryLister Lister, IPathFacts PathFacts, ICardSourceValidator Validator,
     ICardReaderFactory Readers, ICardEraserFactory Erasers, ISettingsStore Settings, IDraftStore Drafts, IReportStore Reports,
     IAppAssets Assets, IPowerRequest Power, IOffloadLock OffloadLock, IDeviceEject Eject, IShellLauncher Shell,
-    Func<string, ILedgerStore> LedgerFor, Func<UasSort.Core.Settings, IReadOnlySet<string>, IFileOps> FileOpsFor, FileLog Log)
+    Func<string, ILedgerStore> LedgerFor, Func<UasSort.Core.Settings, IReadOnlySet<string>, IFileOps> FileOpsFor, FileLog Log,
+    IPhotoRootRecyclerFactory PhotoRecyclers, Func<UasSort.Core.Settings, IPhotoFileReader> PhotoReaderFor)
 {
     public static PlatformServices Create(string appDataDir, TimeProvider clock)
         => Create(appDataDir, clock, KnownFolders.Pictures());
@@ -47,7 +48,9 @@ public sealed record PlatformServices(
             new ShellLauncher(),
             videoRoot => new LedgerStore(Current() with { VideoRoot = videoRoot }, appDataDir, machine, facts, lister, clock),
             (s, newFolderDirs) => new GuardedFileOps(s, appDataDir, machine, facts, newFolderDirs),
-            new FileLog(appDataDir, machine, facts, clock));
+            new FileLog(appDataDir, machine, facts, clock),
+            new WindowsPhotoRootRecyclerFactory(Current, appDataDir, machine, facts),     // re-reads the saved photo root at every Open
+            s => new GuardedPhotoFileReader(s, appDataDir, machine, facts));
     }
 
     private sealed class CurrentReaders(Func<ICardReaderFactory> create) : ICardReaderFactory

@@ -21,6 +21,14 @@ public static class GuardContexts
                CardIsVerifiedCardVolume: false,
                Cleanup: null);
 
+    /// <summary>Picture Offload cleanup (spec 2026-10-04 §5): For(...) plus the canonical Lightroom folder and, for the recycler only, the plan.</summary>
+    public static GuardContext ForPhotoCleanup(Settings s, string appDataDir, string machine, IPathFacts facts, ConfirmedPhotoCleanupPlan? plan)
+        => For(s, appDataDir, machine, facts) with
+        {
+            LightroomFolder = s.LightroomFolder is { } lightroom ? facts.Canonical(lightroom) : null,
+            PhotoCleanup = plan,
+        };
+
     /// <summary>For Platform's own stores: the store folder is the only place the policy allows (rule 5).</summary>
     public static GuardContext ForAppData(string appDataDir, string machine, IPathFacts facts)
     {

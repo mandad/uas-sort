@@ -19,6 +19,8 @@ public sealed class PlatformServicesTests
         var ledger = Assert.IsType<LedgerStore>(p.LedgerFor(temp.Combine("video")));
         Assert.EndsWith(@"\.uas-sort", ledger.Folder, StringComparison.OrdinalIgnoreCase);
         Assert.IsType<GuardedFileOps>(p.FileOpsFor(SettingsDefaults.Derive(temp.FullPath), new HashSet<string>(StringComparer.OrdinalIgnoreCase)));
+        Assert.IsType<WindowsPhotoRootRecyclerFactory>(p.PhotoRecyclers);
+        Assert.IsType<GuardedPhotoFileReader>(p.PhotoReaderFor(SettingsDefaults.Derive(temp.FullPath)));
         Assert.False(Directory.Exists(appData));                // no settings, drafts, reports or logs folder was created
     }
 }
