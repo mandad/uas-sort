@@ -102,6 +102,18 @@ dotnet run --project src/UasSort.Cli -- plan --card E:\ --expect tests\acceptanc
 
 `uas-sort-cli plan` scans a card and prints the plan the app would propose. It writes nothing, anywhere (no drafts, no ledger, no files; logs go to stderr) and has no cleanup command. Roots and tuning come from the app's settings, or from `--video-root`, `--photo-root`, `--radius-mi` (5-100), `--gap-days` (0-7) and `--settings <file>`. Exit codes: 0 = plan printed (even with blocking issues), 1 = the card source was refused (the reason is on stderr), 2 = any other error. `--expect` compares the plan with your expected folder list and prints the differences and the edit count; see [`tests/acceptance/README.md`](tests/acceptance/README.md).
 
+## Clean up Picture Offload
+
+After an offload, photos land in the photo folder ("Picture Offload"). Once you have imported them into Lightroom (Copy as DNG into your Lightroom library folder), the Picture Offload copies only use OneDrive space. **Clean up Picture Offload…** (in the title bar, or Settings → Picture Offload) moves them to the Windows Recycle Bin:
+
+1. **Choose** a day: photos shot on or before it (local time where they were shot) are candidates. Optionally switch on **Verify against Lightroom** (set Settings → Lightroom library folder first): then only items found in the Lightroom library start on Delete — a photo by its capture time (to the sub-second when both files have it) and camera model, a panorama by all its frames or by DJI's stitched image, a hyperlapse by its result video in the video library.
+2. **Review** the list, grouped by day: each photo (a DNG and its JPG are one row) and each set folder has Keep/Delete, plus Delete all / Keep all. Items whose date can't be read without downloading them (online-only OneDrive files with no history record) and sets that run past the chosen day are listed as not eligible; other files are never touched.
+3. **Confirm** ("Move N items … to the Recycle Bin"; in verify mode, a second confirmation when an unverified item is set to Delete), watch the progress (Stop works between items), and read the result. The report is saved in `%LOCALAPPDATA%\uas-sort\reports\…-photos.json`.
+
+Safety: only items directly in Picture Offload, and only the ones you confirmed, are moved, and only to the Recycle Bin — if Windows would delete an item permanently instead, it is kept and reported. An item that changed since the review is skipped. Online-only files are never downloaded. The Lightroom folder is only read, and `D:\LR_Catalog` (and any `*.lrcat*` or `*.lrdata`) is never opened. Every moved file gets a `photoDelete` record in the history, so a later card that still holds the photo shows it as Imported, and Card cleanup accepts it as evidence.
+
+**First use (acceptance, spec 2026-10-04 §8):** (1) set the Lightroom library folder; (2) on a scratch copy — a test folder set as a temporary photo folder — move one photo and one set, including one online-only OneDrive file, and check the Windows / OneDrive recycle bins and what the result says for the online-only file; (3) a real run with a cutoff covering one old day in verify mode: check the Recycle Bin, the `photoDelete` records in `<videoRoot>\.uas-sort\`, and that a rescan of a card holding those photos shows them Imported.
+
 ## First-real-card acceptance
 
 After the build is complete, the first real card is the user's acceptance of the app. Design reference §13 ("Acceptance on the first real card") is the authoritative checklist; the steps below follow it. With the card in the reader (here `E:\`):
