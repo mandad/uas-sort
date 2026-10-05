@@ -106,8 +106,9 @@ function Test-SelftestGate {
         [double]$MaxWarmMs = 1000,
         [double]$BaselineMs = 370
     )
+    # Run 1 is cold; runs 2-4 are warm and the gate uses their MEDIAN (branch-2 ruling: one noisy warm run must not decide it).
     $reasons = [System.Collections.Generic.List[string]]::new()
-    if ($Runs.Count -ne 2) { $reasons.Add("the gate needs exactly 2 runs, got $($Runs.Count)") }
+    if ($Runs.Count -ne 4) { $reasons.Add("the gate needs exactly 4 runs (cold + three warm), got $($Runs.Count)") }
     foreach ($r in $Runs) {
         $own = @($r.Reasons | Where-Object { $null -ne $_ })
         foreach ($x in $own) { $reasons.Add($x) }
@@ -120,15 +121,21 @@ function Test-SelftestGate {
     $cold = $null
     $warm = $null
     if ($Runs.Count -ge 1) { $cold = $Runs[0].FirstFrameMs }
-    if ($Runs.Count -ge 2) { $warm = $Runs[1].FirstFrameMs }
+    $samples = @($Runs | Select-Object -Skip 1 | ForEach-Object { $_.FirstFrameMs })
+    $numbers = @($samples | Where-Object { Test-IsNumber $_ } | ForEach-Object { [double]$_ } | Sort-Object)
+    if ($numbers.Count -gt 0 -and $numbers.Count -eq $samples.Count) {
+        $mid = [int][math]::Floor($numbers.Count / 2)
+        $warm = if ($numbers.Count % 2 -eq 1) { $numbers[$mid] } else { ($numbers[$mid - 1] + $numbers[$mid]) / 2 }
+    }
     $warmIsNumber = Test-IsNumber $warm
     if ($warmIsNumber -and $warm -gt $MaxWarmMs) {
-        $reasons.Add("the warm first frame $warm ms exceeds $MaxWarmMs ms")
+        $reasons.Add("the median warm first frame $warm ms exceeds $MaxWarmMs ms (samples: $($samples -join ', ') ms)")
     }
     [pscustomobject]@{
         Ok                 = ($reasons.Count -eq 0)
         ColdMs             = $cold
         WarmMs             = $warm
+        WarmSamplesMs      = $samples
         MaxWarmMs          = $MaxWarmMs
         BaselineMs         = $BaselineMs
         SlowerThanBaseline = ($warmIsNumber -and $warm -gt $BaselineMs)

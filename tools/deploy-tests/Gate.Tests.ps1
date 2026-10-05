@@ -1,5 +1,6 @@
-# Ref §13 UI smoke test: two runs, each exit 0 with a result file; the warm (second) run's firstFrameMs ≤ 1000;
-# "not applicable" placeholder visibility needs -AllowNoPlaceholders. Baseline: ReadyToRun 0.37 s (Ref §2.2).
+# Ref §13 UI smoke test: a cold run plus three warm runs, each exit 0 with a result file; the MEDIAN of the warm runs'
+# firstFrameMs ≤ 1000 (branch-2 ruling: one noisy warm run must not decide the gate); "not applicable" placeholder visibility
+# needs -AllowNoPlaceholders. Baseline: ReadyToRun 0.37 s (Ref §2.2).
 
 function New-ResultFile([string]$Dir, [string]$FileName, $Content) {
     $path = Join-Path $Dir $FileName
@@ -134,7 +135,7 @@ function Assert-NotAnObjectResultFails([string]$Text) {
         Assert-True (-not $r.Ok) 'a result that is not a JSON object must fail'
         Assert-True ($null -eq $r.FirstFrameMs) "FirstFrameMs must stay null, got '$($r.FirstFrameMs)'"
         Assert-True (($r.Reasons -join ' ') -like '*run 1: the result file is empty or not a JSON object*') ($r.Reasons -join '; ')
-        $g = Test-SelftestGate -Runs @($r, (New-Run 2 $true 300))
+        $g = Test-SelftestGate -Runs @($r, (New-Run 2 $true 300), (New-Run 3 $true 300), (New-Run 4 $true 300))
         Assert-True (-not $g.Ok) 'the gate must fail'
     }
     finally { Remove-Item -LiteralPath $dir -Recurse -Force }
@@ -160,47 +161,78 @@ Test-Case 'Gate: a result with ok and checks but no firstFrameMs fails' {
     finally { Remove-Item -LiteralPath $dir -Recurse -Force }
 }
 
+function New-Gate([object[]]$FirstFrames, [bool[]]$Ok = @()) {
+    $runs = for ($i = 0; $i -lt $FirstFrames.Count; $i++) {
+        $runOk = if ($i -lt $Ok.Count) { $Ok[$i] } else { $true }
+        New-Run ($i + 1) $runOk $FirstFrames[$i]
+    }
+    Test-SelftestGate -Runs @($runs)
+}
+
 Test-Case 'Gate: a run reported Ok without a numeric firstFrameMs never passes the gate' {
     foreach ($ff in @($null, 'fast')) {
-        $cold = Test-SelftestGate -Runs @((New-Run 1 $true $ff), (New-Run 2 $true 300))
+        $cold = New-Gate @($ff, 300, 300, 300)
         Assert-True (-not $cold.Ok) "a cold run with firstFrameMs '$ff' must fail the gate"
         Assert-True (($cold.Reasons -join ' ') -like '*run 1*no numeric firstFrameMs*') ($cold.Reasons -join '; ')
-        $warm = Test-SelftestGate -Runs @((New-Run 1 $true 300), (New-Run 2 $true $ff))
+        $warm = New-Gate @(300, 300, $ff, 300)
         Assert-True (-not $warm.Ok) "a warm run with firstFrameMs '$ff' must fail the gate"
-        Assert-True (($warm.Reasons -join ' ') -like '*run 2*no numeric firstFrameMs*') ($warm.Reasons -join '; ')
+        Assert-True (($warm.Reasons -join ' ') -like '*run 3*no numeric firstFrameMs*') ($warm.Reasons -join '; ')
     }
 }
 
-Test-Case 'Gate: the warm run passes at 1000 ms and fails at 1001 ms' {
-    $at = Test-SelftestGate -Runs @((New-Run 1 $true 2400), (New-Run 2 $true 1000))
-    Assert-True $at.Ok ($at.Reasons -join '; ')
-    $over = Test-SelftestGate -Runs @((New-Run 1 $true 2400), (New-Run 2 $true 1001))
-    Assert-True (-not $over.Ok) '1001 ms must fail the gate'
-    Assert-True (($over.Reasons -join ' ') -like '*1001*1000*') ($over.Reasons -join '; ')
-}
-
-Test-Case 'Gate: only the second run counts as warm' {
-    $g = Test-SelftestGate -Runs @((New-Run 1 $true 2500), (New-Run 2 $true 600))
+Test-Case 'Gate: the warm first frame is the median of the three warm runs; every sample is kept' {
+    $g = New-Gate @(2500, 600, 250, 300)
     Assert-True $g.Ok ($g.Reasons -join '; ')
     Assert-Equal 2500 $g.ColdMs 'ColdMs'
-    Assert-Equal 600 $g.WarmMs 'WarmMs'
+    Assert-Equal 300 $g.WarmMs 'WarmMs is the median'
+    Assert-Equal '600,250,300' ($g.WarmSamplesMs -join ',') 'WarmSamplesMs in run order'
+}
+
+Test-Case 'Gate: the median warm run passes at 1000 ms and fails at 1001 ms' {
+    $at = New-Gate @(2400, 1000, 1500, 200)
+    Assert-True $at.Ok ($at.Reasons -join '; ')
+    Assert-Equal 1000 $at.WarmMs 'median'
+    $over = New-Gate @(2400, 1001, 1001, 200)
+    Assert-True (-not $over.Ok) 'a 1001 ms median must fail the gate'
+    Assert-True (($over.Reasons -join ' ') -like '*median*1001*1000*') ($over.Reasons -join '; ')
+}
+
+Test-Case 'Gate: one slow warm run sets neither the gate nor slowerThanBaseline' {
+    $g = New-Gate @(900, 1562, 280, 300)
+    Assert-True $g.Ok ($g.Reasons -join '; ')
+    Assert-Equal 300 $g.WarmMs 'median'
+    Assert-True (-not $g.SlowerThanBaseline) 'a 300 ms median meets the 370 ms baseline'
 }
 
 Test-Case 'Gate: slower than the 0.37 s ReadyToRun baseline is flagged (reported, not a failure) and does not fail the gate' {
-    $slow = Test-SelftestGate -Runs @((New-Run 1 $true 900), (New-Run 2 $true 371))
+    $slow = New-Gate @(900, 371, 371, 200)
     Assert-True $slow.Ok 'the 1 s gate still passes'
-    Assert-True $slow.SlowerThanBaseline '371 ms is slower than 370 ms'
-    $even = Test-SelftestGate -Runs @((New-Run 1 $true 900), (New-Run 2 $true 370))
-    Assert-True (-not $even.SlowerThanBaseline) '370 ms meets the baseline'
+    Assert-True $slow.SlowerThanBaseline 'a 371 ms median is slower than 370 ms'
+    $even = New-Gate @(900, 370, 900, 200)
+    Assert-True (-not $even.SlowerThanBaseline) 'a 370 ms median meets the baseline'
 }
 
-Test-Case 'Gate: a failed first run fails the gate and carries its reason' {
-    $g = Test-SelftestGate -Runs @((New-Run 1 $false 300 @('run 1: exit code 1')), (New-Run 2 $true 300))
-    Assert-True (-not $g.Ok) 'a failed run must fail the gate'
+Test-Case 'Gate: a failed run fails the gate and carries its reason' {
+    $g = Test-SelftestGate -Runs @((New-Run 1 $false 300 @('run 1: exit code 1')), (New-Run 2 $true 300), (New-Run 3 $true 300), (New-Run 4 $true 300))
+    Assert-True (-not $g.Ok) 'a failed cold run must fail the gate'
     Assert-True (($g.Reasons -join ' ') -like '*run 1: exit code 1*') ($g.Reasons -join '; ')
+    $w = New-Gate @(300, 300, 300, 300) @($true, $true, $true, $false)
+    Assert-True (-not $w.Ok) 'a failed third warm run must fail the gate'
+    Assert-True (($w.Reasons -join ' ') -like '*run 4: the run is not ok*') ($w.Reasons -join '; ')
 }
 
-Test-Case 'Gate: exactly two runs are required' {
-    $g = Test-SelftestGate -Runs @((New-Run 1 $true 300))
-    Assert-True (-not $g.Ok) 'one run must fail the gate'
+Test-Case 'Gate: exactly four runs (cold + three warm) are required' {
+    foreach ($n in 1, 2, 3, 5) {
+        $g = New-Gate @(1..$n | ForEach-Object { 300 })
+        Assert-True (-not $g.Ok) "$n runs must fail the gate"
+        Assert-True (($g.Reasons -join ' ') -like '*exactly 4 runs*') ($g.Reasons -join '; ')
+    }
+    Assert-True (New-Gate @(300, 300, 300, 300)).Ok 'four runs pass'
+}
+
+Test-Case 'Gate: deploy.ps1 runs the gate four times and records the warm samples' {
+    $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'tools\deploy.ps1') -Raw
+    Assert-True ($text -match 'foreach \(\$i in 1\.\.\$gateRuns\)') 'the gate loop runs $gateRuns times'
+    Assert-True ($text -match '\$gateRuns\s*=\s*4') '$gateRuns is 4 (cold + three warm)'
+    Assert-True ($text -match 'warmSamplesMs\s*=\s*\$gate\.WarmSamplesMs') 'the summary records warmSamplesMs'
 }
