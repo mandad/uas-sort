@@ -15,8 +15,8 @@ internal static class LedgerLines
     public static FileRecord FileRec(string id, string name, long size, string dest, string verify = "unbuffered",
         DateTime? at = null, string machine = "DESKTOP-A", double? lat = null, double? lon = null, string? tz = null,
         string? set = null, DateTime? captureUtc = null, string root = "video", string kind = "video",
-        DateTime? sessionUtc = null, string? serial = null, string? xxh128 = "5e0c0000000000000000000000000001")
-        => new(1, id, machine, "8f1c0001", at ?? Utc(2026, 9, 27, 21, 7, 2), kind, name, size, "DCIM/DJI_001/" + name, root, dest,
+        DateTime? sessionUtc = null, string? serial = null, string? xxh128 = "5e0c0000000000000000000000000001", string run = "8f1c0001")
+        => new(1, id, machine, run, at ??Utc(2026, 9, 27, 21, 7, 2), kind, name, size, "DCIM/DJI_001/" + name, root, dest,
                xxh128, verify, Utc(2026, 9, 27, 18, 8, 1), captureUtc, captureUtc is null ? null : "Mvhd", lat, lon, tz,
                captureUtc is { } c ? DateOnly.FromDateTime(c) : null, sessionUtc, serial, set);
 

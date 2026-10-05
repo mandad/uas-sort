@@ -38,7 +38,7 @@ Success: the user picks a cutoff, reviews a clear list, confirms, and the chosen
 - **Photo unit verified:** a Lightroom DNG with the **same DateTimeOriginal (including sub-seconds when both have them; else to the second)** and the **same camera Model**. For a DNG+JPG pair, the DNG decides.
 - **Set verified** when any of:
   - every member is verified as a photo; or
-  - **hyperlapse:** the ledger holds a `file` record of kind `video` whose capture session matches the set's session (same `SessionUtc`, or capture time within the set's span ± 2 min on the same drone `Serial`) — i.e. DJI's result video was copied to the video library by this app; or
+  - **hyperlapse:** the ledger holds a `file` record of kind `video` whose capture session matches the set's session (same `SessionUtc`, or capture time within the set's span ± 2 min on the same drone `Serial`) — i.e. DJI's result video was copied to the video library by this app. **Branch-2 ruling:** the offload records stills without a session or serial (only MP4s carry one), so the working link is a `video` file record from the **same offload Run** as the frames' file records (the same card) whose capture time lies within the set's span ± 2 min (evidence `hyperlapseResult`); the session/serial paths stay as additional ways; frames with no file record are unverified ("these frames have no offload record in the history"); or
   - **panorama:** a Lightroom DNG/JPG matches the **stitched panorama image** DJI produced for that set (its capture time and Model), where the stitched image is identified as in the scan's set rules.
 - Everything else is **unverified** with its reason. Date mode does not run verification and labels rows "not verified (date mode)".
 

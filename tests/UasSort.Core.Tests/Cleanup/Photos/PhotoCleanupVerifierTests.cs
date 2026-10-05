@@ -142,38 +142,63 @@ public sealed class PhotoCleanupVerifierTests
     private static readonly DateTime T0 = new(2026, 6, 1, 20, 10, 0, DateTimeKind.Utc);
     private const string Serial = "1581F0001";
 
-    private static PhotoItem Hyperlapse(SessionKey? session)
+    private const string Run1 = "8f1c0001", Run2 = "8f1c0002";
+    private const string VideoName = "DJI_20260601161130_0007_D.MP4";
+
+    /// <summary>Hyperlapse frames as the offload really records them (TimeResolver/OffloadRecords): a setMember file record per frame with
+    /// its run, capture time and set name, and NO session or serial (only MP4s carry a SessionKey). session: the hypothetical extra path.</summary>
+    private static PhotoItem Hyperlapse(string? run = Run1, SessionKey? session = null)
     {
-        LedgerFile Rec(string name, DateTime capture) => new(FileKey.Of(name, 13_000_000), "DCIM/HYPERLAPSE/001_0042/" + name, DestRoot.Photo,
-            PhotoRoot + @"\001_0042\" + name, null, VerifyKind.Unbuffered, T0.AddHours(5), capture, null, "America/Juneau",
-            DateOnly.FromDateTime(capture), session, "001_0042", "DESKTOP-A", "run-1");
+        LedgerFile? Rec(string name, DateTime capture) => run is null ? null : new(FileKey.Of(name, 13_000_000), "DCIM/HYPERLAPSE/001_0042/" + name,
+            DestRoot.Photo, PhotoRoot + @"\001_0042\" + name, null, VerifyKind.Unbuffered, T0.AddHours(5), capture, null, "America/Juneau",
+            DateOnly.FromDateTime(capture), session, "001_0042", "DESKTOP-A", run);
         return new PhotoItem("001_0042", PhotoItemKind.Set, PhotoSetKind.Hyperlapse, "001_0042",
             [Member(@"001_0042\HYPERLAPSE_0001.DNG", D, captureUtc: T0, ledger: Rec("HYPERLAPSE_0001.DNG", T0)),
              Member(@"001_0042\HYPERLAPSE_0002.DNG", D, captureUtc: T0.AddSeconds(90), ledger: Rec("HYPERLAPSE_0002.DNG", T0.AddSeconds(90)))]);
     }
 
-    private static LedgerSnapshot Video(DateTime capture, string? serial, DateTime? sessionUtc)
-        => TestLedger.Snapshot(FileRec("v1", "DJI_20260601161130_0007_D.MP4", 300_000_000,
-            @"C:\Lib\UAS Videos\2026\2026-06\2026-06-01 Juneau\DJI_20260601161130_0007_D.MP4", captureUtc: capture, serial: serial, sessionUtc: sessionUtc));
+    private static LedgerSnapshot Video(DateTime capture, string run = Run1, string? serial = Serial, DateTime? sessionUtc = null)
+        => TestLedger.Snapshot(FileRec("v1", VideoName, 300_000_000, @"C:\Lib\UAS Videos\2026\2026-06\2026-06-01 Juneau\" + VideoName,
+                                       captureUtc: capture, serial: serial, sessionUtc: sessionUtc ?? T0.AddMinutes(-5), run: run));
 
-    [Fact]
-    public void Verify_AHyperlapse_ByItsResultVideo_SameSessionOrSameSerialWithinTwoMinutes()
+    private static readonly PhotoVerification HyperlapseVerified =
+        new(true, PhotoEvidence.HyperlapseResult, "hyperlapse result video is in the library: " + VideoName);
+
+    [Fact] // branch-2 ruling: the frames link to DJI's result video through the offload run
+    public void Verify_AHyperlapse_ByAVideoOfTheSameOffloadRunWithinTwoMinutesOfItsSpan()
     {
-        var set = Hyperlapse(new SessionKey(Serial, T0.AddMinutes(-30)));
-        var verified = new PhotoVerification(true, PhotoEvidence.HyperlapseResult, "hyperlapse result video is in the library: DJI_20260601161130_0007_D.MP4");
-        Assert.Equal(verified, Verify(set, [set], Video(T0.AddHours(3), Serial, T0.AddMinutes(-30))));      // same session, any time
-        Assert.Equal(verified, Verify(set, [set], Video(T0.AddSeconds(150), Serial, T0.AddMinutes(-5))));    // same serial, in the window
-        Assert.Equal("hyperlapse result video not in the library", Verify(set, [set], Video(T0.AddHours(1), Serial, T0.AddMinutes(-5))).Text);
+        var set = Hyperlapse();
+        Assert.Equal(HyperlapseVerified, Verify(set, [set], Video(T0.AddSeconds(150))));                     // 1 min after the last frame
+        Assert.Equal(HyperlapseVerified, Verify(set, [set], Video(T0.AddSeconds(-120))));                    // the window's first instant
+        Assert.Equal(HyperlapseVerified, Verify(set, [set], Video(T0.AddSeconds(210), serial: null, sessionUtc: T0)));   // no serial needed
+        Assert.Equal("hyperlapse result video not in the library", Verify(set, [set], Video(T0.AddSeconds(211))).Text);
+        Assert.Equal("hyperlapse result video not in the library", Verify(set, [set], Video(T0.AddHours(1))).Text);
     }
 
     [Fact]
-    public void Verify_AHyperlapse_AVideoOfAnotherOrAnUnknownDroneInTheWindow_DoesNotVerify()
+    public void Verify_AHyperlapse_AVideoOfAnotherOffloadInTheWindow_DoesNotVerify()
     {
-        var set = Hyperlapse(new SessionKey(Serial, T0.AddMinutes(-30)));
-        Assert.Equal("hyperlapse result video not in the library", Verify(set, [set], Video(T0.AddSeconds(150), "1581F0999", T0.AddMinutes(-5))).Text);
-        Assert.Equal("hyperlapse result video not in the library", Verify(set, [set], Video(T0.AddSeconds(150), null, null)).Text);
-        var noSerial = Hyperlapse(null);                                                                     // DJI stills: usually no serial
-        Assert.Equal("a video in the library was shot then, but these frames carry no drone serial — can't tell it is this hyperlapse's result",
-                     Verify(noSerial, [noSerial], Video(T0.AddSeconds(150), Serial, T0.AddMinutes(-5))).Text);
+        var set = Hyperlapse();
+        Assert.Equal("a video in the library was shot then, but it came from another offload — can't tell it is this hyperlapse's result",
+                     Verify(set, [set], Video(T0.AddSeconds(150), run: Run2)).Text);
+    }
+
+    [Fact]
+    public void Verify_AHyperlapse_WhoseFramesHaveNoOffloadRecord_IsUnverified_WithItsReason()
+    {
+        var set = Hyperlapse(run: null);
+        Assert.Equal(new PhotoVerification(false, PhotoEvidence.HyperlapseResult,
+                         "these frames have no offload record in the history — their result video can't be identified"),
+                     Verify(set, [set], Video(T0.AddSeconds(150))));
+    }
+
+    [Fact] // the session and serial paths stay as additional ways (ruling), should a frame record ever carry a session
+    public void Verify_AHyperlapse_TheSessionAndSerialPaths_StillVerify()
+    {
+        var set = Hyperlapse(run: Run2, session: new SessionKey(Serial, T0.AddMinutes(-30)));
+        Assert.Equal(HyperlapseVerified, Verify(set, [set], Video(T0.AddHours(3), sessionUtc: T0.AddMinutes(-30))));   // same session, any time
+        Assert.Equal(HyperlapseVerified, Verify(set, [set], Video(T0.AddSeconds(150))));                                // same serial, in the window
+        Assert.Equal("a video in the library was shot then, but it came from another offload — can't tell it is this hyperlapse's result",
+                     Verify(set, [set], Video(T0.AddSeconds(150), serial: "1581F0999")).Text);
     }
 }

@@ -152,6 +152,35 @@ public sealed class PhotoCleanupSurveyTests
         Assert.Equal((PhotoSetKind.Panorama, "003_0004"), (p.SetKind, p.SetName));
     }
 
+    [Fact] // branch-2 ruling: realistic records (no session or serial on stills) still link the frames to their result video
+    public void SurveyAndBuild_AHyperlapse_IsVerifiedByTheResultVideoOfTheSameOffloadRun()
+    {
+        var rig = new Rig();
+        var f1 = rig.Dng(@"001_0042\HYPERLAPSE_0001.DNG", Shot);
+        var f2 = rig.Dng(@"001_0042\HYPERLAPSE_0002.DNG", Shot.AddSeconds(30));
+        var frame = new DateTime(2026, 6, 1, 20, 10, 0, DateTimeKind.Utc);
+        const string video = "DJI_20260601121130_0007_D.MP4";
+        LedgerSnapshot Ledger(string videoRun) => TestLedger.Snapshot(
+            FileRec("f1", "HYPERLAPSE_0001.DNG", rig.SizeOf(f1), f1, root: "photo", kind: "setMember", set: "001_0042", captureUtc: frame)
+                with { Src = "DCIM/HYPERLAPSE/001_0042/HYPERLAPSE_0001.DNG" },
+            FileRec("f2", "HYPERLAPSE_0002.DNG", rig.SizeOf(f2), f2, root: "photo", kind: "setMember", set: "001_0042", captureUtc: frame.AddSeconds(30))
+                with { Src = "DCIM/HYPERLAPSE/001_0042/HYPERLAPSE_0002.DNG" },
+            FileRec("v1", video, 300_000_000, @"C:\Lib\UAS Videos\2026\2026-06\2026-06-01 Juneau\" + video, captureUtc: frame.AddSeconds(90),
+                    sessionUtc: frame.AddMinutes(-5), serial: "1581F0001", run: videoRun));
+        PhotoVerification Verified(string videoRun)
+        {
+            rig.Ledger = Ledger(videoRun);
+            var s = rig.Survey();
+            Assert.All(s.Items.Single().Members, m => Assert.Null(m.Ledger!.Session));
+            var plan = PhotoCleanupPlanner.Build(s, new PhotoCleanupRequest(PhotoCleanupMode.Verify, new DateOnly(2026, 6, 30), @"X:\Lightroom"),
+                                                 LightroomIndex.From(@"X:\Lightroom", []), rig.Exif, null, CancellationToken.None);
+            return Assert.Single(plan.Rows).Verification;
+        }
+        Assert.Equal(new PhotoVerification(true, PhotoEvidence.HyperlapseResult, "hyperlapse result video is in the library: " + video),
+                     Verified("8f1c0001"));
+        Assert.False(Verified("8f1c0099").Verified);                                      // another offload's video
+    }
+
     [Fact]
     public void Survey_AnUnreadableLocalFile_HasADateProblem()
     {

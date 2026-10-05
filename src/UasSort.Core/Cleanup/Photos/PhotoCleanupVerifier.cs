@@ -80,25 +80,33 @@ public static class PhotoCleanupVerifier
             : (false, $"{peers} shots in the same second; only {loose.Count} in Lightroom — can't tell which");
     }
 
-    /// <summary>Spec §4 hyperlapse rule as written (resolved ambiguity 7): a ledger video whose session matches a member's always counts;
-    /// one shot within the set's span ± 2 min counts only on the same, known drone serial.</summary>
+    /// <summary>Spec §4 hyperlapse rule (branch-2 ruling): the offload records stills without a session or serial (only MP4s carry a
+    /// SessionKey), so the frames link to DJI's result video through their offload run — a ledger video (a file record with the video
+    /// root) from the same Run as the frames' file records (the same card) shot within the set's span ± 2 min. The spec's session and
+    /// serial paths stay as additional ways: a session matching a member's always counts; a video in the window on the same, known
+    /// drone serial counts. Frames without any file record (not offloaded by uas-sort) can't be linked.</summary>
     internal static (LedgerFile? Video, string Why) HyperlapseVideo(PhotoItem set, LedgerSnapshot ledger)
     {
         ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(ledger);
-        var sessions = set.Members.Select(m => m.Ledger?.Session).OfType<SessionKey>().ToList();
+        var records = set.Members.Select(m => m.Ledger).OfType<LedgerFile>().ToList();
+        if (records.Count == 0) return (null, "these frames have no offload record in the history — their result video can't be identified");
+        var runs = records.Select(r => r.Run).ToHashSet(StringComparer.Ordinal);
+        var sessions = records.Select(r => r.Session).OfType<SessionKey>().ToList();
         var times = set.Members.Select(m => m.CaptureUtc).OfType<DateTime>().ToList();
         var serial = sessions.Select(s => s.DroneSerial).FirstOrDefault(s => s is not null);
-        var inWindowWithoutSerial = false;
+        var inWindowUnlinked = false;
         foreach (var v in ledger.Files.Values.Where(f => f.Root == DestRoot.Video).OrderBy(f => f.Dest, StringComparer.OrdinalIgnoreCase))
         {
             if (v.Session is { } vs && sessions.Exists(s => s.SameSession(vs))) return (v, "");
             if (times.Count == 0 || v.CaptureUtc is not { } at || at < times.Min() - HyperlapseWindow || at > times.Max() + HyperlapseWindow) continue;
-            if (serial is null) inWindowWithoutSerial = true;
-            else if (v.Session is { DroneSerial: { } videoSerial } && string.Equals(serial, videoSerial, StringComparison.Ordinal)) return (v, "");
+            if (runs.Contains(v.Run)) return (v, "");
+            if (serial is not null && v.Session is { DroneSerial: { } videoSerial } && string.Equals(serial, videoSerial, StringComparison.Ordinal))
+                return (v, "");
+            inWindowUnlinked = true;
         }
-        return (null, inWindowWithoutSerial
-            ? "a video in the library was shot then, but these frames carry no drone serial — can't tell it is this hyperlapse's result"
+        return (null, inWindowUnlinked
+            ? "a video in the library was shot then, but it came from another offload — can't tell it is this hyperlapse's result"
             : "hyperlapse result video not in the library");
     }
 
