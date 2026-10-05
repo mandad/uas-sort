@@ -185,6 +185,35 @@ public sealed class PhotoCleanupExecutorTests
         Assert.Null(result.Stop);
     }
 
+    [Fact] // deferred minor P.11: a delete that left nothing in the Recycle Bin is never reported as moved there
+    public async Task Run_AnItemRemovedWithoutTheRecycleBin_IsRecordedAndReportedAsSuch_OneStillThereIsKept()
+    {
+        var rig = new Rig();
+        var gone = rig.PhotoRow("A.DNG", "A.JPG");
+        var stays = rig.PhotoRow("B.DNG");
+        var set = rig.SetRow("001_0087", "PANO_0001.DNG", "PANO_0002.DNG");
+        rig.Recyclers.RemovedNotInBin.Add(PhotoRoot + @"\A.DNG");
+        rig.Recyclers.ClaimsRemovedButStays.Add(PhotoRoot + @"\B.DNG");
+        rig.Recyclers.RemovedNotInBin.Add(PhotoRoot + @"\001_0087");
+
+        var result = await rig.Run(Confirmed(rig.Clock, PhotoCleanupMode.BeforeDate, [gone, stays, set]));
+
+        var a = Assert.IsType<PhotoRecycled>(result.Outcomes[0]);
+        Assert.Equal(["A.DNG"], a.NotInRecycleBin);                                       // the twin went to the Recycle Bin, the DNG didn't
+        var b = Assert.IsType<PhotoRecycleFailed>(result.Outcomes[1]);
+        Assert.Equal(("B.DNG", false), (b.Path, b.NotRecyclable));
+        Assert.Equal("Windows reported it removed, but it is still in Picture Offload; kept", b.Error);
+        Assert.True(rig.Fs.Exists(PhotoRoot + @"\B.DNG"));
+        Assert.Equal([@"001_0087\PANO_0001.DNG", @"001_0087\PANO_0002.DNG"], Assert.IsType<PhotoRecycled>(result.Outcomes[2]).NotInRecycleBin);
+        Assert.Equal(["A.JPG", "A.DNG", "PANO_0001.DNG", "PANO_0002.DNG"], rig.Records.Select(r => r.Name));   // the files are gone: recorded
+
+        var report = PhotoCleanupReports.Build(result);
+        Assert.Equal(("removed, not in the Recycle Bin", "Windows removed A.DNG without putting it in the Recycle Bin", true),
+                     (report.Items[0].Outcome, report.Items[0].Error, report.Items[0].LedgerRecorded));
+        Assert.Equal("failed", report.Items[1].Outcome);
+        Assert.Equal("removed, not in the Recycle Bin", report.Items[2].Outcome);
+    }
+
     [Fact]
     public async Task Run_AFailedLedgerAppend_StopsAndNamesTheUnrecordedFile()
     {

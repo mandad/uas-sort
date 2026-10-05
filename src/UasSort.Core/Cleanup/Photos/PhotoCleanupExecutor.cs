@@ -131,27 +131,42 @@ public static class PhotoCleanupExecutor
         {
             var item = row.Item;
             var done = new List<string>();
+            var notInBin = new List<string>();
             for (var k = item.Members.Length - 1; k >= 0; k--)
             {
                 var m = item.Members[k];
-                var result = Recycle(Full(m.RelPath));
+                var full = Full(m.RelPath);
+                var result = Checked(Recycle(full), full);
                 if (result is RecycleError e)
                     return done.Count == 0 ? new PhotoRecycleFailed(item.RelPath, m.RelPath, e.Code, e.Message, e.NotRecyclable)
-                                           : Partly(item, done, e.Message);
+                                           : Partly(item, done, notInBin, e.Message);
+                if (result is RecycleNotInBin) notInBin.Add(m.RelPath);
                 done.Add(m.RelPath);
                 _bytesDone += m.Size;
                 if (!Append(row, m))
-                    return done.Count == item.Members.Length ? Recycled(item) : Partly(item, done, "the history couldn't be written; stopped");
+                    return done.Count == item.Members.Length ? Recycled(item, notInBin)
+                                                             : Partly(item, done, notInBin, "the history couldn't be written; stopped");
             }
-            return Recycled(item);
+            return Recycled(item, notInBin);
         }
+
+        /// <summary>Deferred minor P.11: the shell reported a delete that left nothing in the Recycle Bin. Gone: it stays RecycleNotInBin
+        /// (recorded, reported "removed, not in the Recycle Bin"); still there (or unknown): kept, as a RecycleError.</summary>
+        private RecycleResult Checked(RecycleResult result, string fullPath)
+            => result is RecycleNotInBin && !Gone(fullPath)
+                ? new RecycleError(StillThere, "Windows reported it removed, but it is still in Picture Offload; kept", false)
+                : result;
+
+        private const int StillThere = unchecked((int)0x80004005);   // E_FAIL
 
         /// <summary>A set folder moves as one unit; then one record per member. When the shell fails part-way through the folder, the
         /// members already gone are recorded and reported like a partly moved photo (spec §6: never silent).</summary>
         private PhotoCleanupOutcome RecycleSet(PhotoRow row)
         {
             var item = row.Item;
-            var result = Recycle(Full(item.RelPath));
+            var folder = Full(item.RelPath);
+            var raw = Recycle(folder);
+            var result = Checked(raw, folder);
             if (result is RecycleError e)
             {
                 var gone = new List<string>();
@@ -165,8 +180,9 @@ public static class PhotoCleanupExecutor
                     else if (!Append(row, m)) recording = false;
                 }
                 return gone.Count == 0 ? new PhotoRecycleFailed(item.RelPath, item.RelPath, e.Code, e.Message, e.NotRecyclable)
-                                       : Partly(item, gone, e.Message);
+                                       : Partly(item, gone, raw is RecycleNotInBin ? gone : [], e.Message);
             }
+            List<string> notInBin = result is RecycleNotInBin ? [.. item.Members.Select(m => m.RelPath)] : [];
             _bytesDone += item.Bytes;
             for (var k = 0; k < item.Members.Length; k++)
             {
@@ -174,7 +190,7 @@ public static class PhotoCleanupExecutor
                 for (var rest = k + 1; rest < item.Members.Length; rest++) _unrecorded.Add(Full(item.Members[rest].RelPath));
                 break;
             }
-            return Recycled(item);
+            return Recycled(item, notInBin);
         }
 
         private RecycleResult Recycle(string fullPath)
@@ -271,11 +287,15 @@ public static class PhotoCleanupExecutor
 
         private string Full(string relPath) => PhotoCleanupPaths.Full(Plan.PhotoRoot, relPath);
 
-        private static PhotoRecycled Recycled(PhotoItem item) => new(item.RelPath, item.Members.Length, item.Bytes);
+        private static PhotoRecycled Recycled(PhotoItem item, List<string> notInBin)
+            => new(item.RelPath, item.Members.Length, item.Bytes) { NotInRecycleBin = [.. notInBin] };
 
-        private static PhotoPartlyRecycled Partly(PhotoItem item, List<string> done, string why)
+        private static PhotoPartlyRecycled Partly(PhotoItem item, List<string> done, List<string> notInBin, string why)
             => new(item.RelPath, [.. done],
-                   [.. item.Members.Select(m => m.RelPath).Where(r => !done.Contains(r, StringComparer.OrdinalIgnoreCase))], why);
+                   [.. item.Members.Select(m => m.RelPath).Where(r => !done.Contains(r, StringComparer.OrdinalIgnoreCase))], why)
+            {
+                NotInRecycleBin = [.. notInBin],
+            };
 
         private void Report(string? current, bool force)
         {

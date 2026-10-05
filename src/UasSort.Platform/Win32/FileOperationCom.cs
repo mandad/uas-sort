@@ -64,7 +64,7 @@ internal static unsafe partial class FileOperationCom
             if ((hr = op.DeleteItem(item, 0)) < 0) return Failed(hr, "the shell refused to queue the move");
             hr = op.PerformOperations();
             _ = op.GetAnyOperationsAborted(out var aborted);
-            return Outcome(sink.RefusedPermanentDelete, hr, sink.DeleteResult, sink.Deleted, aborted != 0);
+            return Outcome(sink.RefusedPermanentDelete, hr, sink.DeleteResult, sink.Deleted, aborted != 0, sink.RemovedWithoutBinItem);
         }
         finally
         {
@@ -75,14 +75,18 @@ internal static unsafe partial class FileOperationCom
     }
 
     /// <summary>The result of one IFileOperation run (pure, unit-tested). The sink's refusal is checked first: whatever PerformOperations
-    /// returned (success, ERROR_CANCELLED, another failure), a refused permanent delete is NotRecyclable and the item was kept.</summary>
-    internal static RecycleResult Outcome(bool refusedPermanentDelete, int performResult, int deleteResult, bool deleted, bool aborted)
+    /// returned (success, ERROR_CANCELLED, another failure), a refused permanent delete is NotRecyclable and the item was kept. A delete
+    /// that succeeded without a new Recycle Bin item (PostDeleteItem's psiNewlyCreated NULL = fully deleted, deferred minor P.11) is
+    /// RecycleNotInBin, never RecycleOk: the executor checks whether the item is gone and says so.</summary>
+    internal static RecycleResult Outcome(bool refusedPermanentDelete, int performResult, int deleteResult, bool deleted, bool aborted,
+                                          bool removedWithoutBinItem)
     {
         if (refusedPermanentDelete)
             return new RecycleError(HResultCancelled, "Windows would delete it permanently instead of moving it to the Recycle Bin; kept", true);
         if (performResult < 0) return Failed(performResult, "moving it to the Recycle Bin failed");
         if (deleteResult < 0) return Failed(deleteResult, "moving it to the Recycle Bin failed");
         if (aborted || !deleted) return new RecycleError(HResultCancelled, "the move to the Recycle Bin was cancelled; kept", false);
+        if (removedWithoutBinItem) return new RecycleNotInBin("Windows removed it without putting it in the Recycle Bin");
         return new RecycleOk();
     }
 
@@ -150,13 +154,15 @@ internal partial interface IFileOperationProgressSink
 }
 
 /// <summary>Refuses (ERROR_CANCELLED) any delete the shell announces without TSF_DELETE_RECYCLE_IF_POSSIBLE, i.e. a permanent delete,
-/// and records how the delete ended.</summary>
+/// and records how the delete ended, including a successful delete whose psiNewlyCreated is NULL (fully deleted: nothing arrived in the
+/// Recycle Bin).</summary>
 [GeneratedComClass]
 internal sealed partial class RecycleSink : IFileOperationProgressSink
 {
     public bool RefusedPermanentDelete { get; private set; }
     public bool Deleted { get; private set; }
     public int DeleteResult { get; private set; }
+    public bool RemovedWithoutBinItem { get; private set; }
 
     public int PreDeleteItem(uint dwFlags, nint psiItem)
     {
@@ -169,6 +175,7 @@ internal sealed partial class RecycleSink : IFileOperationProgressSink
     {
         DeleteResult = hrDelete;
         Deleted = hrDelete >= 0;
+        if (hrDelete >= 0 && psiNewlyCreated == 0) RemovedWithoutBinItem = true;
         return 0;
     }
 

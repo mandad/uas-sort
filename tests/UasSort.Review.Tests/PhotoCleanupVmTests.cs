@@ -166,6 +166,22 @@ public sealed class PhotoCleanupVmTests
         Assert.True(closed);
     }
 
+    [Fact] // deferred minor P.11: an item removed without the Recycle Bin is never counted or shown as moved there
+    public void Result_AnItemRemovedWithoutTheRecycleBin_IsNamedAsSuch()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 20, 0, 0, TimeSpan.Zero));
+        var confirmed = Confirmed(time, PhotoCleanupMode.BeforeDate, [Row(Photo("A.DNG", Jun1, twin: "A.JPG")), Row(Photo("B.DNG", Jun1))]);
+        var at = time.GetUtcNow().UtcDateTime;
+        var result = new PhotoCleanupResult("photos01", confirmed,
+            [new PhotoRecycled("A.DNG", 2, 33_000_000) { NotInRecycleBin = ["A.DNG"] }, new PhotoRecycled("B.DNG", 1, 25_000_000)], null, [], at, at);
+
+        var vm = new PhotoCleanupResultVm(result, ReportFile, null, new FakeShellLauncher());
+
+        Assert.Equal("Moved 1 item (1 file, 25 MB) to the Recycle Bin", vm.HeadlineText);
+        Assert.Equal("moved 1 · removed without the Recycle Bin 1 · kept 0 · skipped because changed 0 · failed 0", vm.CountsText);
+        Assert.Equal(["A.DNG: removed, not in the Recycle Bin — Windows deleted A.DNG instead of moving it there"], vm.Problems);
+    }
+
     [Fact]
     public async Task ABlockedPreparation_ShowsItsReason_AndKeepOnDevicePreparesAgain()
     {

@@ -27,6 +27,12 @@ public sealed class FakePhotoRootRecyclerFactory(FakeFileSystem fs, GuardContext
     public List<string> Recycled { get; } = [];
     public HashSet<string> NotRecyclable { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> Fails { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The shell deletes it but nothing arrives in the Recycle Bin (PostDeleteItem with psiNewlyCreated NULL).</summary>
+    public HashSet<string> RemovedNotInBin { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The shell reports a delete without a Recycle Bin item, yet the item is still there.</summary>
+    public HashSet<string> ClaimsRemovedButStays { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Action<string>? BeforeRecycle { get; set; }
     public bool OpenThrows { get; set; }
     public int Opened { get; private set; }
@@ -51,7 +57,9 @@ public sealed class FakePhotoRootRecyclerFactory(FakeFileSystem fs, GuardContext
             if (owner.NotRecyclable.Contains(p))
                 return new RecycleError(0, "Windows would delete it permanently instead of moving it to the Recycle Bin; kept", true);
             if (owner.Fails.Contains(p)) return new RecycleError(5, "Access is denied.", false);
+            if (owner.ClaimsRemovedButStays.Contains(p)) return new RecycleNotInBin("Windows removed it without putting it in the Recycle Bin");
             owner.Fs.RemoveUnguarded(p);
+            if (owner.RemovedNotInBin.Contains(p)) return new RecycleNotInBin("Windows removed it without putting it in the Recycle Bin");
             owner.Recycled.Add(p);
             return new RecycleOk();
         }

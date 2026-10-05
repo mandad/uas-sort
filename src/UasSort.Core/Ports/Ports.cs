@@ -107,7 +107,8 @@ public sealed record PhotoItemStat(long Size, DateTime MtimeUtc, uint Attributes
 
 public sealed record RecycleOk;
 public sealed record RecycleError(int Code, string Message, bool NotRecyclable /* the shell would have deleted it permanently */);
-public union RecycleResult(RecycleOk, RecycleError);
+public sealed record RecycleNotInBin(string Message);             // the shell deleted it, but nothing arrived in the Recycle Bin (P.11)
+public union RecycleResult(RecycleOk, RecycleError, RecycleNotInBin);
 
 public interface IPhotoRootRecycler : IDisposable                 // IoGuardPolicy.Check(PhotoRootRecycle, …) before every move
 {

@@ -31,9 +31,11 @@ public static class PhotoCleanupReports
             var chosen = byItem.TryGetValue(row.Key, out var o);
             var (outcome, error) = !chosen ? ("kept", (string?)null) : o! switch
             {
+                PhotoRecycled { NotInRecycleBin.IsEmpty: false } r => ("removed, not in the Recycle Bin", NotInBinText(r.NotInRecycleBin)),
                 PhotoRecycled => ("moved to the Recycle Bin", null),
                 PhotoSkippedChanged s => ("skipped: changed since review", s.Why),
-                PhotoPartlyRecycled p => ("partly moved", $"{p.Why}; still in Picture Offload: {string.Join(", ", p.Left)}"),
+                PhotoPartlyRecycled p => ("partly moved", $"{p.Why}; still in Picture Offload: {string.Join(", ", p.Left)}"
+                                                          + (p.NotInRecycleBin.IsEmpty ? "" : "; " + NotInBinText(p.NotInRecycleBin))),
                 PhotoRecycleFailed f => (f.NotRecyclable ? "kept: Windows would delete it permanently" : "failed", f.Error),
                 PhotoNotStarted => ("not started", null),
             };
@@ -50,6 +52,10 @@ public static class PhotoCleanupReports
             Lightroom = plan.Lightroom,
         };
     }
+
+    /// <summary>Deferred minor P.11: the files the shell removed without putting them in the Recycle Bin.</summary>
+    public static string NotInBinText(ImmutableArray<string> files)
+        => $"Windows removed {string.Join(", ", files)} without putting {(files.Length == 1 ? "it" : "them")} in the Recycle Bin";
 
     private static string KindText(PhotoItem item) => item.Kind == PhotoItemKind.Photo ? "photo" : item.SetKind switch
     {

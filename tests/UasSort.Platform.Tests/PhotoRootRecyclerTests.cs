@@ -99,8 +99,30 @@ public sealed class PhotoRootRecyclerTests
         var recycle = new RecycleSink();
         Assert.Equal(0, recycle.PreDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0));
         Assert.False(recycle.RefusedPermanentDelete);
-        Assert.Equal(0, recycle.PostDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0, 0, 0));
+        Assert.Equal(0, recycle.PostDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0, 0, 1));
         Assert.True(recycle.Deleted);
+        Assert.False(recycle.RemovedWithoutBinItem);
+    }
+
+    [Fact] // deferred minor P.11: psiNewlyCreated NULL = fully deleted, nothing arrived in the Recycle Bin
+    public void RecycleSink_ASuccessfulDeleteWithoutANewItem_IsRemovedWithoutTheRecycleBin()
+    {
+        var sink = new RecycleSink();
+        Assert.Equal(0, sink.PreDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0));
+        Assert.Equal(0, sink.PostDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0, 0, 0));
+        Assert.True(sink.Deleted);
+        Assert.True(sink.RemovedWithoutBinItem);
+        var failed = new RecycleSink();
+        _ = failed.PostDeleteItem(FileOperationCom.TsfDeleteRecycleIfPossible, 0, unchecked((int)0x80070005), 0);
+        Assert.False(failed.RemovedWithoutBinItem);                     // a failed delete removed nothing
+    }
+
+    [Fact] // deferred minor P.11
+    public void Outcome_ADeleteThatLeftNothingInTheRecycleBin_IsNotRecycleOk()
+    {
+        var r = FileOperationCom.Outcome(false, 0, 0, deleted: true, aborted: false, removedWithoutBinItem: true);
+        Assert.True(r is RecycleNotInBin { Message: "Windows removed it without putting it in the Recycle Bin" });
+        Assert.True(FileOperationCom.Outcome(true, 0, 0, deleted: false, aborted: true, removedWithoutBinItem: true) is RecycleError { NotRecyclable: true });
     }
 
     [Theory] // [Review Focus 5]
@@ -109,7 +131,7 @@ public sealed class PhotoRootRecyclerTests
     [InlineData(unchecked((int)0x80070005))]          // … or another failure
     public void Outcome_ARefusal_IsNotRecyclable_WhateverTheShellReturned(int performResult)
     {
-        var e = Error(FileOperationCom.Outcome(refusedPermanentDelete: true, performResult, 0, deleted: false, aborted: true));
+        var e = Error(FileOperationCom.Outcome(refusedPermanentDelete: true, performResult, 0, deleted: false, aborted: true, removedWithoutBinItem: false));
         Assert.True(e.NotRecyclable);
         Assert.Equal(FileOperationCom.HResultCancelled, e.Code);
     }
@@ -117,11 +139,11 @@ public sealed class PhotoRootRecyclerTests
     [Fact]
     public void Outcome_WithoutARefusal_MapsTheShellResult()
     {
-        Assert.True(FileOperationCom.Outcome(false, 0, 0, deleted: true, aborted: false) is RecycleOk);
-        var failed = Error(FileOperationCom.Outcome(false, unchecked((int)0x80070005), 0, false, false));
+        Assert.True(FileOperationCom.Outcome(false, 0, 0, deleted: true, aborted: false, removedWithoutBinItem: false) is RecycleOk);
+        var failed = Error(FileOperationCom.Outcome(false, unchecked((int)0x80070005), 0, false, false, false));
         Assert.Equal((unchecked((int)0x80070005), false), (failed.Code, failed.NotRecyclable));
-        Assert.Equal(unchecked((int)0x80070020), Error(FileOperationCom.Outcome(false, 0, unchecked((int)0x80070020), false, false)).Code);
-        var cancelled = Error(FileOperationCom.Outcome(false, 0, 0, deleted: false, aborted: true));
+        Assert.Equal(unchecked((int)0x80070020), Error(FileOperationCom.Outcome(false, 0, unchecked((int)0x80070020), false, false, false)).Code);
+        var cancelled = Error(FileOperationCom.Outcome(false, 0, 0, deleted: false, aborted: true, removedWithoutBinItem: false));
         Assert.Equal((FileOperationCom.HResultCancelled, false), (cancelled.Code, cancelled.NotRecyclable));
     }
 }
