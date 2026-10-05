@@ -94,6 +94,29 @@ public sealed class PhotoCleanupBuildTests
         Assert.Throws<ArgumentException>(() => Build(Survey(inLr), PhotoCleanupMode.Verify));
     }
 
+    [Theory] // Task PCfix: a corrupt photo is one unverified row in verify mode, never an exception that aborts the page
+    [InlineData(nameof(ArgumentException))]
+    [InlineData(nameof(IndexOutOfRangeException))]
+    [InlineData(nameof(NotSupportedException))]
+    public void Build_VerifyMode_ACorruptPhoto_IsOneUnverifiedRow(string exception)
+    {
+        var fs = FakeLayout.NewFileSystem();
+        fs.AddFile(PhotoRoot + @"\C.DNG", new SyntheticDngBuilder().Build(), Mtime);
+        var reader = new CorruptPhotoReader(new FakePhotoFileReader(fs, FakeLayout.Context(cardRoot: null)));
+        reader.Corrupt[PhotoRoot + @"\C.DNG"] = CorruptPhotoReader.Make(exception);
+        var stamp = new ExifStamp(new DateTime(2026, 6, 1, 12, 10, 0), null, "FC9113");
+        var index = LightroomIndex.From(@"X:\Lightroom", [new LightroomPhoto(@"X:\Lightroom\a.dng", stamp)]);
+
+        var corrupt = new PhotoItem("C.DNG", PhotoItemKind.Photo, PhotoSetKind.Unknown, null,       // shot an hour later than A
+                                    [Member("C.DNG", Jun1, fs.Metadata(PhotoRoot + @"\C.DNG")!.Size, captureUtc: new DateTime(2026, 6, 1, 21, 0, 0, DateTimeKind.Utc))]);
+
+        var plan = Build(Survey(Photo("A.DNG", Jun1, stamp: stamp), corrupt), PhotoCleanupMode.Verify, index, new PhotoExifCache(reader));
+
+        Assert.Equal(["A.DNG"], plan.DefaultDelete());
+        Assert.Equal((false, "its capture time or camera model couldn't be read"),
+                     (plan.Rows.Single(r => r.Key == "C.DNG").Verification.Verified, plan.Rows.Single(r => r.Key == "C.DNG").Verification.Text));
+    }
+
     [Fact]
     public void VerifyRange_IsTheFirstEligibleDateThroughTheCutoff()
     {

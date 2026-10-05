@@ -13,9 +13,22 @@ public sealed record LightroomPhoto(string FullPath, ExifStamp Stamp)
 /// <summary>The Lightroom library folder, read-only (spec 2026-10-04 §4): its DNG files (and JPGs, for stitched panoramas only) shot within
 /// the range ± 1 day, by (DateTimeOriginal second, Model). Walks folder by folder so the catalog (LightroomRules) is never listed into or
 /// opened, dated folders outside the range are not entered, files written before the range are not opened, and a cloud-only file is never
-/// opened (PhotoExifCache; it is listed in Unreadable).</summary>
+/// opened (PhotoExifCache; it is listed in Unreadable), as is a corrupt one.
+/// The walk never follows a link (Task PCfix): a reparse-point folder or file that is not a cloud placeholder (a junction, mount point or
+/// symbolic link — the listing carries no reparse tag, so any such reparse point counts as one, as WindowsDirectoryLister.ShouldDescend
+/// would refuse an unknown tag) is never entered or read. So every listed path is the folder's canonical form plus real names, and no file
+/// under a protected root (the photo root, the video root, app data) is ever listed into or indexed: a photo can never verify against
+/// itself. The walk stops <see cref="MaxDepth"/> folders down with a listing error, whatever a listing reports.</summary>
 public sealed class LightroomIndex
 {
+    /// <summary>The deepest folder level the walk enters below the library folder.</summary>
+    public const int MaxDepth = 32;
+
+    /// <summary>The listing error recorded for a folder below <see cref="MaxDepth"/>: ERROR_CANT_RESOLVE_FILENAME, what Windows reports
+    /// for a link loop.</summary>
+    public const int TooDeepError = 1921;
+
+    private const uint ReparsePoint = 0x400;   // FILE_ATTRIBUTE_REPARSE_POINT
     private static readonly IReadOnlySet<string> NoExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private static readonly string[] Extensions = [".dng", ".jpg", ".jpeg"];
     private readonly Dictionary<(DateTime Second, string Model), List<LightroomPhoto>> _bySecond;
@@ -53,30 +66,38 @@ public sealed class LightroomIndex
         return _bySecond.TryGetValue((stamp.Second, Upper(stamp.Model)), out var list) ? list : [];
     }
 
+    /// <param name="protectedRoots">Canonical folders whose files are never Lightroom files (the photo root, the video root, previous photo
+    /// roots, app data): never listed into, never indexed.</param>
     public static LightroomIndex Build(string folder, IDirectoryLister lister, PhotoExifCache exif, DateOnly from, DateOnly to,
-                                       IProgress<PhotoScanProgress>? progress, CancellationToken ct)
+                                       IReadOnlyCollection<string> protectedRoots, IProgress<PhotoScanProgress>? progress, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(folder);
         ArgumentNullException.ThrowIfNull(lister);
         ArgumentNullException.ThrowIfNull(exif);
+        ArgumentNullException.ThrowIfNull(protectedRoots);
         var lo = from.AddDays(-1);
         var hi = to.AddDays(1);
+        bool Protected(string path) => protectedRoots.Any(r => PathRules.IsSameOrUnder(path, r));
         var errors = ImmutableArray.CreateBuilder<(string Path, int Win32Error)>();
         var candidates = new List<FsEntry>();
-        var dirs = new Queue<string>();
-        dirs.Enqueue(PathRules.Normalize(folder));
+        var dirs = new Queue<(string Path, int Depth)>();
+        var root = PathRules.Normalize(folder);
+        if (!Protected(root)) dirs.Enqueue((root, 0));
         while (dirs.TryDequeue(out var dir))
         {
             ct.ThrowIfCancellationRequested();
-            var listing = lister.Enumerate(dir, recurse: false, NoExcludes);
+            var listing = lister.Enumerate(dir.Path, recurse: false, NoExcludes);
             errors.AddRange(listing.Errors);
             foreach (var e in listing.Entries)
             {
                 var name = PathRules.FileName(e.FullPath);
                 if (LightroomRules.IsCatalogName(name) || LightroomRules.IsCatalogPath(e.FullPath)) continue;
+                if (IsLink(e.RawAttributes) || Protected(e.FullPath)) continue;   // never followed, never indexed
                 if (e.IsDirectory)
                 {
-                    if (!FolderOutside(name, lo, hi)) dirs.Enqueue(e.FullPath);
+                    if (FolderOutside(name, lo, hi)) continue;
+                    if (dir.Depth >= MaxDepth) errors.Add((e.FullPath, TooDeepError));
+                    else dirs.Enqueue((e.FullPath, dir.Depth + 1));
                     continue;
                 }
                 if (!Extensions.Contains(Path.GetExtension(name), StringComparer.OrdinalIgnoreCase)) continue;
@@ -118,6 +139,9 @@ public sealed class LightroomIndex
             return year < lo.Year || year > hi.Year;
         return false;
     }
+
+    /// <summary>A reparse point that is not a cloud placeholder: a junction, mount point or symbolic link (no reparse tag in the listing).</summary>
+    private static bool IsLink(uint attributes) => (attributes & ReparsePoint) != 0 && !PhotoCleanupRules.IsCloudOnly(attributes);
 
     private static void Add(Dictionary<(DateTime Second, string Model), List<LightroomPhoto>> map, LightroomPhoto p)
     {

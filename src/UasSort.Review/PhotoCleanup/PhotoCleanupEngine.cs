@@ -24,6 +24,10 @@ public sealed record PhotoCleanupPorts(Settings Settings, string PhotoRoot, IDir
                                        IReportStore Reports, IShellLauncher Shell)
 {
     public PhotoRootThumbnails? Thumbnails { get; init; }
+
+    /// <summary>The canonical video root, previous photo roots and app data folder: with PhotoRoot, the folders the Lightroom index never
+    /// lists into or indexes, so a Lightroom folder around them (or a link the listing follows) never lets a photo verify against itself.</summary>
+    public required ImmutableArray<string> ProtectedRoots { get; init; }
 }
 
 public static class PhotoCleanupEngines
@@ -72,7 +76,7 @@ public static class PhotoCleanupEngines
         {
             var folder = request.LightroomFolder ?? throw new InvalidOperationException("Verify mode needs the Lightroom folder");
             index = PhotoCleanupPlanner.VerifyRange(survey, request.Cutoff) is { } range
-                ? LightroomIndex.Build(folder, p.Lister, exif, range.From, range.To, progress, ct)
+                ? LightroomIndex.Build(folder, p.Lister, exif, range.From, range.To, [p.PhotoRoot, .. p.ProtectedRoots], progress, ct)
                 : LightroomIndex.Empty(folder);
         }
         return PhotoCleanupPlanner.Build(survey, request, index, exif, progress, ct);

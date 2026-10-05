@@ -21,7 +21,7 @@ public sealed class PhotoCleanupSurveyTests
 
         public FakeFileSystem Fs { get; } = FakeLayout.NewFileSystem();
         public FakePhotoFileReader Reader { get; }
-        public PhotoExifCache Exif { get; }
+        public PhotoExifCache Exif { get; set; }
         public LedgerSnapshot Ledger { get; set; } = TestLedger.Empty();
         public Settings Settings { get; set; } = FakeLayout.Settings();        // drone clock: Zone America/New_York
 
@@ -160,5 +160,45 @@ public sealed class PhotoCleanupSurveyTests
         var m = Assert.Single(Assert.Single(rig.Survey().Items).Members);
         Assert.Null(m.LocalDate);
         Assert.StartsWith("its capture time couldn't be read", m.DateProblem, StringComparison.Ordinal);
+    }
+
+    [Theory] // Task PCfix: whatever a corrupt file makes the parser throw, it is one unreadable row and the page still plans the rest
+    [InlineData(nameof(ArgumentException))]
+    [InlineData(nameof(ArgumentOutOfRangeException))]
+    [InlineData(nameof(IndexOutOfRangeException))]
+    [InlineData(nameof(OverflowException))]
+    [InlineData(nameof(NotSupportedException))]
+    [InlineData(nameof(InvalidOperationException))]
+    [InlineData(nameof(EndOfStreamException))]
+    [InlineData(nameof(NullReferenceException))]
+    public void Survey_ACorruptPhoto_IsOneUnreadableRow_AndTheRestIsPlanned(string exception)
+    {
+        var rig = new Rig();
+        var corrupt = new CorruptPhotoReader(rig.Reader);
+        rig.Exif = new PhotoExifCache(corrupt);
+        rig.Dng("A.DNG", Shot);
+        corrupt.Corrupt[rig.Dng("C.DNG", Shot.AddSeconds(5))] = CorruptPhotoReader.Make(exception);
+
+        var s = rig.Survey();
+
+        var m = Assert.Single(s.Items.Single(i => i.RelPath == "C.DNG").Members);
+        Assert.Null(m.LocalDate);
+        Assert.StartsWith("its capture time couldn't be read: corrupt IFD", m.DateProblem, StringComparison.Ordinal);
+        var plan = PhotoCleanupPlanner.Build(s, new PhotoCleanupRequest(PhotoCleanupMode.BeforeDate, new DateOnly(2026, 6, 30), null), null,
+                                             rig.Exif, null, CancellationToken.None);
+        Assert.Equal(["A.DNG"], plan.Rows.Select(r => r.Key));
+        var row = Assert.Single(plan.NotEligible);
+        Assert.Equal(("C.DNG", PhotoEligibility.DateUnknown), (row.Key, row.Eligibility));
+        Assert.StartsWith("its capture time couldn't be read", row.Why, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Survey_ACancelDuringARead_StillCancels()
+    {
+        var rig = new Rig();
+        var corrupt = new CorruptPhotoReader(rig.Reader);
+        rig.Exif = new PhotoExifCache(corrupt);
+        corrupt.Corrupt[rig.Dng("C.DNG", Shot)] = new OperationCanceledException();
+        Assert.Throws<OperationCanceledException>(() => rig.Survey());
     }
 }

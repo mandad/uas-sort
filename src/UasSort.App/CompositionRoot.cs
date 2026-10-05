@@ -179,6 +179,8 @@ public static class CompositionRoot
                                                                           _p.Reports, _p.Shell)
             {
                 Thumbnails = thumbnails,
+                ProtectedRoots = [_p.PathFacts.Canonical(s.VideoRoot), _p.PathFacts.Canonical(_p.AppDataDir),
+                                  .. (s.PreviousPhotoRoots.IsDefault ? [] : s.PreviousPhotoRoots).Select(_p.PathFacts.Canonical)],
             });
             return new PhotoCleanupVm(engine, _dialogs, _ui, _p.Clock);
         }

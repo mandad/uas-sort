@@ -10,10 +10,11 @@ public sealed class PhotoCleanupEngineTests
 
     private sealed class Rig
     {
-        public Rig()
+        public Rig(string lr = Lr)
         {
-            Fs.AddDirectory(Lr);
-            var ctx = FakeLayout.Context(cardRoot: null) with { LightroomFolder = Lr };
+            Fs.AddDirectory(lr);
+            Settings = FakeLayout.Settings() with { LightroomFolder = lr };
+            var ctx = FakeLayout.Context(cardRoot: null) with { LightroomFolder = lr };
             Reader = new FakePhotoFileReader(Fs, ctx);
             Ledger = new FakeLedgerStore(Fs, FakeLayout.VideoRoot, FakeLayout.Machine);
             Recyclers = new FakePhotoRootRecyclerFactory(Fs, ctx);
@@ -24,7 +25,7 @@ public sealed class PhotoCleanupEngineTests
         public FakeLedgerStore Ledger { get; }
         public FakePhotoRootRecyclerFactory Recyclers { get; }
         public MemReportStore Reports { get; } = new();
-        public Settings Settings { get; set; } = FakeLayout.Settings() with { LightroomFolder = Lr };
+        public Settings Settings { get; set; }
 
         public void Dng(string path, DateTime dto) => Fs.AddFile(path, new SyntheticDngBuilder().WithDateTimeOriginal(dto).Build(), Mtime);
 
@@ -33,7 +34,26 @@ public sealed class PhotoCleanupEngineTests
                 PhotoCaptureClock.For(Settings, new GeoTimeZoneResolver(), Zones.Find("America/Anchorage")),
                 new PhotoCleanupEnvironment(Recyclers, Fs, Ledger, new FakeOffloadLock(), new FakePowerRequest(),
                                             new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 20, 0, 0, TimeSpan.Zero)), FakeLayout.Machine),
-                p => Fs.Metadata(p) is { IsDirectory: true }, Reports, new FakeShellLauncher()) { Thumbnails = thumbnails });
+                p => Fs.Metadata(p) is { IsDirectory: true }, Reports, new FakeShellLauncher())
+            {
+                Thumbnails = thumbnails,
+                ProtectedRoots = [FakeLayout.VideoRoot, FakeLayout.AppDataDir],
+            });
+    }
+
+    [Fact] // Task PCfix 1: a Lightroom folder around the photo root never lets a photo verify against itself
+    public async Task Engine_VerifyMode_APhotoNeverVerifiesAgainstItself()
+    {
+        var rig = new Rig(@"C:\Users\u\OneDrive\Pictures");
+        rig.Dng(PhotoRoot + @"\A.DNG", Shot);
+        var engine = rig.Engine();
+        var prep = await Prepare(engine);
+
+        var plan = await engine.Plan(prep.Survey!, new PhotoCleanupRequest(PhotoCleanupMode.Verify, new DateOnly(2026, 6, 30), @"C:\Users\u\OneDrive\Pictures"),
+                                     new Progress<PhotoScanProgress>(), CancellationToken.None);
+
+        Assert.Empty(plan.DefaultDelete());
+        Assert.Equal((false, "not found in Lightroom"), (plan.Rows[0].Verification.Verified, plan.Rows[0].Verification.Text));
     }
 
     private static Task<PhotoCleanupPreparation> Prepare(PhotoCleanupEngine e) => e.Prepare(new Progress<PhotoScanProgress>(), CancellationToken.None);

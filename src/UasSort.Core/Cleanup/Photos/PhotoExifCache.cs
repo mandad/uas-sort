@@ -10,7 +10,9 @@ public sealed record PhotoExifRead(StillInfo? Info, string? Problem)
 
 /// <summary>EXIF of Picture Offload and Lightroom files through IPhotoFileReader, read once per (path, size, mtime). A cloud-only file is
 /// never opened (its attributes say so, spec 2026-10-04 §3); a failed or refused read becomes a Problem, never an exception — when the
-/// guard refuses (UnsafeIoException) nothing was opened, and the file is simply treated as unreadable.</summary>
+/// guard refuses (UnsafeIoException) nothing was opened, and the file is simply treated as unreadable. A corrupt file can make the parser
+/// throw anything (ArgumentException, IndexOutOfRangeException, OverflowException, …): that too is the one file's Problem, so one bad photo
+/// never aborts the page or the Lightroom index; only a cancellation propagates.</summary>
 public sealed class PhotoExifCache(IPhotoFileReader reader)
 {
     public const string CloudOnlyProblem = PhotoCleanupRules.DateUnknownCloudOnly;
@@ -36,8 +38,9 @@ public sealed class PhotoExifCache(IPhotoFileReader reader)
             var info = StillProbe.Read(s);
             read = new PhotoExifRead(info, info.DtoNaive is null ? "it has no capture time (DateTimeOriginal)" : null);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or UnsafeIoException
-                                      or MetadataExtractor.ImageProcessingException)
+#pragma warning disable CA1031 // untrusted bytes: whatever the parser throws (not only ImageProcessingException) is this one file's Problem
+        catch (Exception e) when (e is not OperationCanceledException)
+#pragma warning restore CA1031
         {
             read = new PhotoExifRead(null, "its capture time couldn't be read: " + e.Message);
         }
