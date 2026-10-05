@@ -286,7 +286,7 @@ One `ClockModel` converts card items, library start times (SiteLocal: through th
 **Boundary chips** head the next card and record cause (`DayGap`/`Distance`/`LibraryFolder`/`UserSplit`), jump and gaps: `── 34 mi jump · 21 h ──`, `── 62 days ──`, `── different library folder ──`, `── split by you ── [Undo split]`. All have **[Merge]** except LibraryFolder ("These clips are already in two different folders").
 
 **Day splits:** each local-date change in a group puts a banner on the new day's first clip, `── Jul 25 → Jul 26 · 34 mi apart · 21 h ── [Split here]` (day-centroid distance; applies `SplitBefore(FirstOfDay)`).
-- **≥ 10 mi → emphasised:** accent + "Likely separate outing", a Warning acknowledged at preflight, and a card chip "2 days · 34 mi apart [Split]".
+- **≥ 10 mi → emphasised:** accent + "Likely separate outing", a Warning acknowledged at preflight (only for a group that will copy something), and a card chip "2 days · 34 mi apart [Split]".
 
 **Calibration:** `docs/research/spikes/grouping/replay50.py` (listing + extracted GPS; opens no files) gives 8 groups for R 8–33 mi and **7 for R 40–60 mi**. At 50 mi Council Road + Anvil Mountain are **one 25-clip group "Jul 25–26"** with one emphasised split; one click gives the user's 8 folders.
 
@@ -355,7 +355,7 @@ Edits are anchored to items (`GroupId` = earliest video), so they replay onto an
 2. Apply the structural edits (`Merge`, `SplitBefore`, `MoveToNewGroup`, `MoveToGroup`) to that partition in log order. `Merge` joins every group from a's through b's in timeline order. `SplitBefore` gives cause `UserSplit`, overriding any auto cause at the same point. Moves may leave a group non-contiguous in time; groups are ordered by their anchor. An edit whose items are missing is dropped and counted ("3 of 4 edits still apply"); an edit that is a no-op at this tuning stays in the log, inactive.
 3. Inclusion: defaults, then `SetIncluded`/`SetDayIncluded` in log order.
 4. Decide in two passes, then suggest. Pass 1 decides every group without the UserSplit rule; pass 2 re-decides the groups that border a `UserSplit` boundary, excluding F when it is the Wall of the neighbour across it, or the pass-1 target of the earlier neighbour (so the earlier group keeps a shared target).
-5. Pins: last wins; `PinnedMembers` changed → Warning [Keep]/[Reset to Auto], acknowledged at preflight; two pins after a merge → **Blocking** [Use first]/[Use second].
+5. Pins: last wins; `PinnedMembers` changed → Warning [Keep]/[Reset to Auto], acknowledged at preflight while the pin decides what gets copied; two pins after a merge → **Blocking** [Use first]/[Use second].
 6. Issues (catalogue: Ref §9.10).
 
 **Rejected:** merge across walls; move an Imported item; split at a group's start; rename an Append/AlreadyImported group; retarget outside the video root, into `<videoRoot>\.uas-sort` or its subtree, or into the photo root or any `previousPhotoRoots` (`RetargetIntoReservedFolder`); retarget to a later-dated folder unconfirmed.

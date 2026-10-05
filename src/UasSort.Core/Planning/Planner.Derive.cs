@@ -266,9 +266,14 @@ public sealed partial class Planner : IPlanDeriver
                                  $"These clips start before '{wall.Description}' (dated {PlanText.ShortDate(wall.NameDate)})", anchor,
                                  [new QuickFix("Split here", [new SplitBefore(sp)])], false));
 
-        // day splits
+        // Task U7: a group copies something when its target writes (NewFolder/Append, not AlreadyImported, NothingToCopy or a Skip
+        // pin) and at least one of its videos is included. Warnings about where clips land are acknowledged only for such groups.
+        var anyIncluded = g.Videos.Any(v => included.Contains(v.Raw.Unit.Id));
+        var copies = target is NewFolder or Append && anyIncluded;
+
+        // day splits (the banner and the card hint stay on every group; the issue only on a group that copies something)
         var daySplits = DaySplitFinder.Find(g.Videos);
-        foreach (var ds in daySplits.Where(d => d.Emphasised))
+        foreach (var ds in daySplits.Where(d => copies && d.Emphasised))
             issues.Add(new Issue(IssueSeverity.Warning, IssueCode.EmphasisedDaySplit,
                                  $"{PlanText.ShortDate(ds.From)} → {PlanText.ShortDate(ds.To)} · {PlanText.Miles(ds.Apart!.Value)} apart: likely separate outing",
                                  ds.FirstOfDay, [new QuickFix("Split here", [new SplitBefore(ds.FirstOfDay)])], true));
@@ -279,7 +284,8 @@ public sealed partial class Planner : IPlanDeriver
             hints.Add($"{PlanText.Count(days, "day", "days")} · {PlanText.Miles(new Distance(apart))} apart");
         }
 
-        // pin issues
+        // pin issues: a target pin needs an acknowledgement while it decides the fate of included clips (a Skip pin over them too);
+        // a name pin only while the group copies something. Otherwise the Warning stays, without the acknowledgement.
         if (rt is not null)
         {
             if (rtConflict)
@@ -291,7 +297,7 @@ public sealed partial class Planner : IPlanDeriver
                 issues.Add(new Issue(IssueSeverity.Warning, IssueCode.PinMembershipChanged,
                     $"{ChoiceLabel(rt.Choice)} chosen for {rt.PinnedMembers.Length} clips; group now has {memberIds.Length}", anchor,
                     [new QuickFix("Keep", [rt with { PinnedMembers = memberIds }]),
-                     new QuickFix("Reset to Auto", [new Retarget(anchor, new AutoTarget(), false, memberIds)])], true));
+                     new QuickFix("Reset to Auto", [new Retarget(anchor, new AutoTarget(), false, memberIds)])], anyIncluded));
         }
         if (rn is not null)
         {
@@ -304,7 +310,7 @@ public sealed partial class Planner : IPlanDeriver
                 issues.Add(new Issue(IssueSeverity.Warning, IssueCode.PinMembershipChanged,
                     $"'{rn.Description}' chosen for {rn.PinnedMembers.Length} clips; group now has {memberIds.Length}", anchor,
                     [new QuickFix("Keep", [rn with { PinnedMembers = memberIds }]),
-                     new QuickFix("Reset to Auto", [new Rename(anchor, null, memberIds)])], true));
+                     new QuickFix("Reset to Auto", [new Rename(anchor, null, memberIds)])], copies));
         }
 
         var foldable = target is AlreadyImported

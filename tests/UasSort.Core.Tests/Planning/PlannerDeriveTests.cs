@@ -225,6 +225,83 @@ public sealed class PlannerDeriveTests
         Assert.Contains(p.Groups[0].Hints, h => h.StartsWith("2 days", StringComparison.Ordinal));
     }
 
+    // Task U7 (user report): an emphasised day split inside a group that copies nothing keeps its banner and hint but raises no issue
+    private const string CouncilRel = @"2026\2026-07\2026-07-25 Council Road";
+
+    [Fact]
+    public void EmphasisedSplit_InAnAlreadyImportedGroup_RaisesNoIssue_ButKeepsBannerAndHint()
+    {
+        var b = new PlanScenario().Library(CouncilRel, C117, C118, A1, A2).Card([C117, C118, A1, A2, .. Z]).Prepare();
+        var p = PlanScenario.Derive(b);
+
+        var old = Assert.Single(p.Groups, g => g.Videos.Contains(C117.Id()));
+        Assert.IsType<AlreadyImported>(old.Target);
+        Assert.Contains(old.DaySplits, d => d.Emphasised && d.FirstOfDay == A1.Id());
+        Assert.Contains(old.Hints, h => h.StartsWith("2 days", StringComparison.Ordinal));
+        Assert.IsType<NewFolder>(Assert.Single(p.Groups, g => g.Videos.Contains(Z[0].Id())).Target);
+        Assert.Empty(Of(p, IssueCode.EmphasisedDaySplit));
+        Assert.DoesNotContain(p.Issues, i => i.RequiresAckAtPreflight);
+    }
+
+    [Fact]
+    public void EmphasisedSplit_InAGroupThatCopiesNewClips_StillRequiresAck()
+    {
+        var b = new PlanScenario().Card(C117, C118, A1, A2).Prepare();
+        var p = PlanScenario.Derive(b);
+        Assert.IsType<NewFolder>(Assert.Single(p.Groups).Target);
+        var d = Assert.Single(Of(p, IssueCode.EmphasisedDaySplit));
+        Assert.Equal((IssueSeverity.Warning, true, (ItemId?)A1.Id()), (d.Severity, d.RequiresAckAtPreflight, d.Anchor));
+    }
+
+    [Fact]
+    public void EmphasisedSplit_InASkippedOrFullyUntickedGroup_RaisesNoIssue()
+    {
+        var b = new PlanScenario().Card(C117, C118, A1, A2).Prepare();
+        var members = new[] { C117, C118, A1, A2 }.Select(x => x.Id()).ToArray();
+
+        var skipped = PlanScenario.Derive(b, edits: [new Retarget(C117.Id(), new SkipTarget(), false, [.. members])]);
+        Assert.IsType<SkipGroup>(Assert.Single(skipped.Groups).Target);
+        Assert.Contains(skipped.Groups[0].DaySplits, d => d.Emphasised);
+        Assert.Empty(Of(skipped, IssueCode.EmphasisedDaySplit));
+
+        var unticked = PlanScenario.Derive(b, edits: [new SetIncluded([.. members], false)]);
+        Assert.Contains(unticked.Groups[0].Hints, h => h.StartsWith("2 days", StringComparison.Ordinal));
+        Assert.Empty(Of(unticked, IssueCode.EmphasisedDaySplit));
+
+        // a New folder pin still copies nothing once every clip is unticked
+        var pinned = PlanScenario.Derive(b, edits: [new Retarget(C117.Id(), new NewFolderTarget(), false, [.. members]),
+                                                    new SetIncluded([.. members], false)]);
+        Assert.IsType<NewFolder>(Assert.Single(pinned.Groups).Target);
+        Assert.Empty(Of(pinned, IssueCode.EmphasisedDaySplit));
+    }
+
+    [Fact] // the audit (Task U7): a pin-membership warning needs an acknowledgement only while the pin decides what gets copied
+    public void PinMembershipChanged_NeedsAck_OnlyWhenThePinAffectsClipsThatWouldCopy()
+    {
+        var b = new PlanScenario().Card(C117, C118, A1, A2).Prepare();
+        var members = new[] { C117, C118, A1, A2 }.Select(x => x.Id()).ToArray();
+        var nf = new Retarget(C117.Id(), new NewFolderTarget(), false, [.. members]);
+        var untick = new SetIncluded([C117.Id(), C118.Id()], false);
+
+        var copying = Assert.Single(Of(PlanScenario.Derive(b, new Tuning(25, 1), [nf]), IssueCode.PinMembershipChanged));
+        Assert.True(copying.RequiresAckAtPreflight);
+        var idle = Assert.Single(Of(PlanScenario.Derive(b, new Tuning(25, 1), [nf, untick]), IssueCode.PinMembershipChanged));
+        Assert.Equal((IssueSeverity.Warning, false), (idle.Severity, idle.RequiresAckAtPreflight));
+        Assert.Equal(KeepOrReset, idle.QuickFixes.Select(q => q.Label));
+
+        // a Skip pin over clips that would otherwise copy keeps its acknowledgement; over clips that copy nothing it needs none
+        var skip = new Retarget(C117.Id(), new SkipTarget(), false, [.. members]);
+        Assert.True(Assert.Single(Of(PlanScenario.Derive(b, new Tuning(25, 1), [skip]), IssueCode.PinMembershipChanged)).RequiresAckAtPreflight);
+        Assert.False(Assert.Single(Of(PlanScenario.Derive(b, new Tuning(25, 1), [skip, untick]), IssueCode.PinMembershipChanged)).RequiresAckAtPreflight);
+
+        // a name pin on a group that copies nothing (already imported)
+        var imported = new PlanScenario().Library(CouncilRel, C117, C118).Card(C117, C118, A1, A2).Prepare();
+        var rn = new Rename(C117.Id(), "Council Road", [.. members]);
+        var p = PlanScenario.Derive(imported, new Tuning(25, 1), [rn]);
+        Assert.IsType<AlreadyImported>(Assert.Single(p.Groups, g => g.Videos.Contains(C117.Id())).Target);
+        Assert.False(Assert.Single(Of(p, IssueCode.PinMembershipChanged)).RequiresAckAtPreflight);
+    }
+
     [Fact] // F3 (Ref §8.7 rule 1): the wall's description is a suggestion only on Append, never a NewFolder prefill
     public void NewFolderRetarget_OnAWalledGroup_StaysANewFolder_NeverTheWall()
     {

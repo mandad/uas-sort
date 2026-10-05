@@ -1422,7 +1422,7 @@ Every boundary records its cause, the jump distance, the time gap and the day ga
 - "Apart" is the distance between the two days' centroids.
 - At **10 mi or more** the suggestion is **emphasised**:
   - accent colour and a "Likely separate outing" label;
-  - a **Warning** issue that must be acknowledged at preflight;
+  - for a group that will copy something (its target is NewFolder or Append and at least one of its videos is included), a **Warning** issue that must be acknowledged at preflight. A group that copies nothing (AlreadyImported, NothingToCopy, a Skip pin, or every video unticked) keeps the banner and the chip but raises no issue and needs no acknowledgement;
   - a card-level chip "2 days · 34 mi apart [Split]".
 - [Split here] applies `SplitBefore(FirstOfDay)`.
 
@@ -1794,8 +1794,8 @@ The page's error forwarding makes a MIME rejection visible in the host log, and 
 | `EmptyFolderName` | Blocking | – | Planner.Derive | group | "Name this folder" | [Name it] (focuses the rename box) |
 | `TempPathTooLong` | Blocking | – | Planner.Derive (NewFolder paths), Preflight.Check (every job) | group / item | "Path too long for OneDrive ({n} > 400 characters): {path}" | – |
 | `MediumAppend` | Warning | yes | Planner.Derive | group | "Appending to '{F}': {why}" | [New folder instead] = `CrossDayHint.Fix` |
-| `EmphasisedDaySplit` | Warning | yes | Planner.Derive | first item of the new day | "{from} → {to} · {d} apart: likely separate outing" | [Split here] = `SplitBefore(FirstOfDay)` |
-| `PinMembershipChanged` | Warning | yes | Planner.Derive | group | "{target or name} chosen for {n} clips; group now has {m}" | [Keep] = the same `Retarget`/`Rename` with current `PinnedMembers`; [Reset to Auto] = `Retarget(AutoTarget)` or `Rename(null)` |
+| `EmphasisedDaySplit` | Warning | yes (raised only for a group that will copy something: target NewFolder or Append and ≥ 1 included video) | Planner.Derive | first item of the new day | "{from} → {to} · {d} apart: likely separate outing" | [Split here] = `SplitBefore(FirstOfDay)` |
+| `PinMembershipChanged` | Warning | yes while the pin decides what gets copied: a target pin (Skip included) on a group with ≥ 1 included video, a name pin on a group that will copy something; otherwise no | Planner.Derive | group | "{target or name} chosen for {n} clips; group now has {m}" | [Keep] = the same `Retarget`/`Rename` with current `PinnedMembers`; [Reset to Auto] = `Retarget(AutoTarget)` or `Rename(null)` |
 | `ConflictingPins` | Blocking | – | Planner.Derive | group | "Two choices for this group: '{a}' vs '{b}'" | [Use first] / [Use second] = that pin re-issued with current `PinnedMembers` |
 | `SharedTarget` | Info | – | Planner.Derive | group | "Also targeted by {group}; both land in the same folder" | [Merge] = `Merge(this.Anchor, other.Anchor)` |
 | `FolderExistsAppending` | Info | – | Planner.Derive | group | "Folder exists; appending" | – |
