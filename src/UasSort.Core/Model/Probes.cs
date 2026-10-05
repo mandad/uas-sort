@@ -16,7 +16,9 @@ public readonly record struct SessionKey(string? DroneSerial, DateTime SessionUt
                                              && Math.Abs((SessionUtc - o.SessionUtc).TotalSeconds) <= 2;   // never compare with ==
 }
 
-public sealed record StillInfo(DateTime? DtoNaive, TimeSpan? OffsetTime, GpsProbe Gps, string? Model, ByteRange? Thumb);
+public sealed record StillInfo(DateTime? DtoNaive, TimeSpan? OffsetTime, GpsProbe Gps, string? Model, ByteRange? Thumb,
+                               string? SubSec = null /* EXIF SubSecTimeOriginal digits; Picture Offload cleanup's Lightroom match */,
+                               int? PixelWidth = null, int? PixelHeight = null /* the stitched-panorama shape test of Picture Offload cleanup */);
 
 public sealed record RawItem(MediaUnit Unit, ItemKind Kind, string Name, long Bytes, DateTime CardMtimeUtc,
                              DateTime? DroneStamp /* filename or EXIF DTO, naive */, Mp4Info? Mp4, StillInfo? Still, string? ProbeError);

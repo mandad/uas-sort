@@ -1,6 +1,7 @@
 using System.Globalization;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
+using MetadataExtractor.Formats.Jpeg;
 
 namespace UasSort.Core.Media;
 
@@ -12,6 +13,7 @@ namespace UasSort.Core.Media;
 public static class StillProbe
 {
     private const int TagOffsetTimeOriginal = 0x9011;
+    private const int TagSubSecTimeOriginal = 0x9291;
     private const int TagCompression = 0x0103;
     private const int TagStripOffsets = 0x0111;
     private const int TagStripByteCounts = 0x0117;
@@ -38,7 +40,9 @@ public static class StillProbe
         ExifIfd0Directory? ifd0 = dirs.OfType<ExifIfd0Directory>().FirstOrDefault();
         string? model = ifd0?.GetString(ExifDirectoryBase.TagModel)?.Trim();
         ByteRange? thumb = isTiff && ifd0 is not null ? ThumbRange(ifd0, s.Length) : null;
-        return new StillInfo(dto, offset, Gps(dirs), string.IsNullOrEmpty(model) ? null : model, thumb);
+        string? subSec = dtoDir?.GetString(TagSubSecTimeOriginal) is { } raw ? SubSecDigits(raw) : null;
+        var (width, height) = Pixels(dirs);
+        return new StillInfo(dto, offset, Gps(dirs), string.IsNullOrEmpty(model) ? null : model, thumb, subSec, width, height);
     }
 
     private static GpsProbe Gps(IReadOnlyList<MetadataExtractor.Directory> dirs)
@@ -105,5 +109,29 @@ public static class StillProbe
         offset = new TimeSpan(h, m, 0);
         if (t[0] == '-') offset = -offset;
         return true;
+    }
+
+    /// <summary>The image size: EXIF PixelXDimension/PixelYDimension (0xA002/0xA003), else a JPEG's frame header; nulls when neither.</summary>
+    private static (int? Width, int? Height) Pixels(IReadOnlyList<MetadataExtractor.Directory> dirs)
+    {
+        foreach (var d in dirs.OfType<ExifSubIfdDirectory>())
+            if (d.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var w) && d.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var h)
+                && w > 0 && h > 0)
+                return (w, h);
+        if (dirs.OfType<JpegDirectory>().FirstOrDefault() is { } jpeg
+            && jpeg.TryGetInt32(JpegDirectory.TagImageWidth, out var jw) && jpeg.TryGetInt32(JpegDirectory.TagImageHeight, out var jh)
+            && jw > 0 && jh > 0)
+            return (jw, jh);
+        return (null, null);
+    }
+
+    /// <summary>EXIF SubSecTimeOriginal ("045", " 12 ", "5\0") → its leading digits; null when there are none.</summary>
+    internal static string? SubSecDigits(string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        var t = raw.Trim().TrimEnd('\0').Trim();
+        var n = 0;
+        while (n < t.Length && char.IsAsciiDigit(t[n])) n++;
+        return n == 0 ? null : t[..n];
     }
 }

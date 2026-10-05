@@ -22,6 +22,10 @@ public sealed record class SyntheticDngBuilder
     public DateTime? Ifd0DateTime { get; init; } = new DateTime(2026, 5, 25, 9, 31, 0);
     /// <summary>EXIF OffsetTimeOriginal (0x9011), e.g. "-08:00"; null = absent.</summary>
     public string? OffsetTimeOriginal { get; init; }
+    /// <summary>EXIF SubSecTimeOriginal (0x9291), e.g. "045"; null = absent.</summary>
+    public string? SubSecTimeOriginal { get; init; }
+    /// <summary>EXIF PixelXDimension/PixelYDimension (0xA002/0xA003); null = absent.</summary>
+    public (int Width, int Height)? ExifPixels { get; init; }
     public GeoPoint? Gps { get; init; } = Pano0001Gps;
     public double? AltM { get; init; } = 41.5;
     public string Make { get; init; } = "DJI";
@@ -35,6 +39,7 @@ public sealed record class SyntheticDngBuilder
     private sealed record Entry(ushort Tag, ushort Type, uint Count, byte[] Value);
 
     public SyntheticDngBuilder WithDateTimeOriginal(DateTime naive) => this with { Dto = naive };
+    public SyntheticDngBuilder WithSubSec(string digits) => this with { SubSecTimeOriginal = digits };
     public SyntheticDngBuilder WithGps(GeoPoint point) => this with { Gps = point };
 
     public SyntheticDngBuilder WithModel(string model)
@@ -110,6 +115,12 @@ public sealed record class SyntheticDngBuilder
         var exif = new List<Entry> { new(0x9000, TypeUndefined, 4, Encoding.ASCII.GetBytes("0231")) };
         if (Dto is { } taken) exif.Add(Ascii(0x9003, taken.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture)));
         if (OffsetTimeOriginal is { } offset) exif.Add(Ascii(0x9011, offset));
+        if (SubSecTimeOriginal is { } subSec) exif.Add(Ascii(0x9291, subSec));
+        if (ExifPixels is { } px)                                            // after 0x9291: IFD entries stay sorted by tag
+        {
+            exif.Add(LongEntry(0xA002, (uint)px.Width));
+            exif.Add(LongEntry(0xA003, (uint)px.Height));
+        }
 
         List<Entry>? gps = null;
         if (Gps is { } p)
