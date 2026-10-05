@@ -106,6 +106,20 @@
                 <ctk:SettingsCard Header="Copy the JPG twin" Description="Copy the JPG that the drone saves next to each DNG">
                     <ToggleSwitch IsOn="{x:Bind Vm.CopyJpgTwin, Mode=TwoWay}" />
                 </ctk:SettingsCard>
+                <ctk:SettingsCard Header="Lightroom library folder"
+                                  Description="Picture Offload cleanup looks here for imported photos before it removes their copies. Only ever read.">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Vm.LightroomText, Mode=OneWay}" VerticalAlignment="Center" MaxWidth="380" TextTrimming="CharacterEllipsis" />
+                        <Button Content="Change…" Click="OnPickLightroomFolder" />
+                        <Button Content="Clear" Command="{x:Bind Vm.ClearLightroomCommand}" />
+                    </StackPanel>
+                </ctk:SettingsCard>
+                <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Message="{x:Bind Vm.LightroomError, Mode=OneWay}"
+                         Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.LightroomError), Mode=OneWay}" />
+                <ctk:SettingsCard Header="Picture Offload" Description="Move photos already imported into Lightroom from Picture Offload to the Recycle Bin">
+                    <HyperlinkButton x:Name="PhotoCleanupLink" x:FieldModifier="internal" Content="Clean up Picture Offload…"
+                                     Click="OnOpenPhotoCleanup" IsEnabled="{x:Bind Shell.PhotoCleanupEnabled, Mode=OneWay}" />
+                </ctk:SettingsCard>
 
                 <TextBlock Text="Map" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,16,0,4" />
                 <ctk:SettingsCard Header="Default base map">

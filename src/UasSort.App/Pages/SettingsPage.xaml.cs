@@ -10,6 +10,7 @@ public sealed partial class SettingsPage : Page
     private MainWindow _window = null!;
     public SettingsPage() => InitializeComponent();
     public SettingsPageVm Vm { get; private set; } = null!;
+    public ShellVm Shell { get; private set; } = null!;
 
     /// <summary>The fixed-zone choices: DroneClock.UsZones, plus the saved zone when it is not one of them.
     /// A List because it is an ItemsSource (ruling P11-C6).</summary>
@@ -20,6 +21,7 @@ public sealed partial class SettingsPage : Page
         var args = (StageArgs)e.Parameter;
         Vm = (SettingsPageVm)args.Vm;                            // ShellVm.Current on the Settings stage
         _window = args.Window;
+        Shell = _window.Services.Shell;
         ZoneIds = DroneClock.UsZones.Contains(Vm.ClockZone) ? [.. DroneClock.UsZones] : [.. DroneClock.UsZones, Vm.ClockZone];
         Bindings.Update();
         ZoneBox.SelectedItem = Vm.ClockZone;
@@ -43,6 +45,13 @@ public sealed partial class SettingsPage : Page
     {
         if (await FolderPickerService.PickFolderAsync(_window, Vm.PhotoRoot) is { } path) Vm.ChangePhotoRoot(path);
     }
+
+    private async void OnPickLightroomFolder(object sender, RoutedEventArgs e)
+    {
+        if (await FolderPickerService.PickFolderAsync(_window, Vm.LightroomFolder) is { } path) Vm.ChangeLightroomFolder(path);
+    }
+
+    private void OnOpenPhotoCleanup(object sender, RoutedEventArgs e) => _window.Services.Shell.OpenPhotoCleanup();
 
     private void OnRadiusChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {

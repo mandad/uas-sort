@@ -21,8 +21,12 @@ public sealed partial class CardThumbnails : IThumbnailSource
         old?.Dispose();
     }
 
+    /// <summary>Picture Offload cleanup's thumbnails (spec 2026-10-04 §2): "photo-root:" keys go here, every other key to the card.</summary>
+    public PhotoRootThumbnails? PhotoRoot { get; set; }
+
     public ValueTask<ReadOnlyMemory<byte>> GetAsync(ItemId id, CancellationToken ct)
     {
+        if (PhotoRootThumbnails.IsKey(id)) return PhotoRoot?.GetAsync(id, ct) ?? ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
         ThumbnailReader? reader;
         lock (_gate) reader = _pauses > 0 ? null : _current;
         return reader?.GetAsync(id, ct) ?? ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);

@@ -31,8 +31,8 @@ public sealed partial class DeviceChangeWatcher : IDisposable   // partial: CsWi
     public int Refreshes { get; private set; }
     public int Suppressed { get; private set; }
 
-    /// <summary>Commit (Preflight, Copy) and Cleanup never see a device refresh (Ref §9.1).</summary>
-    public static bool IsSuppressed(Stage stage) => stage is Stage.Preflight or Stage.Copy or Stage.Cleanup;
+    /// <summary>Commit (Preflight, Copy), Cleanup and Picture Offload cleanup never see a device refresh (Ref §9.1).</summary>
+    public static bool IsSuppressed(Stage stage) => stage is Stage.Preflight or Stage.Copy or Stage.Cleanup or Stage.PhotoCleanup;
 
     private void Fire()
     {

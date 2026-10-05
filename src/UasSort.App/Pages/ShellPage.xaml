@@ -44,6 +44,14 @@
                     <Button x:Name="CleanUpButton" Content="Clean up card…" Command="{x:Bind Vm.CleanupCommand}"
                             IsEnabled="{x:Bind Vm.CleanupEnabled, Mode=OneWay}" Style="{StaticResource SubtleButtonStyle}"
                             ToolTipService.ToolTip="{x:Bind Vm.CleanupTooltip, Mode=OneWay}" />
+                    <!-- Why [Clean up Picture Offload…] is disabled, as visible text (spec 2026-10-04 §2) -->
+                    <TextBlock x:Name="PhotoCleanupReasonText" x:FieldModifier="internal" Text="{x:Bind Vm.PhotoCleanupUnavailableText, Mode=OneWay}"
+                               Style="{StaticResource CaptionText}" VerticalAlignment="Center" MaxWidth="320" Margin="8,0,4,0"
+                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.PhotoCleanupUnavailableText), Mode=OneWay}"
+                               ToolTipService.ToolTip="{x:Bind Vm.PhotoCleanupUnavailableText, Mode=OneWay}" />
+                    <Button x:Name="PhotoCleanUpButton" x:FieldModifier="internal" Content="Clean up Picture Offload…"
+                            Command="{x:Bind Vm.PhotoCleanupCommand}" IsEnabled="{x:Bind Vm.PhotoCleanupEnabled, Mode=OneWay}"
+                            Style="{StaticResource SubtleButtonStyle}" />
                     <Button x:Name="SettingsButton" Command="{x:Bind Vm.SettingsCommand}" IsEnabled="{x:Bind Vm.CanOpenSettings, Mode=OneWay}"
                             ToolTipService.ToolTip="Settings" Style="{StaticResource SubtleButtonStyle}">
                         <FontIcon Glyph="&#xE713;" FontSize="14" />

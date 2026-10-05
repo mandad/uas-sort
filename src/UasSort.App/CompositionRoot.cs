@@ -30,7 +30,8 @@ public static class CompositionRoot
     public static Settings SelfTestSettings(SelfTestSandbox s) => new(
         Schema: 1, VideoRoot: s.VideoRoot, PhotoRoot: s.PhotoRoot, PreviousPhotoRoots: [],
         RadiusMiles: 50, GapDays: 1, DroneClockMode: StoredClockMode.Zone, DroneClockZone: "America/New_York", CopyJpgTwin: true,
-        Map: SettingsDefaults.Map() with { Base = "streets" }, Layout: SettingsDefaults.Layout(), RootsConfirmed: true);
+        Map: SettingsDefaults.Map() with { Base = "streets" }, Layout: SettingsDefaults.Layout(), RootsConfirmed: true,
+        LightroomFolder: Path.Join(s.Root, "lightroom"));
 
     /// <summary>The ShellDeps factories (registry, Part 11 item 9) and the state they share: the open card reader and its thumbnails.</summary>
     private sealed class Wiring
@@ -72,7 +73,7 @@ public static class CompositionRoot
                 review => Audit(review, null),
                 CardPresent,
                 VolumeRefusal,
-                p.Settings.Save) { Log = _log });
+                p.Settings.Save) { Log = _log, CreatePhotoCleanup = CreatePhotoCleanup, FolderExists = FolderFacts.Exists });
             Shell.Faulted += e => p.Log.Error("scan failed", e);      // already shown on the Card stage (Ref §12 log, keep running)
         }
 
@@ -158,6 +159,28 @@ public static class CompositionRoot
                 _p.Reports.Save,
                 _p.Eject);
             return new CleanupVm(engine, _dialogs, _ui, _p.Clock);
+        }
+
+        /// <summary>Picture Offload cleanup (spec 2026-10-04): the canonical photo root (so plan paths match the recycler's guard) and the
+        /// canonical Lightroom folder (so the index lists, reads and is guarded in one form — a junction, subst or mapped drive would
+        /// otherwise make every Lightroom read "outside the Lightroom folder"), the guarded reader and its thumbnails, the drone clock the
+        /// scan uses, and the executor's environment.</summary>
+        private PhotoCleanupVm CreatePhotoCleanup(Settings settings)
+        {
+            var s = settings with { LightroomFolder = settings.LightroomFolder is { } lr ? _p.PathFacts.Canonical(lr) : null };
+            var root = _p.PathFacts.Canonical(s.PhotoRoot);
+            var reader = _p.PhotoReaderFor(s);
+            var thumbnails = new PhotoRootThumbnails(reader);
+            Thumbnails.PhotoRoot = thumbnails;
+            var ledger = _p.LedgerFor(s.VideoRoot);
+            var clock = PhotoCaptureClock.For(s, new GeoTimeZoneResolver(), TimeZoneInfo.Local);      // as the Planner's scan resolves stills
+            var env = new PhotoCleanupEnvironment(_p.PhotoRecyclers, _p.Lister, ledger, _p.OffloadLock, _p.Power, _p.Clock, _p.Machine);
+            var engine = PhotoCleanupEngines.Create(new PhotoCleanupPorts(s, root, _p.Lister, reader, ledger, clock, env, FolderFacts.Exists,
+                                                                          _p.Reports, _p.Shell)
+            {
+                Thumbnails = thumbnails,
+            });
+            return new PhotoCleanupVm(engine, _dialogs, _ui, _p.Clock);
         }
 
         /// <summary>Ref §10.6 Preparation steps 1–4: identity, re-list + CardAudit, fresh listings + ledger, Space().</summary>

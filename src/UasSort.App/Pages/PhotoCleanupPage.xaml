@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- src/UasSort.App/Pages/PhotoCleanupPage.xaml — spec 2026-10-04 §2 (Choose → Review → Confirm → Running → Result); x:Bind only -->
+<Page
+    x:Class="UasSort.App.Pages.PhotoCleanupPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ctl="using:UasSort.App.Controls"
+    xmlns:ui="using:UasSort.App.Services"
+    xmlns:rv="using:UasSort.Review">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ScrollViewer>
+            <StackPanel MaxWidth="1000" Padding="24" Spacing="10">
+                <TextBlock Text="Clean up Picture Offload" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="{x:Bind Vm.PhotoRootText, Mode=OneWay}" Style="{StaticResource CaptionText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ui:UiFormat.Visible(Vm.IsBusy), Mode=OneWay}">
+                    <ProgressRing IsActive="{x:Bind Vm.IsBusy, Mode=OneWay}" Width="16" Height="16" />
+                    <TextBlock Text="{x:Bind Vm.BusyText, Mode=OneWay}" VerticalAlignment="Center" />
+                </StackPanel>
+                <InfoBar IsOpen="True" IsClosable="False" Severity="Error" Message="{x:Bind Vm.BlockingText, Mode=OneWay}"
+                         Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.BlockingText), Mode=OneWay}">
+                    <InfoBar.ActionButton>
+                        <Button Content="Keep on this device" Command="{x:Bind Vm.KeepOnDeviceCommand}"
+                                Visibility="{x:Bind ui:UiFormat.Visible(Vm.CanKeepOnDevice), Mode=OneWay}" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
+                <!-- ── Choose ── -->
+                <StackPanel x:Name="ChoosePanel" Spacing="10">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Move photos shot on or before this day (local time where they were shot) from Picture Offload to the Recycle Bin. Only Picture Offload is touched; your Lightroom library is only read." />
+                    <!-- PhotoCleanupVm.PickDate: the picker's own calendar day becomes the cutoff -->
+                    <CalendarDatePicker x:Name="CutoffPicker" x:FieldModifier="internal" Date="{x:Bind Vm.PickedDate, Mode=OneWay}"
+                                        DateChanged="OnDateChanged" PlaceholderText="Pick a day" />
+                    <ToggleSwitch x:Name="VerifySwitch" x:FieldModifier="internal" Header="Verify against Lightroom"
+                                  IsOn="{x:Bind Vm.Verify, Mode=TwoWay}" IsEnabled="{x:Bind Vm.VerifyEnabled, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind Vm.VerifyUnavailableText, Mode=OneWay}" Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.VerifyUnavailableText), Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- ── Review ── -->
+                <StackPanel x:Name="ReviewPanel" Spacing="6" Visibility="Collapsed">
+                    <TextBlock Text="{x:Bind Vm.ModeText, Mode=OneWay}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Vm.TotalsText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                        <Button Content="Delete all" Command="{x:Bind Vm.DeleteAllCommand}" />
+                        <Button Content="Keep all" Command="{x:Bind Vm.KeepAllCommand}" />
+                    </StackPanel>
+                    <ItemsView x:Name="RowList" x:FieldModifier="internal" SelectionMode="None" MaxHeight="560">
+                        <ItemsView.ItemTemplate>
+                            <DataTemplate x:DataType="rv:PhotoCleanupRowVm">
+                                <!-- ItemsView leaves DataContext unset for an x:Bind template; OnDecisionClick reads the row from it -->
+                                <ItemContainer DataContext="{x:Bind}">
+                                    <StackPanel>
+                                        <TextBlock Text="{x:Bind DayHeader, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="4,10,0,2"
+                                                   Visibility="{x:Bind ui:UiFormat.VisibleIfText(DayHeader), Mode=OneWay}" />
+                                        <Grid ColumnSpacing="10" Padding="4,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="104" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="96" Height="64" CornerRadius="3" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                                <Image ctl:Thumb.Key="{x:Bind ThumbKey}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind DetailText, Mode=OneWay}" Style="{StaticResource CaptionText}" />
+                                                <TextBlock Text="{x:Bind StatusText, Mode=OneWay}" Style="{StaticResource CaptionText}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                <ToggleButton Content="Keep" Tag="Keep" IsChecked="{x:Bind ui:UiFormat.IsKeep(Decision), Mode=OneWay}"
+                                                              Command="{x:Bind KeepCommand}" Click="OnDecisionClick" />
+                                                <ToggleButton Content="Delete" Tag="Delete" IsChecked="{x:Bind ui:UiFormat.IsDelete(Decision), Mode=OneWay}"
+                                                              Command="{x:Bind DeleteCommand}" Click="OnDecisionClick" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </ItemContainer>
+                            </DataTemplate>
+                        </ItemsView.ItemTemplate>
+                    </ItemsView>
+                    <TextBlock Text="{x:Bind Vm.NotEligibleText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.NotEligibleText), Mode=OneWay}" />
+                    <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(Vm.NotEligibleLines), Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String"><TextBlock Text="{x:Bind}" Style="{StaticResource CaptionText}" TextWrapping="Wrap" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{x:Bind Vm.NotTouchedText, Mode=OneWay}" Style="{StaticResource CaptionText}"
+                               Visibility="{x:Bind ui:UiFormat.VisibleIfText(Vm.NotTouchedText), Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- ── Confirm ── -->
+                <StackPanel x:Name="ConfirmPanel" Spacing="8" Visibility="Collapsed">
+                    <TextBlock Text="{x:Bind Vm.TotalsText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind Vm.ModeText, Mode=OneWay}" TextWrapping="Wrap" />
+                    <CheckBox IsChecked="{x:Bind Vm.AckMove, Mode=TwoWay}">
+                        <TextBlock Text="{x:Bind Vm.AckMoveText, Mode=OneWay}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox IsChecked="{x:Bind Vm.AckUnverified, Mode=TwoWay}" Visibility="{x:Bind ui:UiFormat.Visible(Vm.ShowUnverifiedAck), Mode=OneWay}">
+                        <TextBlock Text="{x:Bind Vm.UnverifiedAckText, Mode=OneWay}" TextWrapping="Wrap" />
+                    </CheckBox>
+                </StackPanel>
+
+                <!-- ── Running ── -->
+                <StackPanel x:Name="RunningPanel" Spacing="10" Visibility="Collapsed">
+                    <TextBlock Text="Moving to the Recycle Bin" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <ProgressBar IsIndeterminate="True" />
+                    <TextBlock Text="{x:Bind Vm.ProgressText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <!-- ── Result ── -->
+                <StackPanel x:Name="ResultPanel" Spacing="10" Visibility="Collapsed">
+                    <TextBlock Text="{x:Bind Vm.Result.HeadlineText, Mode=OneWay, FallbackValue=''}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Vm.Result.CountsText, Mode=OneWay, FallbackValue=''}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Vm.Result.StopText, Mode=OneWay, FallbackValue=''}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                    <TextBlock Text="{x:Bind Vm.Result.LedgerWarning, Mode=OneWay, FallbackValue=''}" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{x:Bind ui:UiFormat.Items(Vm.Result.Problems), Mode=OneWay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String"><TextBlock Text="{x:Bind}" TextWrapping="Wrap" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Message="{x:Bind Vm.Result.RecycleBinText, Mode=OneWay, FallbackValue=''}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Vm.Result.ReportPath, Mode=OneWay, FallbackValue=''}" Style="{StaticResource CaptionText}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="640" />
+                        <Button Content="Open report" Command="{x:Bind Vm.Result.OpenReportCommand, Mode=OneWay}" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind Vm.Result.ReportProblem, Mode=OneWay, FallbackValue=''}" TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Padding="24,12"
+                    BorderThickness="0,1,0,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Button x:Name="BackButton" Content="Back" Command="{x:Bind Vm.BackCommand}" />
+            <Button x:Name="NextButton" x:FieldModifier="internal" Content="Next" Style="{StaticResource AccentButtonStyle}"
+                    Command="{x:Bind Vm.NextCommand}" IsEnabled="{x:Bind Vm.CanNext, Mode=OneWay}" />
+            <Button x:Name="RunButton" x:FieldModifier="internal" Content="{x:Bind Vm.RunButtonText, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
+                    Command="{x:Bind Vm.RunCommand}" IsEnabled="{x:Bind Vm.CanRun, Mode=OneWay}" Visibility="Collapsed" />
+            <Button x:Name="StopButton" Content="Stop after the current item" Command="{x:Bind Vm.CancelCommand}" Visibility="Collapsed" />
+            <Button x:Name="DoneButton" x:FieldModifier="internal" Content="Done" Style="{StaticResource AccentButtonStyle}"
+                    Command="{x:Bind Vm.DoneCommand}" Visibility="Collapsed" />
+        </StackPanel>
+    </Grid>
+</Page>
