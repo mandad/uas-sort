@@ -120,9 +120,14 @@ public static class PhotoCleanupVerifier
         if (frames.Count == 0) return (null, "no stitched panorama can be looked for (the frames' capture times couldn't be read)");
         var first = frames.Min(s => s.Second);
         var last = frames.Max(s => s.Second);
-        var near = ctx.FlatPhotos
-            .Where(f => f.Members.Length == 1 && PhotoCleanupRules.IsJpg(f.Primary.Name))
-            .Select(f => f.Primary)
+        var jpgOnly = ctx.FlatPhotos.Where(f => f.Members.Length == 1 && PhotoCleanupRules.IsJpg(f.Primary.Name)).Select(f => f.Primary).ToList();
+        // Branch-2 ruling: a JPG without a stamp (cloud-only, unreadable, no DateTimeOriginal) dated within the frames' local dates ± 1 day,
+        // or with no date, may be this set's real stitched image: then another panorama's stitch must never verify the set.
+        var days = set.Members.Select(m => m.LocalDate).OfType<DateOnly>().ToList();
+        if (jpgOnly.Exists(p => p.Stamp is null
+                                && (p.LocalDate is not { } d || days.Count == 0 || (d >= days.Min().AddDays(-1) && d <= days.Max().AddDays(1)))))
+            return (null, "a JPG next to the frames couldn't be read — can't tell which is the stitched panorama");
+        var near = jpgOnly
             .Where(p => p.Stamp is { } s && string.Equals(s.Model, frames[0].Model, StringComparison.OrdinalIgnoreCase)
                         && s.Second >= first && s.Second <= last + PanoramaStitchWindow)
             .ToList();

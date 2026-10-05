@@ -139,7 +139,54 @@ public sealed class PhotoCleanupVerifierTests
         Assert.False(Verify(set, [set, unknownSize], null, L("u.dng", St(second: 80))).Verified);
     }
 
-    private static readonly DateTime T0 = new(2026, 6, 1, 20, 10, 0, DateTimeKind.Utc);
+    private const string UnreadableJpgNextToFrames = "a JPG next to the frames couldn't be read — can't tell which is the stitched panorama";
+
+    private static PhotoItem Pano(string folder, params int[] seconds)
+        => new(folder, PhotoItemKind.Set, PhotoSetKind.Panorama, folder,
+               [.. seconds.Select((s, i) => Member($@"{folder}\PANO_{i + 1:0000}.DNG", D, stamp: St(s)))]);
+
+    /// <summary>A loose JPG-only still without a stamp: cloud-only (dated from the ledger) or with no date at all.</summary>
+    private static PhotoItem StamplessJpg(string name, DateOnly? date)
+        => new(name, PhotoItemKind.Photo, PhotoSetKind.Unknown, null,
+               [new PhotoMember(name, 9_000_000, Mtime, FakeFileSystem.CloudOnlyPlaceholder,
+                                date is { } d ? (d == D ? SUtc.AddSeconds(45) : d.ToDateTime(new TimeOnly(20, 10, 45), DateTimeKind.Utc)) : null,
+                                date, date is null ? CaptureSource.None : CaptureSource.Ledger, null,
+                                date is null ? PhotoCleanupRules.DateUnknownCloudOnly : null, null)]);
+
+    [Fact] // branch-2 ruling (deferred minor P.9 #1): two panoramas back to back, set A's stitched JPG cloud-only, set B's in Lightroom
+    public void Verify_APanoramaNextToAStitchedJpgThatCouldntBeRead_IsUnverified_NeverByAnotherPanoramasStitch()
+    {
+        var a = Pano("001_0087", 0, 40);                                                           // 12:10:00 – 12:10:40
+        var stitchedA = StamplessJpg("DJI_20260601121045_0010_D.JPG", D);                         // cloud-only: no stamp
+        var b = Pano("001_0088", 70, 110);                                                         // 12:11:10 – 12:11:50
+        var stitchedB = Jpg("DJI_20260601121155_0020_D.JPG", St(115), (8192, 4096));
+        PhotoItem[] all = [a, stitchedA, b, stitchedB];
+        var lightroom = L("pano-b.dng", St(115));
+        Assert.True(Verify(a, [a, b, stitchedB], null, lightroom).Verified);                       // the bug: B's stitch "verifies" A
+        Assert.Equal(new PhotoVerification(false, PhotoEvidence.PanoramaStitch, UnreadableJpgNextToFrames + "; 2 of 2 frames not confirmed: not found in Lightroom"),
+                     Verify(a, all, null, lightroom));
+        Assert.False(Verify(b, all, null, lightroom).Verified);                                     // conservative: B can't tell either
+    }
+
+    [Fact]
+    public void Verify_AStamplessJpg_BlocksThePanoramaWhenUndatedOrWithinADayOfTheFrames_NotOtherwise()
+    {
+        var set = Pano("001_0087", 0, 20);
+        var stitched = Jpg("DJI_20260601121120_0010_D.JPG", St(80), (8192, 4096));
+        var lightroom = L("pano.dng", St(80));
+        Assert.True(Verify(set, [set, stitched, StamplessJpg("X.JPG", D.AddDays(2))], null, lightroom).Verified);
+        Assert.True(Verify(set, [set, stitched, StamplessJpg("X.JPG", D.AddDays(-2))], null, lightroom).Verified);
+        Assert.StartsWith(UnreadableJpgNextToFrames, Verify(set, [set, stitched, StamplessJpg("X.JPG", D.AddDays(1))], null, lightroom).Text, StringComparison.Ordinal);
+        Assert.StartsWith(UnreadableJpgNextToFrames, Verify(set, [set, stitched, StamplessJpg("X.JPG", D.AddDays(-1))], null, lightroom).Text, StringComparison.Ordinal);
+        Assert.StartsWith(UnreadableJpgNextToFrames, Verify(set, [set, stitched, StamplessJpg("X.JPG", null)], null, lightroom).Text, StringComparison.Ordinal);
+        var pair = new PhotoItem("Y.DNG", PhotoItemKind.Photo, PhotoSetKind.Unknown, null,                     // a DNG+JPG pair is no stitch candidate
+            [Member("Y.DNG", D, attributes: FakeFileSystem.CloudOnlyPlaceholder, captureUtc: SUtc.AddSeconds(300)),
+             Member("Y.JPG", D, attributes: FakeFileSystem.CloudOnlyPlaceholder, captureUtc: SUtc.AddSeconds(300))]);
+        Assert.True(Verify(set, [set, stitched, pair], null, lightroom).Verified);
+        Assert.True(Verify(set, [set, stitched, StamplessJpg("Z.DNG", D)], null, lightroom).Verified);           // not a JPG
+    }
+
+    private static readonly DateTime T0 =new(2026, 6, 1, 20, 10, 0, DateTimeKind.Utc);
     private const string Serial = "1581F0001";
 
     private const string Run1 = "8f1c0001", Run2 = "8f1c0002";
